@@ -13,16 +13,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/manulengineer/manulheart/pkg/browser"
-	"github.com/manulengineer/manulheart/pkg/config"
-	"github.com/manulengineer/manulheart/pkg/core"
-	"github.com/manulengineer/manulheart/pkg/dom"
-	"github.com/manulengineer/manulheart/pkg/dsl"
-	"github.com/manulengineer/manulheart/pkg/explain"
-	"github.com/manulengineer/manulheart/pkg/heuristics"
-	"github.com/manulengineer/manulheart/pkg/pages"
-	"github.com/manulengineer/manulheart/pkg/scorer"
-	"github.com/manulengineer/manulheart/pkg/utils"
+	"github.com/alexbeatnik/ManulHeart/pkg/browser"
+	"github.com/alexbeatnik/ManulHeart/pkg/config"
+	"github.com/alexbeatnik/ManulHeart/pkg/core"
+	"github.com/alexbeatnik/ManulHeart/pkg/dom"
+	"github.com/alexbeatnik/ManulHeart/pkg/dsl"
+	"github.com/alexbeatnik/ManulHeart/pkg/explain"
+	"github.com/alexbeatnik/ManulHeart/pkg/heuristics"
+	"github.com/alexbeatnik/ManulHeart/pkg/pages"
+	"github.com/alexbeatnik/ManulHeart/pkg/scorer"
+	"github.com/alexbeatnik/ManulHeart/pkg/utils"
 )
 
 func min(a, b int) int {
@@ -80,6 +80,12 @@ type Runtime struct {
 	// SetOnStep. Intended for streaming consumers (e.g. the CLI's -jsonl
 	// mode) that need per-step progress before the full HuntResult.
 	onStep func(explain.ExecutionResult)
+
+	// activeHuntRes is the HuntResult of the in-flight RunHunt call. Loop
+	// (REPEAT/WHILE/FOR EACH) and IF bodies route through runCommands with
+	// this so their steps are recorded in the report and surfaced via
+	// onStep — not silently dropped. Nil outside RunHunt.
+	activeHuntRes *explain.HuntResult
 }
 
 type mockRule struct {
@@ -157,6 +163,10 @@ func (rt *Runtime) RunHunt(ctx context.Context, hunt *dsl.Hunt, rowVars ...map[s
 		Title:    hunt.Title,
 		Context:  hunt.Context,
 	}
+	// Expose the result so loop/IF bodies (executed inside executeCommand)
+	// can record their steps through runCommands. Cleared on return.
+	rt.activeHuntRes = result
+	defer func() { rt.activeHuntRes = nil }()
 
 	start := time.Now()
 	passed, failed := 0, 0
@@ -189,10 +199,21 @@ func (rt *Runtime) RunHunt(ctx context.Context, hunt *dsl.Hunt, rowVars ...map[s
 		}
 		result.TotalDuration = time.Since(start)
 		result.TotalDurationMS = result.TotalDuration.Milliseconds()
-		result.TotalSteps = passed + failed
-		result.Passed = passed
-		result.Failed = failed
-		result.Success = failed == 0
+		// Derive the summary from the recorded results so that steps nested
+		// inside loop/IF bodies (which runCommands appends but whose counters
+		// are not threaded back to the outer pass/fail tally) are included.
+		resPassed, resFailed := 0, 0
+		for _, r := range result.Results {
+			if r.Success {
+				resPassed++
+			} else {
+				resFailed++
+			}
+		}
+		result.TotalSteps = resPassed + resFailed
+		result.Passed = resPassed
+		result.Failed = resFailed
+		result.Success = resFailed == 0
 	}()
 
 	if firstErr != nil {
@@ -323,6 +344,21 @@ func (rt *Runtime) RunStep(ctx context.Context, rawStep string) (*StepResult, er
 		Success: execErr == nil,
 		Error:   stepResult.Error,
 	}, execErr
+}
+
+// RunCommand executes a single already-parsed DSL command and returns the
+// full structured ExecutionResult — including the targeting decision chain
+// (ranked candidates, winner score) and any extracted ActionValue.
+//
+// Unlike RunStep, which collapses the result into a thin pass/fail record,
+// RunCommand preserves everything callers need to build their own compact
+// views. It is the primitive that pkg/agent is built on. The command runs
+// on the runtime's own goroutine and obeys the single-goroutine contract.
+func (rt *Runtime) RunCommand(ctx context.Context, cmd dsl.Command) (explain.ExecutionResult, error) {
+	if err := ctx.Err(); err != nil {
+		return explain.ExecutionResult{}, err
+	}
+	return rt.executeCommand(ctx, cmd)
 }
 
 func (rt *Runtime) resolveAnchor(ctx context.Context, label string, elements []dom.ElementSnapshot) (*scorer.AnchorContext, error) {
@@ -596,6 +632,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 
 		if len(ranked) == 0 {
 			err = fmt.Errorf("target not found: %q", targetPath)
+			res.FailureReason = explain.ReasonNotFound
 			break
 		}
 
@@ -606,6 +643,10 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 				runnerUp = ranked[1].Explain.Score.Total
 			}
 			err = fmt.Errorf("target resolution too ambiguous (confidence %.3f, runner-up %.3f)", best.Explain.Score.Total, runnerUp)
+			res.FailureReason = explain.ReasonAmbiguous
+			// Attach the top candidates so callers can surface "you almost
+			// matched X (0.18)" without a follow-up scan.
+			appendRankedCandidates(&res, ranked, 5)
 			break
 		}
 		appendRankedCandidates(&res, ranked, 5)
@@ -1109,7 +1150,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 			}
 		}
 		if err == nil && len(bodyToRun) > 0 {
-			_, _, err = rt.runCommands(ctx, bodyToRun, nil, 0)
+			_, _, err = rt.runCommands(ctx, bodyToRun, rt.activeHuntRes, 0)
 		}
 
 	case dsl.CmdRepeat:
@@ -1118,7 +1159,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 			if cmd.RepeatVar != "" {
 				rt.vars.Set(cmd.RepeatVar, fmt.Sprintf("%d", i), LevelRow)
 			}
-			_, _, err = rt.runCommands(ctx, cmd.Body, nil, 0)
+			_, _, err = rt.runCommands(ctx, cmd.Body, rt.activeHuntRes, 0)
 			if err != nil {
 				break
 			}
@@ -1135,7 +1176,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 			if !matched {
 				break
 			}
-			_, _, err = rt.runCommands(ctx, cmd.Body, nil, 0)
+			_, _, err = rt.runCommands(ctx, cmd.Body, rt.activeHuntRes, 0)
 			if err != nil {
 				break
 			}
@@ -1154,7 +1195,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 				continue
 			}
 			rt.vars.Set(cmd.ForEachVar, val, LevelRow)
-			_, _, err = rt.runCommands(ctx, cmd.Body, nil, 0)
+			_, _, err = rt.runCommands(ctx, cmd.Body, rt.activeHuntRes, 0)
 			if err != nil {
 				break
 			}
@@ -1166,10 +1207,42 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 
 	if err != nil {
 		res.Error = err.Error()
+		// Classify the failure for machine-readable consumption. Sites that
+		// know the precise cause (target not found / ambiguous) set
+		// res.FailureReason directly above; only fill in the rest here.
+		if res.FailureReason == explain.ReasonNone {
+			res.FailureReason = classifyFailure(ctx, cmd, err)
+		}
 	} else {
 		res.Success = true
 	}
 	return res, err
+}
+
+// classifyFailure derives a machine-readable FailureReason from a failed
+// command's error and context, for callers that branch on failure kind
+// without parsing error strings. Used only as a fallback — the targeting
+// pipeline sets the precise not_found/ambiguous reasons at their source.
+func classifyFailure(ctx context.Context, cmd dsl.Command, err error) explain.FailureReason {
+	if ctx.Err() != nil {
+		return explain.ReasonTimeout
+	}
+	msg := err.Error()
+	switch {
+	case strings.Contains(msg, "too ambiguous"):
+		return explain.ReasonAmbiguous
+	case strings.Contains(msg, "not found"):
+		return explain.ReasonNotFound
+	case strings.Contains(msg, "verification failed"):
+		return explain.ReasonVerifyFailed
+	case strings.Contains(msg, "context deadline") || strings.Contains(msg, "timeout"):
+		return explain.ReasonTimeout
+	}
+	// Commands that resolved a target but failed during the action itself.
+	if cmd.Type == dsl.CmdVerify || cmd.Type == dsl.CmdVerifyField {
+		return explain.ReasonVerifyFailed
+	}
+	return explain.ReasonActionFailed
 }
 
 func (rt *Runtime) evaluateCondition(ctx context.Context, cond string) (bool, error) {
@@ -1238,19 +1311,19 @@ func (rt *Runtime) evaluateCondition(ctx context.Context, cond string) (bool, er
 		// Resolve variables first
 		resolved := rt.resolveVariables(cond)
 		if strings.Contains(resolved, " == ") {
-			parts := strings.Split(resolved, " == ")
+			parts := strings.SplitN(resolved, " == ", 2)
 			v1 := strings.TrimSpace(parts[0])
 			v2 := strings.Trim(strings.TrimSpace(parts[1]), "'\"")
 			return v1 == v2, nil
 		}
 		if strings.Contains(resolved, " != ") {
-			parts := strings.Split(resolved, " != ")
+			parts := strings.SplitN(resolved, " != ", 2)
 			v1 := strings.TrimSpace(parts[0])
 			v2 := strings.Trim(strings.TrimSpace(parts[1]), "'\"")
 			return v1 != v2, nil
 		}
 		if strings.Contains(resolved, " contains ") {
-			parts := strings.Split(resolved, " contains ")
+			parts := strings.SplitN(resolved, " contains ", 2)
 			v1 := strings.TrimSpace(parts[0])
 			v2 := strings.Trim(strings.TrimSpace(parts[1]), "'\"")
 			return strings.Contains(v1, v2), nil
