@@ -45,8 +45,13 @@ type Options struct {
 	// Headless runs Chrome without a visible window. Default: false.
 	Headless bool
 	// Port is the CDP debug port for a Launch-managed Chrome. 0 → 9222.
-	// Ignored by Attach.
+	// Ignored by Attach. Connect uses it to both probe for an existing Chrome
+	// and, failing that, to Launch one.
 	Port int
+	// CDPURL is an explicit CDP HTTP endpoint (e.g. "http://127.0.0.1:9222").
+	// Used by Connect: when set it takes precedence over Port for the
+	// attach probe. Ignored by Launch.
+	CDPURL string
 	// ExecutablePath overrides the Chrome binary location (Launch only).
 	ExecutablePath string
 	// UserDataDir overrides the Chrome profile directory (Launch only).
@@ -63,11 +68,12 @@ type Options struct {
 // Create one with Launch (ManulHeart spawns Chrome) or Attach (connect to an
 // already-running Chrome). Always Close it.
 type Session struct {
-	mu      sync.Mutex
-	rt      *runtime.Runtime
-	page    browser.Page
-	chrome  *browser.ChromeProcess // non-nil only when we launched Chrome
-	closed  bool
+	mu       sync.Mutex
+	rt       *runtime.Runtime
+	page     browser.Page
+	chrome   *browser.ChromeProcess // non-nil only when we launched Chrome
+	endpoint string                 // CDP HTTP endpoint, for opening background tabs
+	closed   bool
 }
 
 // Launch spawns a Chrome process owned by ManulHeart, attaches to its first
@@ -97,7 +103,7 @@ func Launch(ctx context.Context, opts Options) (*Session, error) {
 		return nil, fmt.Errorf("agent: attach to launched chrome: %w", err)
 	}
 
-	return newSession(opts, page, cp), nil
+	return newSession(opts, page, cp, cp.Endpoint()), nil
 }
 
 // Attach connects to an already-running Chrome at the given CDP HTTP endpoint
@@ -112,10 +118,10 @@ func Attach(ctx context.Context, cdpURL, urlSubstr string, opts Options) (*Sessi
 	if err != nil {
 		return nil, fmt.Errorf("agent: attach: %w", err)
 	}
-	return newSession(opts, page, nil), nil
+	return newSession(opts, page, nil, cdpURL), nil
 }
 
-func newSession(opts Options, page browser.Page, cp *browser.ChromeProcess) *Session {
+func newSession(opts Options, page browser.Page, cp *browser.ChromeProcess, endpoint string) *Session {
 	cfg := config.Default()
 	if opts.Config != nil {
 		cfg = *opts.Config
@@ -128,9 +134,10 @@ func newSession(opts Options, page browser.Page, cp *browser.ChromeProcess) *Ses
 		logger = utils.NewLoggerTo(io.Discard, nil)
 	}
 	return &Session{
-		rt:     runtime.New(cfg, page, logger),
-		page:   page,
-		chrome: cp,
+		rt:       runtime.New(cfg, page, logger),
+		page:     page,
+		chrome:   cp,
+		endpoint: endpoint,
 	}
 }
 
