@@ -1,4 +1,4 @@
-// ManulHeart driver — CLI entry point.
+// ManulEngine (Go) driver — CLI entry point.
 //
 // Usage:
 //
@@ -33,26 +33,28 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/alexbeatnik/ManulHeart/pkg/agent"
-	"github.com/alexbeatnik/ManulHeart/pkg/browser"
-	"github.com/alexbeatnik/ManulHeart/pkg/config"
-	"github.com/alexbeatnik/ManulHeart/pkg/daemon"
-	"github.com/alexbeatnik/ManulHeart/pkg/data"
-	"github.com/alexbeatnik/ManulHeart/pkg/dsl"
-	"github.com/alexbeatnik/ManulHeart/pkg/explain"
-	"github.com/alexbeatnik/ManulHeart/pkg/pages"
-	"github.com/alexbeatnik/ManulHeart/pkg/record"
-	"github.com/alexbeatnik/ManulHeart/pkg/report"
-	"github.com/alexbeatnik/ManulHeart/pkg/runtime"
-	"github.com/alexbeatnik/ManulHeart/pkg/scan"
-	"github.com/alexbeatnik/ManulHeart/pkg/utils"
-	"github.com/alexbeatnik/ManulHeart/pkg/worker"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/agent"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/browser"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/config"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/daemon"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/data"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/dsl"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/explain"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/pages"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/record"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/report"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/runtime"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/scan"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/utils"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/worker"
 )
 
-// version is the single source of truth for the engine version. It tracks the
-// git module tag (semver vX.Y.Z) so `manul --version`, the README, and
-// `go get ...@<tag>` all agree. Bump this together with the tag.
-const version = "v0.0.10"
+// version is the single source of truth for the engine version. Reported by
+// `manul --version` and emitted in the agent schema, so it is kept WITHOUT a
+// `v` prefix to match the contracts (contracts/*.md `"version": "0.1.0"`). The
+// git module tag adds the prefix Go requires (`go get ...@v0.1.0`). Bump this
+// together with the tag.
+const version = "0.1.0"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -170,12 +172,13 @@ func cmdRun(args []string) error {
 	debug := fs.Bool("debug", false, "enable debug mode (pause on each step)")
 	explainMode := fs.Bool("explain", false, "enable explain mode (show targeting candidates)")
 	screenshot := fs.String("screenshot", "on-fail", "screenshot mode: none, on-fail, always")
-	htmlReport := fs.Bool("html-report", true, "generate HTML report after run")
+	htmlReport := fs.Bool("html-report", false, "generate HTML report after run (default off; opt-in)")
 	executablePath := fs.String("executable-path", "", "absolute path to a custom browser or Electron app executable")
+	channel := fs.String("channel", "", "system Chrome/Chromium channel to launch (chrome, chrome-beta, chromium, msedge)")
 	tags := fs.String("tags", "", "comma-separated tags to filter hunt files")
 	retries := fs.Int("retries", 0, "number of retries for failed steps")
 	disableCache := fs.Bool("disable-cache", false, "disable DOM snapshot caching")
-	_ = fs.Int("workers", 1, "number of parallel workers (placeholder for compatibility)")
+	workers := fs.Int("workers", 1, "number of parallel hunt workers (pool mode for multi-file/dir runs)")
 	_ = fs.String("browser", "chromium", "browser type (default: chromium)")
 	breakLinesStr := fs.String("break-lines", "", "comma-separated line numbers to pause on (debugging)")
 	showVersion := fs.Bool("version", false, "show engine version and exit")
@@ -261,9 +264,31 @@ func cmdRun(args []string) error {
 	if *screenshot != "none" {
 		cfg.Screenshot = *screenshot
 	}
-	cfg.HTMLReport = *htmlReport
+	// Only let --html-report override config/env when the user passed it
+	// explicitly; otherwise honour JSON/MANUL_HTML_REPORT (default off, opt-in,
+	// matching ManulEngine and the daemon subcommand). The flag default `true`
+	// previously clobbered config silently.
+	htmlReportSet := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "html-report" {
+			htmlReportSet = true
+		}
+	})
+	if htmlReportSet {
+		cfg.HTMLReport = *htmlReport
+	}
 	cfg.Retries = *retries
 	cfg.DisableCache = *disableCache
+	// CLI --channel wins over JSON/env (MANUL_CHANNEL).
+	if *channel != "" {
+		c := *channel
+		cfg.Channel = &c
+	}
+	// CLI --workers wins over JSON/env (MANUL_WORKERS). Default 1 = sequential;
+	// >1 routes multi-file/dir runs through runParallel + pkg/worker.WorkerPool.
+	if *workers != 1 {
+		cfg.Workers = *workers
+	}
 	if *tags != "" {
 		cfg.Tags = strings.Split(*tags, ",")
 		for i := range cfg.Tags {
@@ -436,6 +461,9 @@ func runSequential(ctx context.Context, cfg config.Config, hunts []*dsl.Hunt, op
 		if executablePath != "" {
 			opts.ExecutablePath = executablePath
 		}
+		if cfg.Channel != nil && *cfg.Channel != "" {
+			opts.Channel = *cfg.Channel
+		}
 		logger.Info("Launching Chrome (port %d, profile %s)…", opts.Port, opts.UserDataDir)
 		var err error
 		chrome, err = browser.LaunchChrome(ctx, opts)
@@ -472,7 +500,7 @@ func runSequential(ctx context.Context, cfg config.Config, hunts []*dsl.Hunt, op
 				strings.Repeat("=", 60), filename, strings.Repeat("=", 60))
 		}
 
-		logger.Info("ManulHeart — %s", hunt.SourcePath)
+		logger.Info("ManulEngine (Go) — %s", hunt.SourcePath)
 		if hunt.Title != "" {
 			logger.Info("Title: %s", hunt.Title)
 		}
@@ -657,30 +685,56 @@ func collectHuntFiles(target string) ([]string, error) {
 
 // ── run-step subcommand ───────────────────────────────────────────────────────
 
+// parseInterleaved parses a flag set over args where flags may appear before
+// or after positional arguments (Go's flag package stops at the first
+// non-flag; ManulEngine (Python) accepts both orders, so the CLIs must too).
+// Mirrors cmdRun's re-parse loop; returns the positionals in order.
+func parseInterleaved(fs *flag.FlagSet, args []string) ([]string, error) {
+	var positionals []string
+	remaining := args
+	for len(remaining) > 0 {
+		if err := fs.Parse(remaining); err != nil {
+			return nil, err
+		}
+		if fs.NArg() > 0 {
+			positionals = append(positionals, fs.Arg(0))
+			remaining = fs.Args()[1:]
+		} else {
+			remaining = nil
+		}
+	}
+	return positionals, nil
+}
+
 func cmdRunStep(args []string) error {
 	fs := flag.NewFlagSet("run-step", flag.ExitOnError)
 	cdpEndpoint := fs.String("cdp", "http://127.0.0.1:9222", "CDP endpoint URL")
 	verbose := fs.Bool("verbose", false, "enable verbose logging")
-	jsonOut := fs.Bool("json", false, "print JSON result to stdout")
-	compact := fs.Bool("compact", false, "emit the compact agent StepOutcome (reason + top candidates, no scorer breakdown) as JSON")
+	jsonOut := fs.Bool("json", false, "print the full ExecutionResult as JSON instead of the compact StepOutcome")
+	_ = fs.Bool("compact", false, "emit the compact agent StepOutcome (default; flag accepted for symmetry)")
 
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "usage: driver run-step '<command>' [flags]\n\nFlags:\n")
 		fs.PrintDefaults()
 	}
-	if err := fs.Parse(args); err != nil {
+	positionals, err := parseInterleaved(fs, args)
+	if err != nil {
 		return err
 	}
 
-	step := fs.Arg(0)
+	var step string
+	if len(positionals) > 0 {
+		step = positionals[0]
+	}
 	if step == "" {
 		fs.Usage()
 		return fmt.Errorf("DSL command is required")
 	}
 
-	// --compact routes through pkg/agent so the CLI and embedded consumers
-	// share one code path and one result shape.
-	if *compact {
+	// Default output is the compact agent StepOutcome via pkg/agent, matching
+	// ManulEngine (Python) and the agent contract; --json opts into the full
+	// ExecutionResult below.
+	if !*jsonOut {
 		return runStepCompact(*cdpEndpoint, step)
 	}
 
@@ -692,13 +746,8 @@ func cmdRunStep(args []string) error {
 	if *verbose {
 		logLevel = utils.LogLevelDebug
 	}
-	// In -json mode, keep stdout clean for the payload.
-	var logger *utils.Logger
-	if *jsonOut {
-		logger = utils.NewLoggerTo(os.Stderr, nil).WithLevel(logLevel)
-	} else {
-		logger = utils.NewLogger(nil).WithLevel(logLevel)
-	}
+	// Keep stdout clean for the JSON payload; logs go to stderr.
+	logger := utils.NewLoggerTo(os.Stderr, nil).WithLevel(logLevel)
 
 	ctx := context.Background()
 
@@ -715,19 +764,10 @@ func cmdRunStep(args []string) error {
 		return err
 	}
 
-	if *jsonOut {
-		enc := json.NewEncoder(os.Stdout)
-		enc.SetIndent("", "  ")
-		enc.Encode(result)
-		os.Stdout.Sync()
-	} else {
-		if result.Success {
-			logger.Info("✓ %s", step)
-		} else {
-			logger.Error("✗ %s → %s", step, result.Error)
-			return fmt.Errorf("step failed: %s", result.Error)
-		}
-	}
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	enc.Encode(result)
+	os.Stdout.Sync()
 
 	return nil
 }
@@ -768,18 +808,22 @@ func cmdRead(args []string) error {
 	selector := fs.String("selector", "", "CSS selector for region text (uses ReadText instead of targeted Read)")
 	urlSubstr := fs.String("tab", "", "attach to the page whose URL contains this substring")
 	maxChars := fs.Int("max-chars", 0, "truncate --selector region text to this many characters (0 = no limit)")
-	jsonOut := fs.Bool("json", false, "print JSON result to stdout")
+	_ = fs.Bool("json", false, "emit JSON (default; flag accepted for symmetry)")
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "usage: manul read '<target>' [flags]\n\n"+
 			"  Reads one value off an already-open page (no full scan).\n"+
 			"  With --selector, returns the sanitized text of that CSS region.\n\nFlags:\n")
 		fs.PrintDefaults()
 	}
-	if err := fs.Parse(args); err != nil {
+	positionals, err := parseInterleaved(fs, args)
+	if err != nil {
 		return err
 	}
 
-	target := fs.Arg(0)
+	var target string
+	if len(positionals) > 0 {
+		target = positionals[0]
+	}
 	if target == "" && *selector == "" {
 		fs.Usage()
 		return fmt.Errorf("a target label or --selector is required")
@@ -792,32 +836,22 @@ func cmdRead(args []string) error {
 	}
 	defer sess.Close()
 
+	// Output is always JSON, matching ManulEngine (Python) and the agent
+	// contract — a driver pipes the payload without needing --json.
 	if *selector != "" {
 		text, terr := sess.ReadText(ctx, *selector)
 		if terr != nil {
 			return terr
 		}
 		text = agent.TruncateText(text, *maxChars)
-		if *jsonOut {
-			return emitJSON(map[string]any{"text": text, "selector": *selector})
-		}
-		fmt.Println(text)
-		return nil
+		return emitJSON(map[string]any{"text": text, "selector": *selector})
 	}
 
 	v, rerr := sess.Read(ctx, target)
 	if rerr != nil {
 		return rerr
 	}
-	if *jsonOut {
-		return emitJSON(map[string]any{"value": v.Text, "found": v.Found, "reason": string(v.Reason)})
-	}
-	if !v.Found {
-		// Distinguish "nothing there" from an error: empty stdout, exit 0.
-		return nil
-	}
-	fmt.Println(v.Text)
-	return nil
+	return emitJSON(map[string]any{"value": v.Text, "found": v.Found, "reason": string(v.Reason)})
 }
 
 // emitJSON writes v as indented JSON to stdout, keeping the payload clean.
@@ -878,13 +912,17 @@ func cmdDaemon(args []string) error {
 	fs := flag.NewFlagSet("daemon", flag.ExitOnError)
 	headless := fs.Bool("headless", false, "run browser in headless mode")
 	verbose := fs.Bool("verbose", false, "enable verbose logging")
-	browserType := fs.String("browser", "chromium", "browser engine (chromium, firefox, webkit)")
+	browserType := fs.String("browser", "chromium", "browser engine (chromium; CDP-only — attach to other browsers via --cdp/--executable-path)")
 	screenshot := fs.String("screenshot", "on-fail", "screenshot mode: none, on-fail, always")
 	htmlReport := fs.Bool("html-report", false, "generate HTML report after each run")
-	if err := fs.Parse(args); err != nil {
-		return err
+	positionals, perr := parseInterleaved(fs, args)
+	if perr != nil {
+		return perr
 	}
-	dir := fs.Arg(0)
+	var dir string
+	if len(positionals) > 0 {
+		dir = positionals[0]
+	}
 	if dir == "" {
 		fs.Usage()
 		return fmt.Errorf("directory path is required")
@@ -920,10 +958,14 @@ func cmdRecord(args []string) error {
 	fs := flag.NewFlagSet("record", flag.ExitOnError)
 	output := fs.String("output", "tests/recorded_mission.hunt", "output file path")
 	headless := fs.Bool("headless", false, "run browser in headless mode")
-	if err := fs.Parse(args); err != nil {
+	positionals, err := parseInterleaved(fs, args)
+	if err != nil {
 		return err
 	}
-	url := fs.Arg(0)
+	var url string
+	if len(positionals) > 0 {
+		url = positionals[0]
+	}
 	if url == "" {
 		fs.Usage()
 		return fmt.Errorf("URL is required")
@@ -939,8 +981,9 @@ func cmdScan(args []string) error {
 	full := fs.Bool("full", false, "full-page scan: group elements by semantic region (form, nav, main, shadow…)")
 	cdpEndpoint := fs.String("cdp", "", "scan an already-loaded page via this CDP endpoint instead of launching Chrome (URL arg becomes optional)")
 	jsonOut := fs.Bool("json", false, "emit the grouped scan result as JSON on stdout instead of writing a .hunt draft")
-	if err := fs.Parse(args); err != nil {
-		return err
+	positionals, perr := parseInterleaved(fs, args)
+	if perr != nil {
+		return perr
 	}
 
 	ctx := context.Background()
@@ -974,7 +1017,10 @@ func cmdScan(args []string) error {
 		return nil
 	}
 
-	url := fs.Arg(0)
+	var url string
+	if len(positionals) > 0 {
+		url = positionals[0]
+	}
 	if url == "" {
 		fs.Usage()
 		return fmt.Errorf("URL is required (or pass --cdp to scan an already-open page)")
@@ -1087,6 +1133,7 @@ Core Flags:
   --html-report       Generate HTML report after the run (default: true)
   --explain           Show targeting candidates (explain mode)
   --executable-path   Absolute path to a custom browser or Electron app executable
+  --channel           System Chrome/Chromium channel to launch (chrome, chrome-beta, chromium, msedge)
 
 Daemon Flags:
   --headless          Run browser in headless mode

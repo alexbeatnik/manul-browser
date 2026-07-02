@@ -1,4 +1,4 @@
-// Package runtime implements the ManulHeart DSL execution engine.
+// Package runtime implements the ManulEngine (Go) DSL execution engine.
 package runtime
 
 import (
@@ -10,16 +10,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alexbeatnik/ManulHeart/pkg/browser"
-	"github.com/alexbeatnik/ManulHeart/pkg/config"
-	"github.com/alexbeatnik/ManulHeart/pkg/core"
-	"github.com/alexbeatnik/ManulHeart/pkg/dom"
-	"github.com/alexbeatnik/ManulHeart/pkg/dsl"
-	"github.com/alexbeatnik/ManulHeart/pkg/explain"
-	"github.com/alexbeatnik/ManulHeart/pkg/heuristics"
-	"github.com/alexbeatnik/ManulHeart/pkg/pages"
-	"github.com/alexbeatnik/ManulHeart/pkg/scorer"
-	"github.com/alexbeatnik/ManulHeart/pkg/utils"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/browser"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/config"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/core"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/dom"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/dsl"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/explain"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/heuristics"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/pages"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/scorer"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/utils"
 )
 
 func min(a, b int) int {
@@ -38,7 +38,7 @@ const (
 	ThresholdPass3Gap       = 0.04
 )
 
-// Runtime executes ManulHeart DSL hunts against a live browser page.
+// Runtime executes ManulEngine (Go) DSL hunts against a live browser page.
 //
 // CONCURRENCY CONTRACT: A Runtime instance is NOT safe for concurrent use.
 // Each goroutine executing hunts must own its own Runtime, Page, and
@@ -388,6 +388,30 @@ func (rt *Runtime) resolveStructuralAnchor(label string, elements []dom.ElementS
 }
 
 // executeCommand runs a single DSL command and returns its execution result.
+// screenshotSlug turns an optional SCREENSHOT label into a filesystem-safe base
+// name (no extension). Mirrors ManulEngine's extract_screenshot_name.
+func screenshotSlug(s string) string {
+	s = strings.TrimSpace(s)
+	s = strings.TrimSuffix(strings.TrimSuffix(s, ".png"), ".PNG")
+	var b strings.Builder
+	prevDisallowed := false
+	for _, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '.', r == '_', r == '-':
+			b.WriteRune(r)
+			prevDisallowed = false
+		default:
+			// Collapse a run of disallowed chars into a single '_' (mirrors
+			// ManulEngine's [^A-Za-z0-9._-]+ → '_' substitution).
+			if !prevDisallowed {
+				b.WriteRune('_')
+				prevDisallowed = true
+			}
+		}
+	}
+	return strings.Trim(b.String(), "_")
+}
+
 func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res explain.ExecutionResult, err error) {
 	start := time.Now()
 	res = explain.ExecutionResult{
@@ -429,6 +453,23 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 			}
 		}
 
+	case dsl.CmdOpenApp:
+		// The desktop/Electron window is already attached at launch (the page
+		// was selected via FirstPage/PageMatching). Treat OPEN APP as a
+		// readiness checkpoint on the current window: ensure it is loaded and
+		// report it. Mirrors ManulEngine's OPEN APP for the attach flow.
+		if err = rt.page.WaitForLoad(ctx); err != nil {
+			err = fmt.Errorf("open app: %w", err)
+			break
+		}
+		rt.invalidateSnapshot()
+		appURL, _ := rt.page.CurrentURL(ctx)
+		res.ActionValue = appURL
+		if appURL == "" {
+			appURL = "(no URL)"
+		}
+		rt.logger.ActionDetail("📦", "Attached to app window: %s", appURL)
+
 	case dsl.CmdWait:
 		err = rt.page.Wait(ctx, time.Duration(cmd.WaitSeconds*float64(time.Second)))
 
@@ -457,6 +498,30 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 		text := rt.resolveVariables(cmd.PrintText)
 		res.ActionValue = text
 		rt.logger.ActionDetail("📢", "PRINT: %s", text)
+
+	case dsl.CmdScreenshot:
+		// Capture a full-page PNG on demand into screenshots/<name>.png under
+		// the CWD (auto-named when no label). Matches ManulEngine's SCREENSHOT.
+		name := screenshotSlug(rt.resolveVariables(cmd.ScreenshotName))
+		if name == "" {
+			name = fmt.Sprintf("screenshot_%d", time.Now().UnixMilli())
+		}
+		var data []byte
+		if data, err = rt.page.Screenshot(ctx); err != nil {
+			err = fmt.Errorf("screenshot: %w", err)
+			break
+		}
+		if err = os.MkdirAll("screenshots", 0o755); err != nil {
+			err = fmt.Errorf("screenshot dir: %w", err)
+			break
+		}
+		outPath := filepath.Join("screenshots", name+".png")
+		if err = os.WriteFile(outPath, data, 0o644); err != nil {
+			err = fmt.Errorf("screenshot write: %w", err)
+			break
+		}
+		res.ActionValue = outPath
+		rt.logger.ActionDetail("📸", "SCREENSHOT: %s", outPath)
 
 	case dsl.CmdWaitForResponse:
 		pattern := rt.resolveVariables(cmd.WaitResponseURL)
@@ -1057,6 +1122,69 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 		}
 
 	case dsl.CmdVerifyField:
+		// Attribute form: VERIFY '<label>' has value|text|placeholder "<expected>"
+		// (parser sets Target/VerifyFieldKind/Value; the state form below uses
+		// VerifyText/VerifyState instead).
+		if cmd.VerifyFieldKind != "" {
+			res.TargetRequired = true
+			target := rt.resolveVariables(cmd.Target)
+			expected := rt.resolveVariables(cmd.Value)
+			res.TargetQuery = target
+			verifyDeadline := time.Now().Add(rt.cfg.DefaultTimeout)
+			if deadline, ok := ctx.Deadline(); ok && deadline.Before(verifyDeadline) {
+				verifyDeadline = deadline
+			}
+			var ranked []scorer.RankedCandidate
+			actual := ""
+			matched := false
+			for {
+				rt.invalidateSnapshot()
+				elements, errSnapshot := rt.loadSnapshot(ctx)
+				if errSnapshot != nil {
+					err = errSnapshot
+					break
+				}
+				res.CandidatesConsidered = len(elements)
+				ranked = scorer.Rank(target, cmd.TypeHint, string(dsl.ModeNone), elements, 5, nil)
+				if len(ranked) > 0 {
+					winner := ranked[0].Element
+					switch cmd.VerifyFieldKind {
+					case "value":
+						actual = winner.Value
+					case "placeholder":
+						actual = winner.Placeholder
+					default: // "text"
+						actual = strings.TrimSpace(winner.VisibleText)
+					}
+					if actual == expected {
+						matched = true
+						break
+					}
+				}
+				if time.Now().After(verifyDeadline) {
+					break
+				}
+				if waitErr := rt.page.Wait(ctx, 200*time.Millisecond); waitErr != nil {
+					err = waitErr
+					break
+				}
+			}
+			if len(ranked) > 0 {
+				appendRankedCandidates(&res, ranked, 1)
+				res.WinnerXPath = ranked[0].Element.XPath
+				res.WinnerScore = ranked[0].Explain.Score.Total
+				res.ActionValue = actual
+			}
+			if err == nil && !matched {
+				if len(ranked) == 0 {
+					err = fmt.Errorf("verification failed: target field '%s' not found", target)
+				} else {
+					err = fmt.Errorf("verification failed: '%s' has %s %q, expected %q", target, cmd.VerifyFieldKind, actual, expected)
+				}
+			}
+			break
+		}
+
 		// Full element resolution for state-specific verification.
 		res.TargetRequired = true
 		target := rt.resolveVariables(cmd.VerifyText)

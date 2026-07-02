@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/alexbeatnik/ManulHeart/pkg/browser"
-	"github.com/alexbeatnik/ManulHeart/pkg/config"
-	"github.com/alexbeatnik/ManulHeart/pkg/dsl"
-	"github.com/alexbeatnik/ManulHeart/pkg/explain"
-	"github.com/alexbeatnik/ManulHeart/pkg/utils"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/browser"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/config"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/dsl"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/explain"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/utils"
 )
 
 // WorkerFactory constructs a Worker given a context and Options. The default
@@ -189,6 +189,12 @@ func RunHuntsInParallel(ctx context.Context, cfg config.Config, hunts []*dsl.Hun
 	alloc := NewPortAllocator(9222, 9222+concurrency*2)
 	chromeOpts := browser.DefaultChromeOptions()
 	chromeOpts.Headless = cfg.Headless
+	if cfg.Channel != nil && *cfg.Channel != "" {
+		chromeOpts.Channel = *cfg.Channel
+	}
+	if cfg.ExecutablePath != nil && *cfg.ExecutablePath != "" {
+		chromeOpts.ExecutablePath = *cfg.ExecutablePath
+	}
 	pool, err := NewPool(PoolOptions{
 		Concurrency:   concurrency,
 		Config:        cfg,

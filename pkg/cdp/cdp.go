@@ -1,4 +1,4 @@
-// Package cdp provides a Chrome DevTools Protocol client for ManulHeart.
+// Package cdp provides a Chrome DevTools Protocol client for ManulEngine (Go).
 //
 // This package implements the low-level WebSocket messenger and the
 // command-level CDP calls (Navigate, Evaluate, Click, etc.) used by
@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alexbeatnik/ManulHeart/pkg/core"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/core"
 )
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -71,6 +71,37 @@ func Evaluate(ctx context.Context, c *Conn, expression string) (interface{}, err
 		Result struct {
 			Value interface{} `json:"value"`
 			Type  string      `json:"type"`
+		} `json:"result"`
+		ExceptionDetails interface{} `json:"exceptionDetails"`
+	}
+	if err := json.Unmarshal(res, &wrap); err != nil {
+		return nil, fmt.Errorf("unmarshal evaluate result: %w", err)
+	}
+	if wrap.ExceptionDetails != nil {
+		return nil, fmt.Errorf("js exception: %v", wrap.ExceptionDetails)
+	}
+	return wrap.Result.Value, nil
+}
+
+// EvaluateInContext runs JavaScript in a specific execution context (frame).
+// contextID == 0 falls back to the default/main context (plain Evaluate), so
+// callers can pass a frame's context id unconditionally.
+func EvaluateInContext(ctx context.Context, c *Conn, contextID int, expression string) (interface{}, error) {
+	if contextID == 0 {
+		return Evaluate(ctx, c, expression)
+	}
+	res, err := c.Call(ctx, "Runtime.evaluate", map[string]interface{}{
+		"expression":    expression,
+		"returnByValue": true,
+		"awaitPromise":  true,
+		"contextId":     contextID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	var wrap struct {
+		Result struct {
+			Value interface{} `json:"value"`
 		} `json:"result"`
 		ExceptionDetails interface{} `json:"exceptionDetails"`
 	}
@@ -765,7 +796,7 @@ func GetCurrentURL(ctx context.Context, c *Conn) (string, error) {
 	return "", fmt.Errorf("unexpected evaluation result for URL: %v", val)
 }
 
-// WaitForLoad is available but ManulHeart prefers JS-polling WaitForLoad
+// WaitForLoad is available but ManulEngine (Go) prefers JS-polling WaitForLoad
 // in cdp_backend.go to avoid race conditions on cached pages.
 func WaitForLoad(ctx context.Context, c *Conn) error {
 	return nil // Handled in cdp_backend.go

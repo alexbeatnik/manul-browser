@@ -1,4 +1,4 @@
-// Package dsl implements the ManulHeart .hunt DSL parser.
+// Package dsl implements the ManulEngine (Go) .hunt DSL parser.
 //
 // A .hunt file is a sequence of natural-language-style automation commands
 // with optional @header directives, STEP blocks, and control-flow constructs.
@@ -23,6 +23,7 @@ type CommandType string
 
 const (
 	CmdNavigate        CommandType = "NAVIGATE"
+	CmdOpenApp         CommandType = "OPEN_APP"
 	CmdClick           CommandType = "CLICK"
 	CmdDoubleClick     CommandType = "DOUBLE_CLICK"
 	CmdRightClick      CommandType = "RIGHT_CLICK"
@@ -189,6 +190,9 @@ type Command struct {
 
 	// PrintText is the text to print for PRINT commands.
 	PrintText string
+
+	// ScreenshotName is the optional file label for SCREENSHOT commands.
+	ScreenshotName string
 
 	// CallStepName is the step block name to call for CALL_STEP commands.
 	CallStepName string
@@ -668,6 +672,13 @@ func parseCommandLine(line string) Command {
 		raw := stripPrefix(line, "NAVIGATE TO ", "NAVIGATE ")
 		cmd.URL = unquote(raw)
 
+	// ── OPEN APP ──────────────────────────────────────────────────────────────
+	// Desktop/Electron entry point. ManulEngine launches+attaches; in ManulEngine (Go)
+	// the app window is already attached at launch (--executable-path / --cdp),
+	// so OPEN APP is a readiness checkpoint on the current window.
+	case upper == "OPEN APP" || strings.HasPrefix(upper, "OPEN APP "):
+		cmd.Type = CmdOpenApp
+
 	// ── DOUBLE CLICK ──────────────────────────────────────────────────────────
 	case strings.HasPrefix(upper, "DOUBLE CLICK "), strings.HasPrefix(upper, "DOUBLECLICK "):
 		cmd.Type = CmdDoubleClick
@@ -917,6 +928,7 @@ func parseCommandLine(line string) Command {
 	// ── SCREENSHOT ────────────────────────────────────────────────────────────
 	case strings.HasPrefix(upper, "SCREENSHOT"):
 		cmd.Type = CmdScreenshot
+		cmd.ScreenshotName = unquote(strings.TrimSpace(line[len("SCREENSHOT"):]))
 
 	// ── HIGHLIGHT ─────────────────────────────────────────────────────────────
 	case strings.HasPrefix(upper, "HIGHLIGHT "):
