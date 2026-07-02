@@ -1,4 +1,4 @@
-// Package agent is the batteries-included facade for embedding ManulHeart in
+// Package agent is the batteries-included facade for embedding ManulEngine (Go) in
 // agent and assistant applications.
 //
 // It owns the entire browser lifecycle so a consumer never has to spawn
@@ -30,14 +30,14 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/alexbeatnik/ManulHeart/pkg/browser"
-	"github.com/alexbeatnik/ManulHeart/pkg/config"
-	"github.com/alexbeatnik/ManulHeart/pkg/dsl"
-	"github.com/alexbeatnik/ManulHeart/pkg/explain"
-	"github.com/alexbeatnik/ManulHeart/pkg/heuristics"
-	"github.com/alexbeatnik/ManulHeart/pkg/runtime"
-	"github.com/alexbeatnik/ManulHeart/pkg/scan"
-	"github.com/alexbeatnik/ManulHeart/pkg/utils"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/browser"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/config"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/dsl"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/explain"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/heuristics"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/runtime"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/scan"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/utils"
 )
 
 // Options configures a Session.
@@ -65,7 +65,7 @@ type Options struct {
 }
 
 // Session is a live, owned browser connection plus the targeting runtime.
-// Create one with Launch (ManulHeart spawns Chrome) or Attach (connect to an
+// Create one with Launch (ManulEngine (Go) spawns Chrome) or Attach (connect to an
 // already-running Chrome). Always Close it.
 type Session struct {
 	mu       sync.Mutex
@@ -76,7 +76,7 @@ type Session struct {
 	closed   bool
 }
 
-// Launch spawns a Chrome process owned by ManulHeart, attaches to its first
+// Launch spawns a Chrome process owned by ManulEngine (Go), attaches to its first
 // page, and returns a ready Session. The Chrome process (and its temp profile,
 // when one was created) is torn down by Close.
 func Launch(ctx context.Context, opts Options) (*Session, error) {
@@ -107,7 +107,7 @@ func Launch(ctx context.Context, opts Options) (*Session, error) {
 }
 
 // Attach connects to an already-running Chrome at the given CDP HTTP endpoint
-// (e.g. "http://127.0.0.1:9222"). ManulHeart does NOT own that Chrome process,
+// (e.g. "http://127.0.0.1:9222"). ManulEngine (Go) does NOT own that Chrome process,
 // so Close leaves it running. When urlSubstr is non-empty, the most recently
 // active page whose URL contains it is selected; otherwise the first page.
 func Attach(ctx context.Context, cdpURL, urlSubstr string, opts Options) (*Session, error) {
@@ -548,6 +548,9 @@ const DefaultMaxPerGroup = 8
 type MapElement struct {
 	Label string `json:"label"`
 	Role  string `json:"role"`
+	// Editable marks inputs an agent can FILL (omitted when false), matching
+	// ManulEngine (Python)'s map output shape.
+	Editable bool `json:"editable,omitempty"`
 }
 
 // MapGroup is a landmark region and its (budgeted) elements.
@@ -617,7 +620,7 @@ func (s *Session) Map(ctx context.Context, budget MapBudget) (PageMap, error) {
 			if role == "" {
 				role = e.Tag
 			}
-			g.Elements = append(g.Elements, MapElement{Label: strings.TrimSpace(e.Label), Role: role})
+			g.Elements = append(g.Elements, MapElement{Label: strings.TrimSpace(e.Label), Role: role, Editable: e.Editable})
 		}
 		pm.Groups = append(pm.Groups, g)
 	}

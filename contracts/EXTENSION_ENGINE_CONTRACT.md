@@ -1,8 +1,11 @@
 # EXTENSION_ENGINE_CONTRACT
 
 This document specifies the runtime contract between the ManulEngine VS Code
-extension (TypeScript) and the backing CLI engine (currently Python,
-`manul-engine`; target rewrite: Go, `ManulHeart`).
+extension (TypeScript) and the backing CLI engine. It is implemented by **both**
+runtimes — ManulEngine (Python, `manul-engine`) and ManulEngine (Go, `ManulEngineGo`)
+— which expose the same `manul` CLI surface, argv shapes, env vars,
+stdout/stdin debug protocol, and exit-code semantics. Kept in sync across both
+engine repos and the extension.
 
 Every behavior below was extracted directly from the extension's source tree
 under [src/](src/). For any new engine implementation, preserving the argv
@@ -14,7 +17,8 @@ the engine deviates.
 The extension pins an exact minimum engine version:
 
 ```
-MIN_MANUL_ENGINE_VERSION = "0.0.9.29"   // src/shared/index.ts:5
+MIN_MANUL_ENGINE_VERSION = "0.1.0"        // src/shared/index.ts:5
+MIN_MANUL_ENGINE_GO_VERSION  = "0.1.0"      // src/shared/index.ts:6
 ```
 
 The version-check path parses the first `\d+(?:\.\d+)+` run out of `manul --version`
@@ -51,7 +55,7 @@ every spawn in the extension drives the process directly through pipes.
 ### 1.2 `manul --version`
 
 - `execFile(manulExe, ["--version"], { timeout: 5000 })` — [src/huntRunner.ts:37](src/huntRunner.ts#L37)
-- **Expected stdout**: a line matching `/(\d+(?:\.\d+)+)/`. First regex capture is treated as the installed version. Example: `manul 0.0.9.29`.
+- **Expected stdout**: a line matching `/(\d+(?:\.\d+)+)/`. First regex capture is treated as the installed version. Example: `manul 0.1.0`.
 - No stderr contract. A timeout or missing match is treated as "version unknown" (no warning shown).
 
 ### 1.3 Hunt-file runs (the core contract)
@@ -174,7 +178,7 @@ via `terminal.sendText`:
 ### 1.9 Doctor (diagnostic probes — out of engine scope)
 
 File: [src/manulDoctor.ts](src/manulDoctor.ts). These probe the host Python
-install, not ManulHeart, but any Go rewrite that drops Python should update
+install, not ManulEngine (Go), but any Go rewrite that drops Python should update
 the diagnostic or it will show a misleading ⚠️:
 
 - `python3 -c "import sys; print(sys.version.split(' ')[0])"` (falls back to `python`)
@@ -626,13 +630,15 @@ or flush on every `Println`).
 ## Appendix C — Engine Version Gate
 
 If `manul --version` reports a version whose dotted components are
-component-wise **less than** `0.0.9.29`, the extension raises a warning
-toast:
+component-wise **less than** the detected runtime's minimum
+(`MIN_MANUL_ENGINE_VERSION` for Python, `MIN_MANUL_ENGINE_GO_VERSION` for Go
+— both currently `0.1.0`), the extension raises a warning toast:
 
-> `v<installed> is installed but this extension requires exactly v0.0.9.29. Run: pip install --upgrade "manul-engine==0.0.9.29"`
+> `v<installed> is installed but this extension requires <ManulEngine | ManulEngine (Go)> >= v0.1.0.`
+> followed by `Run: pip install --upgrade "manul-engine==0.1.0"` (Python) or `Run: go build -o manul ./cmd/manul` (Go)
 
-([src/huntRunner.ts:35-58](src/huntRunner.ts#L35-L58)). A Go rewrite must
-continue to respond to `--version` on stdout with a parseable
-`\d+(?:\.\d+)+` token — and must report a version **≥ 0.0.9.29**, or
-bump the constant in [src/shared/index.ts:5](src/shared/index.ts#L5) in
+([src/huntRunner.ts:35-58](src/huntRunner.ts#L35-L58)). An engine
+implementation must continue to respond to `--version` on stdout with a
+parseable `\d+(?:\.\d+)+` token — and must report a version **≥ 0.1.0**, or
+bump the constants in [src/shared/index.ts:5-6](src/shared/index.ts#L5-L6) in
 lockstep.

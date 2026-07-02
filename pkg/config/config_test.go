@@ -398,6 +398,12 @@ func TestOverrideFromEnv(t *testing.T) {
 			"DisableCache should be true",
 		},
 		{
+			"semantic cache disabled (ManulEngine parity)",
+			"MANUL_SEMANTIC_CACHE_ENABLED", "false",
+			func(c Config) bool { return c.DisableCache },
+			"MANUL_SEMANTIC_CACHE_ENABLED=false should set DisableCache=true",
+		},
+		{
 			"tags",
 			"MANUL_TAGS", "smoke,ci,regression",
 			func(c Config) bool {
@@ -410,6 +416,12 @@ func TestOverrideFromEnv(t *testing.T) {
 			"MANUL_TESTS_HOME", "/opt/tests",
 			func(c Config) bool { return c.TestsHome == "/opt/tests" },
 			"TestsHome mismatch",
+		},
+		{
+			"channel (ManulEngine parity)",
+			"MANUL_CHANNEL", "chrome",
+			func(c Config) bool { return c.Channel != nil && *c.Channel == "chrome" },
+			"MANUL_CHANNEL should set Channel",
 		},
 		{
 			"auto annotate",

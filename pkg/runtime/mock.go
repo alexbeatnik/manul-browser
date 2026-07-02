@@ -7,7 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alexbeatnik/ManulHeart/pkg/dom"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/browser"
+	"github.com/alexbeatnik/ManulEngineGo/pkg/dom"
 )
 
 // MockPage is a test-only browser.Page implementation that operates on
@@ -147,5 +148,20 @@ func (m *MockPage) CurrentURL(ctx context.Context) (string, error) { return m.UR
 func (m *MockPage) WaitForLoad(ctx context.Context) error { return nil }
 
 func (m *MockPage) Wait(ctx context.Context, d time.Duration) error { return nil }
+
+// Frames reports a single main frame (the mock has no real iframes).
+func (m *MockPage) Frames(ctx context.Context) ([]browser.FrameRef, error) {
+	return []browser.FrameRef{{Index: 0}}, nil
+}
+
+// EvalJSInFrame ignores the frame index (single-frame mock) and delegates.
+func (m *MockPage) EvalJSInFrame(ctx context.Context, frameIndex int, expr string) ([]byte, error) {
+	return m.EvalJS(ctx, expr)
+}
+
+// CallProbeInFrame ignores the frame index (single-frame mock) and delegates.
+func (m *MockPage) CallProbeInFrame(ctx context.Context, frameIndex int, fn string, arg any) ([]byte, error) {
+	return m.CallProbe(ctx, fn, arg)
+}
 
 func (m *MockPage) Close() error { return nil }

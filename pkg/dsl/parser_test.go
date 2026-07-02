@@ -610,6 +610,32 @@ func TestParsePrint(t *testing.T) {
 	}
 }
 
+func TestParseOpenApp(t *testing.T) {
+	for _, line := range []string{"OPEN APP", "OPEN APP", "open app"} {
+		cmd := mustParseLine(t, line)
+		if cmd.Type != CmdOpenApp {
+			t.Errorf("parse %q: type = %s, want OPEN_APP", line, cmd.Type)
+		}
+	}
+}
+
+func TestParseScreenshot(t *testing.T) {
+	bare := mustParseLine(t, "SCREENSHOT")
+	if bare.Type != CmdScreenshot {
+		t.Errorf("type = %s, want SCREENSHOT", bare.Type)
+	}
+	if bare.ScreenshotName != "" {
+		t.Errorf("bare ScreenshotName = %q, want empty", bare.ScreenshotName)
+	}
+	named := mustParseLine(t, `SCREENSHOT "after login"`)
+	if named.Type != CmdScreenshot {
+		t.Errorf("type = %s, want SCREENSHOT", named.Type)
+	}
+	if named.ScreenshotName != "after login" {
+		t.Errorf("ScreenshotName = %q, want %q", named.ScreenshotName, "after login")
+	}
+}
+
 // ── Variable substitution ─────────────────────────────────────────────────────
 
 func TestParseVariableSubstitution(t *testing.T) {

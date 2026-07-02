@@ -1,4 +1,4 @@
-// Package config holds the engine-wide runtime configuration for ManulHeart.
+// Package config holds the engine-wide runtime configuration for ManulEngine (Go).
 // Each hunt execution gets a Config passed through the runtime stack.
 package config
 
@@ -26,6 +26,10 @@ type Config struct {
 
 	// ExecutablePath overrides the browser binary location when non-nil.
 	ExecutablePath *string `json:"executable_path,omitempty"`
+
+	// Channel selects a system Chrome/Chromium binary by name (chrome,
+	// chrome-beta, chrome-dev, chromium, msedge). Mirrors ManulEngine's channel.
+	Channel *string `json:"channel,omitempty"`
 
 	// Headless runs the browser in headless mode.
 	Headless bool `json:"headless"`
@@ -87,6 +91,7 @@ type jsonConfig struct {
 	Browser          string   `json:"browser"`
 	BrowserArgs      []string `json:"browser_args"`
 	ExecutablePath   *string  `json:"executable_path"`
+	Channel          *string  `json:"channel"`
 	Headless         *bool    `json:"headless"`
 	Verbose          *bool    `json:"verbose"`
 	DebugMode        *bool    `json:"debug_mode"`
@@ -169,6 +174,9 @@ func applyJSONFile(cfg *Config) error {
 	if raw.ExecutablePath != nil {
 		cfg.ExecutablePath = raw.ExecutablePath
 	}
+	if raw.Channel != nil {
+		cfg.Channel = raw.Channel
+	}
 	if raw.Headless != nil {
 		cfg.Headless = *raw.Headless
 	}
@@ -235,6 +243,9 @@ func overrideFromEnv(cfg *Config) {
 	if v := os.Getenv("MANUL_EXECUTABLE_PATH"); v != "" {
 		cfg.ExecutablePath = &v
 	}
+	if v := os.Getenv("MANUL_CHANNEL"); v != "" {
+		cfg.Channel = &v
+	}
 	if v := os.Getenv("MANUL_HEADLESS"); v != "" {
 		if b, err := strconv.ParseBool(v); err == nil {
 			cfg.Headless = b
@@ -295,6 +306,14 @@ func overrideFromEnv(cfg *Config) {
 	if v := os.Getenv("MANUL_DISABLE_CACHE"); v != "" {
 		if b, err := strconv.ParseBool(v); err == nil {
 			cfg.DisableCache = b
+		}
+	}
+	if v := os.Getenv("MANUL_SEMANTIC_CACHE_ENABLED"); v != "" {
+		// ManulEngine parity: the inverse control — disabling the cache is
+		// equivalent to DisableCache=true. Read after MANUL_DISABLE_CACHE so
+		// the explicit semantic-cache toggle wins if both are set.
+		if b, err := strconv.ParseBool(v); err == nil {
+			cfg.DisableCache = !b
 		}
 	}
 	if v := os.Getenv("MANUL_TAGS"); v != "" {
