@@ -1,0 +1,79 @@
+# ============================================================================
+# ManulEngine Dev Image — builds from local source (no PyPI dependency)
+# Used by docker-dev.yml for main-branch dev images.
+#
+# Drives a system-installed Chromium over the Chrome DevTools Protocol (CDP);
+# no Playwright and no bundled browser download.
+# ============================================================================
+
+ARG PYTHON_VERSION=3.12
+
+# ===========================================================================
+# Stage 1: builder — install from source (pure-Python; one dep: websockets)
+# ===========================================================================
+FROM python:${PYTHON_VERSION}-slim-bookworm AS builder
+
+COPY . /src
+RUN pip install --no-cache-dir /src
+
+# ===========================================================================
+# Stage 2: runtime — slim final image with system Chromium
+# ===========================================================================
+FROM python:${PYTHON_VERSION}-slim-bookworm AS runtime
+
+# Copy installed Python packages from builder stage.
+# Use a staging copy so the path is robust regardless of whether
+# PYTHON_VERSION is major.minor (3.12) or a patch version (3.12.3).
+COPY --from=builder /usr/local/lib/ /tmp/builder-lib/
+COPY --from=builder /usr/local/bin/manul /usr/local/bin/manul
+RUN PY_SITELIB="/usr/local/lib/python$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')/site-packages" \
+    && BUILDER_SITELIB=$(ls -d /tmp/builder-lib/python*/site-packages | head -1) \
+    && cp -a "${BUILDER_SITELIB}/." "${PY_SITELIB}/" \
+    && rm -rf /tmp/builder-lib
+
+# Install system Chromium (the CDP target) + fonts + PID 1 init.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        chromium dumb-init fonts-liberation fonts-noto-color-emoji \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# ---------------------------------------------------------------------------
+# Non-root user
+# ---------------------------------------------------------------------------
+RUN groupadd --gid 1000 manul \
+    && useradd --uid 1000 --gid manul --shell /bin/bash --create-home manul
+
+# ---------------------------------------------------------------------------
+# Working directory
+# ---------------------------------------------------------------------------
+WORKDIR /workspace
+RUN mkdir -p /workspace/reports /workspace/cache \
+    && chown -R manul:manul /workspace
+
+# ---------------------------------------------------------------------------
+# Environment — sensible CI defaults
+# ---------------------------------------------------------------------------
+ENV MANUL_HEADLESS=true \
+    MANUL_BROWSER=chromium \
+    MANUL_CHANNEL=chromium \
+    MANUL_SCREENSHOT=on-fail \
+    MANUL_HTML_REPORT=true \
+    MANUL_WORKERS=1 \
+    MANUL_BROWSER_ARGS="--no-sandbox --disable-dev-shm-usage" \
+    TZ=UTC \
+    LANG=C.UTF-8 \
+    PYTHONUNBUFFERED=1
+
+# ---------------------------------------------------------------------------
+# OCI labels
+# ---------------------------------------------------------------------------
+LABEL org.opencontainers.image.source="https://github.com/alexbeatnik/ManulEngine" \
+      org.opencontainers.image.description="ManulEngine — deterministic DSL-first browser automation CI runner (dev)" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.vendor="alexbeatnik"
+
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+    CMD ["manul", "--help"]
+
+USER manul
+ENTRYPOINT ["dumb-init", "--", "manul"]
+CMD ["--help"]

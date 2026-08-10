@@ -1,0 +1,5 @@
+# Core runtime dependency — matches pyproject.toml [project].dependencies
+# ManulEngine drives system Chrome/Chromium over the Chrome DevTools Protocol
+# (CDP) via a raw WebSocket. No Playwright, no Ollama, no bundled browser —
+# a system Google Chrome / Chromium must be installed on PATH.
+websockets>=12.0
