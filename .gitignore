@@ -1,0 +1,31 @@
+# Repo-wide ignores. core/ keeps its own .gitignore for Go build output.
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Release artifacts (goreleaser + binding packaging)
+/dist/
+/bindings/*/dist/
+/bindings/*/build/
+/bindings/**/vendor/manul
+/bindings/**/vendor/manul.exe
+
+# Python binding
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+
+# Node binding
+node_modules/
+
+# Conformance run output
+/conformance/actual/
