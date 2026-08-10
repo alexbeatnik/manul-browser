@@ -3,8 +3,15 @@ name: Synthetic Tests
 on:
   push:
     branches: [main, feat/*]
+    paths: ['core/**', '.github/workflows/**']
   pull_request:
     branches: [main]
+    paths: ['core/**', '.github/workflows/**']
+
+# The engine lives in core/. legacy/python/ is frozen and never built here.
+defaults:
+  run:
+    working-directory: core
 
 jobs:
   test:
@@ -15,7 +22,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          # Action inputs are resolved from the workspace root, not `defaults`.
+          go-version-file: core/go.mod
 
       - name: Build
         run: go build ./...
