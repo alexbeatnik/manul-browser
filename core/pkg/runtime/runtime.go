@@ -10,16 +10,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alexbeatnik/ManulEngineGo/pkg/browser"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/config"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/core"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/dom"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/dsl"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/explain"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/heuristics"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/pages"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/scorer"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/utils"
+	"github.com/alexbeatnik/Manul/core/pkg/browser"
+	"github.com/alexbeatnik/Manul/core/pkg/config"
+	"github.com/alexbeatnik/Manul/core/pkg/core"
+	"github.com/alexbeatnik/Manul/core/pkg/dom"
+	"github.com/alexbeatnik/Manul/core/pkg/dsl"
+	"github.com/alexbeatnik/Manul/core/pkg/explain"
+	"github.com/alexbeatnik/Manul/core/pkg/heuristics"
+	"github.com/alexbeatnik/Manul/core/pkg/pages"
+	"github.com/alexbeatnik/Manul/core/pkg/scorer"
+	"github.com/alexbeatnik/Manul/core/pkg/utils"
 )
 
 func min(a, b int) int {

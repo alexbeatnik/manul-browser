@@ -15,12 +15,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alexbeatnik/ManulEngineGo/pkg/browser"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/config"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/dsl"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/report"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/runtime"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/utils"
+	"github.com/alexbeatnik/Manul/core/pkg/browser"
+	"github.com/alexbeatnik/Manul/core/pkg/config"
+	"github.com/alexbeatnik/Manul/core/pkg/dsl"
+	"github.com/alexbeatnik/Manul/core/pkg/report"
+	"github.com/alexbeatnik/Manul/core/pkg/runtime"
+	"github.com/alexbeatnik/Manul/core/pkg/utils"
 )
 
 var weekdays = map[string]int{

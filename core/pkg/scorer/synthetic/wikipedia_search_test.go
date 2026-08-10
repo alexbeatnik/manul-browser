@@ -19,10 +19,10 @@ package synthetic
 // ─────────────────────────────────────────────────────────────────────────────
 
 import (
-	"github.com/alexbeatnik/ManulEngineGo/pkg/scorer"
+	"github.com/alexbeatnik/Manul/core/pkg/scorer"
 	"testing"
 
-	"github.com/alexbeatnik/ManulEngineGo/pkg/dom"
+	"github.com/alexbeatnik/Manul/core/pkg/dom"
 )
 
 // withNameAttr sets the NameAttr field.

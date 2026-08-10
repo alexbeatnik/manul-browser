@@ -13,8 +13,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/alexbeatnik/ManulEngineGo/pkg/dom"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/explain"
+	"github.com/alexbeatnik/Manul/core/pkg/dom"
+	"github.com/alexbeatnik/Manul/core/pkg/explain"
 )
 
 // ── Public types ──────────────────────────────────────────────────────────────

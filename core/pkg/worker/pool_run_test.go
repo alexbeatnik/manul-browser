@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alexbeatnik/ManulEngineGo/pkg/config"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/dsl"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/runtime"
+	"github.com/alexbeatnik/Manul/core/pkg/config"
+	"github.com/alexbeatnik/Manul/core/pkg/dsl"
+	"github.com/alexbeatnik/Manul/core/pkg/runtime"
 )
 
 func navigateHunt(t *testing.T, url string) *dsl.Hunt {

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alexbeatnik/ManulEngineGo/pkg/explain"
+	"github.com/alexbeatnik/Manul/core/pkg/explain"
 )
 
 // RunSummary is one row in an aggregate report — typically one parallel

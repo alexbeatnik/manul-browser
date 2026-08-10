@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alexbeatnik/ManulEngineGo/pkg/core"
+	"github.com/alexbeatnik/Manul/core/pkg/core"
 )
 
 // ── Types ──────────────────────────────────────────────────────────────────────

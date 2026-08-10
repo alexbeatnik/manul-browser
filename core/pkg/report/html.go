@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/alexbeatnik/ManulEngineGo/pkg/explain"
+	"github.com/alexbeatnik/Manul/core/pkg/explain"
 )
 
 // reportSeq is a monotonic counter appended to every generated filename so

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/alexbeatnik/ManulEngineGo/pkg/explain"
+	"github.com/alexbeatnik/Manul/core/pkg/explain"
 )
 
 // ---- sanitizeFilename -------------------------------------------------------

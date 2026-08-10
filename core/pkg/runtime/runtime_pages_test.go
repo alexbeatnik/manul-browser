@@ -6,10 +6,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/alexbeatnik/ManulEngineGo/pkg/config"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/dsl"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/pages"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/utils"
+	"github.com/alexbeatnik/Manul/core/pkg/config"
+	"github.com/alexbeatnik/Manul/core/pkg/dsl"
+	"github.com/alexbeatnik/Manul/core/pkg/pages"
+	"github.com/alexbeatnik/Manul/core/pkg/utils"
 )
 
 func TestRuntime_AutoAnnotateNavigateUsesPagesRegistry(t *testing.T) {

@@ -5,13 +5,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/alexbeatnik/ManulEngineGo/pkg/browser"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/config"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/dom"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/dsl"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/runtime"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/utils"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/worker"
+	"github.com/alexbeatnik/Manul/core/pkg/browser"
+	"github.com/alexbeatnik/Manul/core/pkg/config"
+	"github.com/alexbeatnik/Manul/core/pkg/dom"
+	"github.com/alexbeatnik/Manul/core/pkg/dsl"
+	"github.com/alexbeatnik/Manul/core/pkg/runtime"
+	"github.com/alexbeatnik/Manul/core/pkg/utils"
+	"github.com/alexbeatnik/Manul/core/pkg/worker"
 )
 
 // TestCustomControlAndCallGo demonstrates the full SDET workflow:
