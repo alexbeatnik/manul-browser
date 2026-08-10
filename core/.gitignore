@@ -1,0 +1,28 @@
+# Build output
+/manul
+driver
+*.exe
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Test / debug
+*.test
+*.out
+coverage.html
+
+# Chrome automation profile
+/tmp/manulengine-chrome/
+
+# Runtime data
+cache/
+pages.json
+reports/
