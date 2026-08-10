@@ -3,8 +3,8 @@ package synthetic
 import (
 	"testing"
 
-	"github.com/alexbeatnik/ManulEngineGo/pkg/dom"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/scorer"
+	"github.com/alexbeatnik/Manul/core/pkg/dom"
+	"github.com/alexbeatnik/Manul/core/pkg/scorer"
 )
 
 func TestScorer_Visibility(t *testing.T) {

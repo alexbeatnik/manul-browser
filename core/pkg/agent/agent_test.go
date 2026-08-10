@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/alexbeatnik/ManulEngineGo/pkg/config"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/dom"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/runtime"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/utils"
+	"github.com/alexbeatnik/Manul/core/pkg/config"
+	"github.com/alexbeatnik/Manul/core/pkg/dom"
+	"github.com/alexbeatnik/Manul/core/pkg/runtime"
+	"github.com/alexbeatnik/Manul/core/pkg/utils"
 )
 
 // newTestSession wires a Session around a runtime.MockPage so Read can be

@@ -8,8 +8,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/alexbeatnik/ManulEngineGo/pkg/cdp"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/heuristics"
+	"github.com/alexbeatnik/Manul/core/pkg/cdp"
+	"github.com/alexbeatnik/Manul/core/pkg/heuristics"
 )
 
 func main() {

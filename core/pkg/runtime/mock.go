@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alexbeatnik/ManulEngineGo/pkg/browser"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/dom"
+	"github.com/alexbeatnik/Manul/core/pkg/browser"
+	"github.com/alexbeatnik/Manul/core/pkg/dom"
 )
 
 // MockPage is a test-only browser.Page implementation that operates on

@@ -14,7 +14,7 @@ package synthetic
 import (
 	"testing"
 
-	"github.com/alexbeatnik/ManulEngineGo/pkg/dom"
+	"github.com/alexbeatnik/Manul/core/pkg/dom"
 )
 
 func edtechDOM() []dom.ElementSnapshot {

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/alexbeatnik/ManulEngineGo/pkg/runtime"
+	"github.com/alexbeatnik/Manul/core/pkg/runtime"
 )
 
 func TestPageState_ReadsTitleAndURL(t *testing.T) {

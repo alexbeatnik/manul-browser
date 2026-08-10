@@ -30,14 +30,14 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/alexbeatnik/ManulEngineGo/pkg/browser"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/config"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/dsl"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/explain"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/heuristics"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/runtime"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/scan"
-	"github.com/alexbeatnik/ManulEngineGo/pkg/utils"
+	"github.com/alexbeatnik/Manul/core/pkg/browser"
+	"github.com/alexbeatnik/Manul/core/pkg/config"
+	"github.com/alexbeatnik/Manul/core/pkg/dsl"
+	"github.com/alexbeatnik/Manul/core/pkg/explain"
+	"github.com/alexbeatnik/Manul/core/pkg/heuristics"
+	"github.com/alexbeatnik/Manul/core/pkg/runtime"
+	"github.com/alexbeatnik/Manul/core/pkg/scan"
+	"github.com/alexbeatnik/Manul/core/pkg/utils"
 )
 
 // Options configures a Session.
