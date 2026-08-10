@@ -1,0 +1,31 @@
+name: Synthetic Tests
+
+on:
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  synthetic-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          # ManulEngine drives system Chrome over CDP — install Chromium, not Playwright.
+          sudo apt-get update && sudo apt-get install -y chromium-browser || sudo apt-get install -y chromium
+
+      - name: Run synthetic engine tests
+        run: |
+          python run_tests.py
