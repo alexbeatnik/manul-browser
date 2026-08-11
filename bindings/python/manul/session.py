@@ -401,62 +401,12 @@ class Session:
     # ── reverse calls ────────────────────────────────────────────────────────
 
     def _dispatch_invoke(self, msg: dict[str, Any]) -> Any:
-        """Route one engine callback to the handler that claimed it."""
-        kind = msg.get("kind")
+        """Route one engine callback to the handler that claimed it.
 
-        if kind == "custom_control":
-            page = msg.get("page", "")
-            target = msg.get("target", "")
-            handler = controls.get_custom_control(page, target)
-            if handler is None:
-                hint = controls.diagnose_custom_control_miss(page, target)
-                raise LookupError(hint or f"no custom control for {target!r} on page {page!r}")
-            return handler(
-                controls.ControlContext(
-                    target=target,
-                    action=msg.get("action", ""),
-                    value=msg.get("value", "") or "",
-                    page=page,
-                    step=msg.get("step", ""),
-                    url=msg.get("url", "") or "",
-                    vars=dict(msg.get("vars") or {}),
-                    _session=self,
-                )
-            )
-
-        if kind == "hook":
-            hook, tag = msg.get("hook", ""), msg.get("tag", "")
-            handlers = controls.get_hooks(hook, tag)
-            if not handlers:
-                raise LookupError(f"no {hook!r} hook registered" + (f" for tag {tag!r}" if tag else ""))
-
-            ctx = controls.GlobalContext(
-                variables=dict(msg.get("vars") or {}),
-                _session=self,
-            )
-            # Every handler in a slot runs, and they share one context so a
-            # later hook sees what an earlier one published.
-            for handler in handlers:
-                handler(ctx)
-            # Only the variables travel back; metadata is scratch space that
-            # never reaches a hunt.
-            return ctx.variables
-
-        if kind == "call":
-            name = msg.get("name", "")
-            handler = controls.get_call(name)
-            if handler is None:
-                raise LookupError(f"no CALL handler registered for {name!r}")
-            return handler(
-                controls.CallContext(
-                    name=name,
-                    args=list(msg.get("args") or []),
-                    vars=dict(msg.get("vars") or {}),
-                    _session=self,
-                )
-            )
-
-        raise LookupError(f"unknown callback kind {kind!r}")
+        The routing itself is shared with the hook host, which receives the
+        same callbacks down a pipe it did not open.
+        """
+        return controls.dispatch_invoke(msg, self)
 
     # Page primitives, valid only while a handler is running. They exist so a
     # Python handler can inspect and touch the page the way an embedded Go

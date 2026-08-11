@@ -230,6 +230,47 @@ a single bridge per slot and the client runs every handler it holds for that
 slot; declaring twice makes the engine call back twice and each handler run
 twice.
 
+## Hook peers: the same protocol, spawned the other way
+
+Everything above assumes the client started the engine. `manul run --hooks
+<script>` inverts that — the engine starts the script — and reuses this
+protocol unchanged rather than inventing a second one. A peer is a client that
+never drives a session; it only declares handlers and answers callbacks.
+
+The peer's **stdout is the protocol** and carries nothing else, exactly as the
+engine's does in serve mode. Its stderr is passed through, so a hook may print
+and log freely.
+
+**Handshake.** The peer speaks first. It writes `register` (zero or more times),
+then `ready`; the engine answers each and then begins the run. Only those two
+commands are legal here — anything else is refused with `bad_request` and the
+run aborts, because there is no session yet to serve it:
+
+```
+→ {"id":1,"cmd":"register","args":{"calls":["py.upper"],"hooks":[{"kind":"before_all"}]}}
+← {"id":1,"ok":true,"result":{"controls":0,"calls":1,"hooks":1}}
+→ {"id":2,"cmd":"ready"}
+← {"id":2,"ok":true,"result":{}}
+```
+
+The handshake must complete before the first hunt starts. Worker goroutines read
+the extension registries without synchronising against late arrivals, so a
+handler declared afterwards may or may not be seen.
+
+**Then it inverts.** Once ready, every line the engine writes is an `invoke` and
+every line the peer writes is a reply — or a nested `page.eval` / `page.url`,
+under the same rules as above.
+
+**Concurrency.** Under `--workers > 1` group hooks fire from several goroutines
+at once, and there is one pipe. The engine serialises the exchanges: a peer will
+never be asked to handle a second invocation before it has answered the first,
+and hooks therefore do **not** run in parallel even when the hunts they bracket
+do. A peer needs no locking of its own.
+
+**Shutdown.** The engine closes the peer's stdin after the last `after_all`
+hook. The peer should read that EOF as "the run is over" and exit; one that does
+not is killed after ten seconds and its exit status reported.
+
 Failure behaviour is not uniform, deliberately:
 
 | Hook | On failure |

@@ -372,6 +372,69 @@ def reset_registry() -> None:
         _group_hooks.clear()
 
 
+def dispatch_invoke(msg: dict[str, Any], peer: Any) -> Any:
+    """Route one engine callback to the handler that claimed it.
+
+    `peer` is whatever owns the pipe this callback arrived on, and needs only
+    `_page_eval` and `_page_url`. That is a `Session` when this process drives
+    the engine, and the hook host when the engine drives this process — the
+    callbacks are identical either way, so they are dispatched in one place
+    rather than once per direction.
+    """
+    kind = msg.get("kind")
+
+    if kind == "custom_control":
+        page = msg.get("page", "")
+        target = msg.get("target", "")
+        handler = get_custom_control(page, target)
+        if handler is None:
+            hint = diagnose_custom_control_miss(page, target)
+            raise LookupError(hint or f"no custom control for {target!r} on page {page!r}")
+        return handler(
+            ControlContext(
+                target=target,
+                action=msg.get("action", ""),
+                value=msg.get("value", "") or "",
+                page=page,
+                step=msg.get("step", ""),
+                url=msg.get("url", "") or "",
+                vars=dict(msg.get("vars") or {}),
+                _session=peer,
+            )
+        )
+
+    if kind == "hook":
+        hook, tag = msg.get("hook", ""), msg.get("tag", "")
+        handlers = get_hooks(hook, tag)
+        if not handlers:
+            raise LookupError(f"no {hook!r} hook registered" + (f" for tag {tag!r}" if tag else ""))
+
+        ctx = GlobalContext(variables=dict(msg.get("vars") or {}), _session=peer)
+        # Every handler in a slot runs, and they share one context so a later
+        # hook sees what an earlier one published.
+        for handler in handlers:
+            handler(ctx)
+        # Only the variables travel back; metadata is scratch space that never
+        # reaches a hunt.
+        return ctx.variables
+
+    if kind == "call":
+        name = msg.get("name", "")
+        handler = get_call(name)
+        if handler is None:
+            raise LookupError(f"no CALL handler registered for {name!r}")
+        return handler(
+            CallContext(
+                name=name,
+                args=list(msg.get("args") or []),
+                vars=dict(msg.get("vars") or {}),
+                _session=peer,
+            )
+        )
+
+    raise LookupError(f"unknown callback kind {kind!r}")
+
+
 def _registration_payload() -> dict[str, Any]:
     """What a session publishes to the engine when it opens."""
     with _lock:

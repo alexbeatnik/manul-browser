@@ -51,7 +51,7 @@ existed — it just needed a session that outlives a single command.
 | `conformance/` | Not started |
 | Release pipeline | Written, then switched off — `.github/workflows/release.yml.disabled`. Nothing fires on a tag |
 | What-If REPL | Ported to Go — terminal-only, see the debug contract |
-| Custom controls, `CALL HOST` | Go handlers, or client handlers via reverse call |
+| Custom controls, `CALL HOST` | Go handlers, client handlers via reverse call, or a `--hooks` script |
 | Suite hooks | `pkg/lifecycle` — `before_all`/`after_all`/`before_group`/`after_group` |
 
 ## Use it
@@ -81,7 +81,14 @@ sess.Step(ctx, "CLICK the 'Sign in' button")
 ```bash
 manul checkout.hunt
 manul run-step "CLICK the 'Login' button" --cdp http://127.0.0.1:9222
+manul run hunts/ --hooks manul_hooks.py
 ```
+
+`--hooks` points the engine at a script that supplies custom controls, `CALL
+HOST` handlers and suite-level hooks. The engine spawns it and speaks the same
+reverse-call protocol a binding speaks — so the script is a few decorators and
+one blocking call, and every decision about it stays in the engine. See
+[`core/examples/hooks/`](core/examples/hooks/).
 
 To drive a Chrome that is already running, set `browser_mode` to `attach` (or
 `MANUL_BROWSER_MODE=attach`, or `--attach`). That browser is left open when the

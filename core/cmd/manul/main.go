@@ -40,12 +40,14 @@ import (
 	"github.com/alexbeatnik/manul-browser/core/pkg/data"
 	"github.com/alexbeatnik/manul-browser/core/pkg/dsl"
 	"github.com/alexbeatnik/manul-browser/core/pkg/explain"
+	"github.com/alexbeatnik/manul-browser/core/pkg/hooks"
 	"github.com/alexbeatnik/manul-browser/core/pkg/lifecycle"
 	"github.com/alexbeatnik/manul-browser/core/pkg/pages"
 	"github.com/alexbeatnik/manul-browser/core/pkg/record"
 	"github.com/alexbeatnik/manul-browser/core/pkg/report"
 	"github.com/alexbeatnik/manul-browser/core/pkg/runtime"
 	"github.com/alexbeatnik/manul-browser/core/pkg/scan"
+	"github.com/alexbeatnik/manul-browser/core/pkg/serve"
 	"github.com/alexbeatnik/manul-browser/core/pkg/utils"
 	"github.com/alexbeatnik/manul-browser/core/pkg/worker"
 )
@@ -187,6 +189,7 @@ func cmdRun(args []string) error {
 	workers := fs.Int("workers", 1, "number of parallel hunt workers (pool mode for multi-file/dir runs)")
 	_ = fs.String("browser", "chromium", "browser type (default: chromium)")
 	breakLinesStr := fs.String("break-lines", "", "comma-separated line numbers to pause on (debugging)")
+	hooksScript := fs.String("hooks", "", "path to a hook script (.py, .js, or an executable) providing custom controls, CALL HOST handlers and suite hooks")
 	showVersion := fs.Bool("version", false, "show engine version and exit")
 
 	var target string
@@ -373,6 +376,25 @@ func cmdRun(args []string) error {
 	tabURLSubstr, terr := parseTargetSelector(*targetSelector)
 	if terr != nil {
 		return terr
+	}
+
+	// A hook script registers its controls, calls and suite hooks before
+	// anything else happens, because the worker pool reads those registries
+	// without synchronising against late arrivals. Until --hooks existed this
+	// binary had no way to register anything, so every branch below that asks
+	// whether extensions are present was unreachable.
+	if *hooksScript != "" {
+		host, herr := hooks.Start(ctx, *hooksScript, serve.Options{
+			EngineVersion: version,
+			Config:        cfg,
+			Logger:        logger,
+		})
+		if herr != nil {
+			return fmt.Errorf("--hooks: %w", herr)
+		}
+		// Registered first, so it runs last: after-all hooks below are deferred
+		// afterwards and must still reach the script when they fire.
+		defer func() { _ = host.Close() }()
 	}
 
 	// Suite-level hooks bracket the whole run. A before-all failure aborts

@@ -16,6 +16,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/alexbeatnik/manul-browser/core/pkg/agent"
 	"github.com/alexbeatnik/manul-browser/core/pkg/config"
@@ -95,6 +96,84 @@ type Server struct {
 	// line it can legitimately send is that handler's reply.
 	sc        *bufio.Scanner
 	invokeSeq int
+
+	// invokeMu serialises reverse calls. A stdio session never contends for it —
+	// dispatch is serial there — but a hook peer is driven by `manul run`, where
+	// group hooks fire from every goroutine in the worker pool at once. One pipe
+	// cannot carry two overlapping exchanges, so they queue.
+	invokeMu sync.Mutex
+}
+
+// NewPeer builds a Server that talks *down* to a child process instead of up to
+// the client that spawned it.
+//
+// Same wire, opposite plumbing: in and out are the child's stdout and stdin, so
+// a `register` line the child writes is read here exactly as a binding's would
+// be. That is the whole reason `--hooks` costs so little — the reverse-call
+// machinery already existed, only the direction of the pipes is new.
+//
+// Unlike Serve, this does not reset the extension registries when it finishes.
+// The caller owns that, because in `manul run` the registrations must outlive
+// the handshake and survive for the whole suite.
+func NewPeer(in io.Reader, out io.Writer, opts Options) *Server {
+	if opts.Logger == nil {
+		opts.Logger = utils.NewLoggerTo(io.Discard, nil)
+	}
+	sc := bufio.NewScanner(in)
+	sc.Buffer(make([]byte, 4096), maxLineBytes)
+	return &Server{opts: opts, out: json.NewEncoder(out), sc: sc}
+}
+
+// Handshake reads a peer's declarations until it announces `ready`.
+//
+// Only `register` and `ready` are legal here. Everything else would need a
+// browser that does not exist yet — the handshake runs before the first hunt,
+// which is the point: registration has to be complete before the worker pool
+// starts, exactly as it must be for a Go caller registering at process init.
+func (s *Server) Handshake(ctx context.Context) error {
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		line, ok := s.readLine()
+		if !ok {
+			if err := s.sc.Err(); err != nil {
+				return fmt.Errorf("reading hook declarations: %w", err)
+			}
+			return errors.New("the hook script exited before it announced ready")
+		}
+		if line == "" {
+			continue
+		}
+
+		var req Request
+		if err := json.Unmarshal([]byte(line), &req); err != nil {
+			return fmt.Errorf("the hook script wrote a line that is not a request: %s", summarise(line))
+		}
+
+		switch req.Cmd {
+		case "register":
+			result, code, err := s.cmdRegister(ctx, req.Args)
+			if err != nil {
+				// Answered as well as returned: the child is blocked on this
+				// reply, and a peer that learns why it failed can say so on its
+				// own stderr before it exits.
+				_ = s.fail(req.ID, code, err.Error())
+				return fmt.Errorf("hook registration rejected: %w", err)
+			}
+			if err := s.reply(req.ID, result); err != nil {
+				return err
+			}
+
+		case "ready":
+			return s.reply(req.ID, struct{}{})
+
+		default:
+			msg := fmt.Sprintf("%q is not available during the hook handshake; only register and ready are", req.Cmd)
+			_ = s.fail(req.ID, CodeBadRequest, msg)
+			return errors.New(msg)
+		}
+	}
 }
 
 // Serve runs the protocol loop until in is exhausted, `close` is acknowledged,
