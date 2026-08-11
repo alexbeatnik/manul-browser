@@ -72,12 +72,20 @@ will never see what it is waiting for.
 
 ## Local environment
 
-Twelve tests fail on this Windows machine and have since before any of this
-work: eleven in `pkg/config` (Go's `TempDir` cleanup hitting a file lock — the
-test logic itself passes) and `TestCollectScheduledHunts_Subdirectories` in
-`pkg/daemon`, which fails in 0.00s and looks like a genuine path-separator bug
-rather than timing. Both predate the merge; confirm against a clean upstream
-clone before blaming a change.
+The suite is green on Windows. It was not for a long time — twelve tests failed,
+and both causes turned out to be in the tests rather than the engine:
+
+- eleven in `pkg/config` called `os.Chdir` into their own `t.TempDir()`. Windows
+  refuses to delete a directory that is a process's working directory, so the
+  cleanup failed after the assertions had already passed. `t.Chdir` restores the
+  old directory on cleanup, and its cleanup runs before `TempDir`'s because
+  cleanups are LIFO. Linux allows deleting the working directory, which is why
+  this was invisible there;
+- `TestCollectScheduledHunts_Subdirectories` in `pkg/daemon` asserted on the
+  literal `"sub/nested.hunt"`. `filepath.Walk` produces `sub\nested.hunt` here.
+  The production code was right the whole time.
+
+If either pattern reappears, it will fail on Windows and pass in CI.
 
 The repository **is** gofmt-clean, and CI fails if it stops being. It used to
 look otherwise: `core.autocrlf=true` gives this machine a CRLF working tree

@@ -11,6 +11,11 @@ Thumbs.db
 *.swo
 *~
 
+# Run output. The engine writes reports/ into whatever directory it is invoked
+# from, so driving a hunt from a binding leaves one there too — core/ already
+# ignores its own copy.
+reports/
+
 # Release artifacts (goreleaser + binding packaging)
 /dist/
 /bindings/*/dist/

@@ -109,6 +109,10 @@ func (m *MockPage) Hover(ctx context.Context, x, y float64) error { return nil }
 
 func (m *MockPage) DragAndDrop(ctx context.Context, fX, fY, tX, tY float64) error { return nil }
 
+func (m *MockPage) GetDragCenters(ctx context.Context, srcID int, srcXPath string, dstID int, dstXPath string) (float64, float64, float64, float64, error) {
+	return 0, 0, 0, 0, nil
+}
+
 func (m *MockPage) SetFileInput(ctx context.Context, id int, xpath string, paths []string) error {
 	if m.FileInputs == nil {
 		m.FileInputs = make(map[string][]string)

@@ -27,11 +27,15 @@ Everything was exercised on one Windows machine against one Chrome.
   It needs a TTY, so it has to be tried by hand: `manul <file> --debug`, then
   `w`, then `!execute`.
 
-### 2. `TestCollectScheduledHunts_Subdirectories`
+### 2. ~~`TestCollectScheduledHunts_Subdirectories`~~ — done
 
-Fails in 0.00s, which rules out the temp-file locking that explains the eleven
-`pkg/config` failures. It looks like a real path-separator bug on Windows. Worth
-half an hour; it is the only pre-existing failure that might be a genuine defect.
+All twelve long-standing Windows failures are fixed, and none was an engine
+defect. This one asserted on a literal `"sub/nested.hunt"` while `filepath.Walk`
+produces `sub\nested.hunt`; the eleven in `pkg/config` chdir'd into their own
+`t.TempDir()`, which Windows then refuses to delete. Details in `CLAUDE.md`.
+
+The suspicion recorded here was half right — it *was* a path-separator bug, just
+in the assertion rather than in `CollectScheduledHunts`.
 
 ### 3. Suite hooks under `--workers > 1`
 
