@@ -79,6 +79,12 @@ const (
 // never look at the page — the engine is mid-step and blocked, so the ordinary
 // commands are not safe to re-enter, but these page primitives are.
 func (s *Server) invoke(ctx context.Context, page browser.Page, req invokeRequest) (json.RawMessage, error) {
+	// One exchange at a time. Nothing re-enters this — serveNested answers only
+	// page.* — so a plain mutex is enough, and it is what makes a hook peer safe
+	// under `--workers > 1`.
+	s.invokeMu.Lock()
+	defer s.invokeMu.Unlock()
+
 	s.invokeSeq++
 	req.Invoke = s.invokeSeq
 

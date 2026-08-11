@@ -10,9 +10,16 @@
 > reached by reverse call when it is driven through a binding. It no longer
 > imports a module by dotted path.
 >
+> **Three ways to register, one set of semantics.** Handlers reach the engine by
+> being registered at process init when it is embedded in Go, by being declared
+> over the session protocol by a binding that spawned it, or — since `--hooks` —
+> by a script the engine itself spawns. The third is the second with the pipes
+> reversed: the script writes the same `register` line a binding writes, answers
+> the same `invoke` lines, and may issue the same nested `page.eval` / `page.url`
+> while a handler runs. No behaviour differs between the three.
+>
 > **Suite-level hooks** (`before_all` / `after_all` / `before_group` /
-> `after_group`) live in `pkg/lifecycle`. They are registered at process init in
-> Go, or declared over the session protocol by a binding. `MANUL_GLOBAL_VARS`
+> `after_group`) live in `pkg/lifecycle`. `MANUL_GLOBAL_VARS`
 > has no equivalent and none is needed: the suite's global variables are held in
 > a `GlobalContext` and seeded into each hunt's runtime directly, including
 > across worker-pool goroutines.

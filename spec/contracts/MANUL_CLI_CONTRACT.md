@@ -189,6 +189,15 @@
       "appliesTo": ["run"]
     },
     {
+      "id": "hooks",
+      "flag": "--hooks",
+      "type": "string",
+      "default": null,
+      "description": "Path to a hook script supplying custom controls, CALL HOST handlers and suite-level hooks. The engine spawns it and speaks the reverse-call half of the session protocol down its stdio; the script's stdout carries that protocol and nothing else, its stderr passes through. Interpreter is chosen by extension: .py runs under $MANUL_PYTHON or the first of python/python3 on PATH (python first on Windows, where python3 is usually the Store alias stub), .js/.mjs/.cjs under $MANUL_NODE or node, .exe and any executable file directly. Registration completes before the first hunt starts; the script is shut down by closing its stdin after the last after-all hook, with 10s grace before it is killed.",
+      "example": "--hooks manul_hooks.py",
+      "appliesTo": ["run"]
+    },
+    {
       "id": "debug",
       "flag": "--debug",
       "type": "boolean",

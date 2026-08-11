@@ -23,6 +23,7 @@ That browser stays open when the session ends — Manul did not open it.
 from __future__ import annotations
 
 from ._binary import find_binary
+from ._hookhost import serve_hooks
 from ._transport import Transport
 from .controls import (
     ANY_PAGE,
@@ -89,6 +90,7 @@ __all__ = [
     "after_group",
     "GlobalContext",
     "list_hooks",
+    "serve_hooks",
     "SuiteResult",
     "SuiteHunt",
     "ManulError",

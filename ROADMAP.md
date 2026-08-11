@@ -64,25 +64,44 @@ by design, possibly a gap in the map's label resolution. Worth one look, because
 
 ## Missing
 
-### 1. Hooks and custom controls are unreachable from the CLI
+### 1. Hooks and custom controls from the CLI — `--hooks`
 
-The registration functions have exactly one caller outside tests: `pkg/serve`.
-So extensions work when the engine is **embedded** (you call `RegisterGoCall` in
-your own `main`) and when it is **driven through a binding** (declared over the
-protocol) — and not at all from the stock `manul` binary. `lifecycle.IsEmpty()`
-is always true there, so the suite wiring in `cmdRun` can never fire.
+Done. `manul run <hunts> --hooks <script>` is the third registration route
+beside embedding and a binding, and the suite wiring in `cmdRun` now has a way
+to fire — `lifecycle.IsEmpty()` was unconditionally true in the stock binary
+before this.
 
-The Python engine solved this with auto-discovery of a `manul_hooks.py` beside
-the hunts. Go has no equivalent and cannot have the same one. Options, roughly
-in order of how much they cost:
+It adds no wire format. The engine spawns the script and speaks the reverse-call
+half of the existing session protocol down its stdio: the script writes the same
+`register` line a binding writes, answers the same `invoke` lines, and may issue
+the same nested `page.eval` / `page.url` while a handler runs. `pkg/serve` grew
+a peer mode (`NewPeer`, `Handshake`) for the inverted direction; `pkg/hooks` is
+process handling and almost nothing else.
 
-- a `--hooks <script>` flag that runs a subprocess speaking the same reverse-call
-  protocol — reuses everything that already exists;
-- documenting that extensions require embedding or a binding, and removing the
-  dead wiring from `cmdRun`;
-- a plugin mechanism, which Go makes unpleasant.
+Everything the feature decides lives in Go, deliberately — which script, which
+interpreter, when hooks fire, in what order, how shutdown happens. A binding
+supplies only the library the script imports, which in Python is
+`manul.serve_hooks()` and a dispatcher shared with `Session`.
 
-Until one is chosen, the CLI half of the suite feature is decoration.
+Verified end-to-end against a real Chrome: `before_all` publishing a variable a
+hunt then read, `CALL HOST` reaching Python and returning, `after_all` at
+teardown, and `print()` inside a hook not corrupting the stream.
+
+What is deliberately not there:
+
+- **Suite hooks get no page access under `--hooks`.** Controls and `CALL HOST`
+  are handed the live page; a hook is not, because the peer server holds no
+  session. `before_all` legitimately has no page anyway, but a `before_group`
+  one would be reachable and is not wired.
+- **Hooks do not run in parallel.** Under `--workers > 1` group hooks fire from
+  several goroutines and there is one pipe, so the engine serialises the
+  exchanges. That is the correct trade, but it means a slow hook is a bottleneck
+  a parallel run cannot route around. §verify 3 is now partly answered by
+  construction rather than by a race-detector run.
+- **No auto-discovery.** A `manul_hooks.py` sitting beside the hunts does
+  nothing unless `--hooks` names it. Making the path implicit was rejected: the
+  only place that could infer it is a binding's CLI shim, and that would put
+  behaviour outside the engine.
 
 ### 2. Conformance suite
 
@@ -169,7 +188,7 @@ here only so nobody re-adds it thinking it was forgotten.
 
 1. ~~Add the Python tests and `gofmt` to CI.~~ **Done** — see §missing 5 for
    what that left behind.
-2. Decide the CLI extension story. (§missing 1)
+2. ~~Decide the CLI extension story.~~ **Done** — `--hooks`, see §missing 1.
 3. Verify `attach` end-to-end, and on one non-Windows platform. (§verify 1)
 4. Settle `run-suite` session semantics and write it into the contract. (§verify 4)
 5. Conformance suite. (§missing 2)
