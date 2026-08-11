@@ -217,7 +217,7 @@ func (rt *Runtime) debugPromptTTY(ctx context.Context, cmd dsl.Command, idx int)
 	readNext := func() {
 		go func() {
 			rt.logger.Info("\n[DEBUG] paused at: %s", cmd.Raw)
-			rt.logger.Info("  Commands: next | continue | debug-stop | highlight <xpath> | explain | abort")
+			rt.logger.Info("  Commands: next | continue | debug-stop | highlight <xpath> | explain | e (explain-next) | w (what-if) | abort")
 			fmt.Fprint(os.Stdout, "  > ")
 			os.Stdout.Sync()
 			if sc.Scan() {
@@ -274,8 +274,20 @@ func (rt *Runtime) debugPromptTTY(ctx context.Context, cmd dsl.Command, idx int)
 			case token == "explain":
 				rt.logger.Info(rt.explainStep(ctx, cmd))
 				readNext()
+			case token == "e" || token == "explain-next":
+				// One-shot dry run of the step we are paused on; stays paused.
+				fmt.Fprint(os.Stdout, rt.evaluateWhatIf(ctx, cmd.Raw).FormatReport())
+				readNext()
+			case token == "w" || token == "what-if":
+				// The reader goroutine has already delivered its token and
+				// exited, so the scanner is free for the REPL to borrow.
+				if chosen := rt.runWhatIfREPL(ctx, sc, cmd.Raw); chosen != "" {
+					rt.whatIfExecuteStep = chosen
+					return errWhatIfReplace
+				}
+				readNext()
 			default:
-				rt.logger.Warn("debug: unknown command %q — try: next, continue, debug-stop, highlight <xpath>, explain, abort", token)
+				rt.logger.Warn("debug: unknown command %q — try: next, continue, debug-stop, highlight <xpath>, explain, e, w, abort", token)
 				readNext()
 			}
 		}
@@ -500,6 +512,14 @@ func (rt *Runtime) debugPromptExtension(ctx context.Context, cmd dsl.Command, id
 				if err := rt.debugHighlight(ctx, xpath); err != nil {
 					rt.logger.Warn("debug: highlight failed: %v", err)
 				}
+				emitPauseMarker()
+				readNext()
+
+			case lower == "what-if" || lower == "w":
+				// stdin carries control tokens in protocol mode, so an
+				// interactive REPL cannot read from it. Stay paused and say so
+				// rather than consuming the extension's next token.
+				rt.logger.Info("debug: the what-if REPL is terminal-only; use explain-next here")
 				emitPauseMarker()
 				readNext()
 

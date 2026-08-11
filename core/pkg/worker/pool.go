@@ -10,6 +10,7 @@ import (
 	"github.com/alexbeatnik/Manul/core/pkg/config"
 	"github.com/alexbeatnik/Manul/core/pkg/dsl"
 	"github.com/alexbeatnik/Manul/core/pkg/explain"
+	"github.com/alexbeatnik/Manul/core/pkg/lifecycle"
 	"github.com/alexbeatnik/Manul/core/pkg/utils"
 )
 
@@ -47,6 +48,15 @@ type PoolOptions struct {
 	// Factory constructs Workers for the pool. If nil, NewWorker is used.
 	// Override in tests to inject mock pages via AdoptWorker.
 	Factory WorkerFactory
+
+	// Lifecycle carries suite-level hook state. When set, each hunt is
+	// bracketed by its matching group hooks and every worker's Runtime is
+	// seeded with the suite's global variables. Nil skips both, which is what
+	// a run with no hooks registered wants.
+	//
+	// Group hooks fire concurrently here, once per hunt — the same handler may
+	// run on several goroutines at once, exactly as custom controls do.
+	Lifecycle *lifecycle.GlobalContext
 }
 
 // PoolResult bundles a hunt's outcome with the worker that ran it.
@@ -146,6 +156,10 @@ func (p *WorkerPool) Run(ctx context.Context, hunts []*dsl.Hunt) ([]PoolResult, 
 			}
 			defer worker.Close()
 
+			if p.opts.Lifecycle != nil {
+				worker.Runtime().SetGlobalVars(p.opts.Lifecycle.Vars())
+			}
+
 			for idx := range jobs {
 				if runCtx.Err() != nil {
 					results[idx] = PoolResult{
@@ -156,10 +170,30 @@ func (p *WorkerPool) Run(ctx context.Context, hunts []*dsl.Hunt) ([]PoolResult, 
 					recordErr(runCtx.Err())
 					continue
 				}
-				res, runErr := worker.Run(runCtx, hunts[idx])
+				hunt := hunts[idx]
+
+				// A failing before-group hook skips this hunt and only this
+				// hunt: the group's precondition is broken, the rest of the
+				// suite is not.
+				if p.opts.Lifecycle != nil {
+					if err := lifecycle.RunBeforeGroup(runCtx, hunt.Tags, p.opts.Lifecycle); err != nil {
+						results[idx] = PoolResult{WorkerID: worker.ID(), Hunt: hunt, Err: err}
+						recordErr(err)
+						continue
+					}
+				}
+
+				res, runErr := worker.Run(runCtx, hunt)
+
+				if p.opts.Lifecycle != nil {
+					for _, err := range lifecycle.RunAfterGroup(runCtx, hunt.Tags, p.opts.Lifecycle) {
+						p.opts.Logger.Warn("%v", err)
+					}
+				}
+
 				results[idx] = PoolResult{
 					WorkerID: worker.ID(),
-					Hunt:     hunts[idx],
+					Hunt:     hunt,
 					Result:   res,
 					Err:      runErr,
 				}
@@ -185,7 +219,9 @@ func (p *WorkerPool) Run(ctx context.Context, hunts []*dsl.Hunt) ([]PoolResult, 
 // It constructs an internal PortAllocator over the inclusive range
 // [9222, 9222+concurrency*2] and runs all hunts. For FailFast, custom port
 // ranges, or a mock WorkerFactory use NewPool directly.
-func RunHuntsInParallel(ctx context.Context, cfg config.Config, hunts []*dsl.Hunt, concurrency int, baseLogger *utils.Logger) ([]PoolResult, error) {
+//
+// gctx carries suite-level hooks; pass nil when none are registered.
+func RunHuntsInParallel(ctx context.Context, cfg config.Config, hunts []*dsl.Hunt, concurrency int, baseLogger *utils.Logger, gctx *lifecycle.GlobalContext) ([]PoolResult, error) {
 	alloc := NewPortAllocator(9222, 9222+concurrency*2)
 	chromeOpts := browser.DefaultChromeOptions()
 	chromeOpts.Headless = cfg.Headless
@@ -201,6 +237,7 @@ func RunHuntsInParallel(ctx context.Context, cfg config.Config, hunts []*dsl.Hun
 		Logger:        baseLogger,
 		Allocator:     alloc,
 		ChromeOptions: chromeOpts,
+		Lifecycle:     gctx,
 	})
 	if err != nil {
 		return nil, err

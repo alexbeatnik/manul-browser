@@ -21,6 +21,12 @@ type Config struct {
 	// Browser is the browser type to launch ("chromium", "firefox", "webkit").
 	Browser string `json:"browser"`
 
+	// BrowserMode decides whether the engine starts its own Chrome or drives
+	// one that is already running: "launch" or "attach". Empty means infer —
+	// see ResolveBrowserMode. This is the single explicit answer to that
+	// question; CDPEndpoint and Browser only feed the inference.
+	BrowserMode string `json:"browser_mode"`
+
 	// BrowserArgs are extra flags passed to the browser process on launch.
 	BrowserArgs []string `json:"browser_args"`
 
@@ -89,6 +95,7 @@ type Config struct {
 type jsonConfig struct {
 	CDPEndpoint      string   `json:"cdp_endpoint"`
 	Browser          string   `json:"browser"`
+	BrowserMode      string   `json:"browser_mode"`
 	BrowserArgs      []string `json:"browser_args"`
 	ExecutablePath   *string  `json:"executable_path"`
 	Channel          *string  `json:"channel"`
@@ -168,6 +175,9 @@ func applyJSONFile(cfg *Config) error {
 	if raw.Browser != "" {
 		cfg.Browser = raw.Browser
 	}
+	if raw.BrowserMode != "" {
+		cfg.BrowserMode = raw.BrowserMode
+	}
 	if raw.BrowserArgs != nil {
 		cfg.BrowserArgs = raw.BrowserArgs
 	}
@@ -236,6 +246,9 @@ func overrideFromEnv(cfg *Config) {
 	}
 	if v := os.Getenv("MANUL_BROWSER"); v != "" {
 		cfg.Browser = v
+	}
+	if v := os.Getenv("MANUL_BROWSER_MODE"); v != "" {
+		cfg.BrowserMode = v
 	}
 	if v := os.Getenv("MANUL_BROWSER_ARGS"); v != "" {
 		cfg.BrowserArgs = splitCSV(v)
