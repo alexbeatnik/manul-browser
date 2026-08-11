@@ -10,10 +10,8 @@ Manul runs `.hunt` files through deterministic DOM heuristics over native CDP.
 No Playwright, no selectors, no cloud APIs, no AI inside the runtime.
 
 This repository is the single home for the engine and every language that drives
-it. It replaces the two separate implementations that came before —
-[`ManulEngine`](https://github.com/alexbeatnik/ManulEngine) (Python) and
-[`ManulEngineGo`](https://github.com/alexbeatnik/ManulEngineGo) (Go) — whose
-full histories are preserved here.
+it. It replaces the two separate implementations that came before, one in Python
+and one in Go, whose full histories are merged into this one.
 
 ## Layout
 
