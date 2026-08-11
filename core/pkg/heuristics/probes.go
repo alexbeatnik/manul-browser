@@ -15,7 +15,7 @@ import (
 
 	_ "embed"
 
-	"github.com/alexbeatnik/Manul/core/pkg/dom"
+	"github.com/alexbeatnik/manul-browser/core/pkg/dom"
 )
 
 // snapshotProbeJS is the primary DOM snapshot probe.

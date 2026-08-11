@@ -1,4 +1,4 @@
-module github.com/alexbeatnik/Manul/core
+module github.com/alexbeatnik/manul-browser/core
 
 go 1.26.2
 

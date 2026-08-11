@@ -15,7 +15,7 @@
 {
   "version": "0.1.0",
   "generatedFrom": "pkg/agent/agent.go :: Options, Session, Launch(), Attach(), (*Session).Close/Read/ReadText/Step/Run/Map, Value, Reason, Cand, StepOutcome, RunOutcome, MapBudget, MapElement, MapGroup, PageMap, TruncateText(), DefaultMaxPerGroup",
-  "importPath": "github.com/alexbeatnik/ManulEngineGo/pkg/agent",
+  "importPath": "github.com/alexbeatnik/manul-browser/core/pkg/agent",
 
   "overview": {
     "model": "A Session is a live, owned browser connection plus the targeting runtime. Create one with Launch (ManulEngine (Go) spawns Chrome) or Attach (connect to an already-running Chrome). Always Close it.",

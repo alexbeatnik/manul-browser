@@ -11,8 +11,8 @@
 ## 1. Build
 
 ```bash
-git clone https://github.com/alexbeatnik/ManulEngineGo.git
-cd ManulEngine (Go)
+git clone https://github.com/alexbeatnik/manul-browser.git
+cd manul-browser/core
 go build -o manul ./cmd/manul
 ```
 

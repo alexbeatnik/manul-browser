@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/alexbeatnik/Manul/core/pkg/explain"
+	"github.com/alexbeatnik/manul-browser/core/pkg/explain"
 )
 
 // ---- sanitizeFilename -------------------------------------------------------

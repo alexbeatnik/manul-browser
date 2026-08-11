@@ -7,8 +7,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/alexbeatnik/Manul/core/pkg/dsl"
-	"github.com/alexbeatnik/Manul/core/pkg/lifecycle"
+	"github.com/alexbeatnik/manul-browser/core/pkg/dsl"
+	"github.com/alexbeatnik/manul-browser/core/pkg/lifecycle"
 )
 
 // run-suite runs several hunts in one session with the suite lifecycle applied.

@@ -7,7 +7,7 @@
 `agent.Session` is the programmatic face of the engine — it owns the browser lifecycle and routes every call through the full heuristic pipeline. No selectors, no raw CDP in your code:
 
 ```go
-import "github.com/alexbeatnik/ManulEngineGo/pkg/agent"
+import "github.com/alexbeatnik/manul-browser/core/pkg/agent"
 
 sess, err := agent.Connect(ctx, agent.Options{Port: 9222}) // attach if Chrome is up, else launch & own it
 if err != nil { … }

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alexbeatnik/Manul/core/pkg/cdp"
+	"github.com/alexbeatnik/manul-browser/core/pkg/cdp"
 )
 
 // CDPBrowser is the Chrome DevTools Protocol implementation of Browser.

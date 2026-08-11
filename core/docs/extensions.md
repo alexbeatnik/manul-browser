@@ -41,7 +41,7 @@ import (
     "context"
     "fmt"
 
-    "github.com/alexbeatnik/ManulEngineGo/pkg/runtime"
+    "github.com/alexbeatnik/manul-browser/core/pkg/runtime"
 )
 
 func init() {
@@ -111,8 +111,8 @@ package main
 import (
     "context"
 
-    "github.com/alexbeatnik/ManulEngineGo/pkg/browser"
-    "github.com/alexbeatnik/ManulEngineGo/pkg/runtime"
+    "github.com/alexbeatnik/manul-browser/core/pkg/browser"
+    "github.com/alexbeatnik/manul-browser/core/pkg/runtime"
 )
 
 func init() {
@@ -261,7 +261,7 @@ import (
     "fmt"
     "net/http"
 
-    "github.com/alexbeatnik/ManulEngineGo/pkg/runtime"
+    "github.com/alexbeatnik/manul-browser/core/pkg/runtime"
 )
 
 func init() {

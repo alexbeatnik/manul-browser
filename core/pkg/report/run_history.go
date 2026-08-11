@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/alexbeatnik/Manul/core/pkg/explain"
+	"github.com/alexbeatnik/manul-browser/core/pkg/explain"
 )
 
 // RunHistoryEntry is one line of reports/run_history.json per the extension contract.

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/alexbeatnik/Manul/core/pkg/config"
+	"github.com/alexbeatnik/manul-browser/core/pkg/config"
 )
 
 // runLines feeds the given request lines through a server and returns the

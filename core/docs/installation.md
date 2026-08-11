@@ -22,8 +22,8 @@ No Playwright, no Node.js, no Python, no bundled browser download — the only e
 ## Build & Install
 
 ```bash
-git clone https://github.com/alexbeatnik/ManulEngineGo.git
-cd ManulEngineGo
+git clone https://github.com/alexbeatnik/manul-browser.git
+cd manul-browser/core
 
 make build            # → ./manul
 make install          # → ~/.local/bin/manul (user-local)
@@ -39,7 +39,7 @@ go build -o manul ./cmd/manul
 Or straight from the module:
 
 ```bash
-go install github.com/alexbeatnik/ManulEngineGo/cmd/manul@latest
+go install github.com/alexbeatnik/manul-browser/core/cmd/manul@latest
 ```
 
 > Expose the binary as a PATH command named `manul` — editor extensions and automation tooling look it up by that name.

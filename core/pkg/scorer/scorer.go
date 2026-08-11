@@ -13,8 +13,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/alexbeatnik/Manul/core/pkg/dom"
-	"github.com/alexbeatnik/Manul/core/pkg/explain"
+	"github.com/alexbeatnik/manul-browser/core/pkg/dom"
+	"github.com/alexbeatnik/manul-browser/core/pkg/explain"
 )
 
 // ── Public types ──────────────────────────────────────────────────────────────

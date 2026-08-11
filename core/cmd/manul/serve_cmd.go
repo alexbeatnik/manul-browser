@@ -8,9 +8,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/alexbeatnik/Manul/core/pkg/config"
-	"github.com/alexbeatnik/Manul/core/pkg/serve"
-	"github.com/alexbeatnik/Manul/core/pkg/utils"
+	"github.com/alexbeatnik/manul-browser/core/pkg/config"
+	"github.com/alexbeatnik/manul-browser/core/pkg/serve"
+	"github.com/alexbeatnik/manul-browser/core/pkg/utils"
 )
 
 // cmdServe runs the persistent session server. Language bindings spawn this and

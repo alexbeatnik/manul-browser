@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alexbeatnik/Manul/core/pkg/browser"
+	"github.com/alexbeatnik/manul-browser/core/pkg/browser"
 )
 
 // RECORDER_JS is injected into the page to capture user interactions.

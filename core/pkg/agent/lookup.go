@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alexbeatnik/Manul/core/pkg/browser"
-	"github.com/alexbeatnik/Manul/core/pkg/heuristics"
+	"github.com/alexbeatnik/manul-browser/core/pkg/browser"
+	"github.com/alexbeatnik/manul-browser/core/pkg/heuristics"
 )
 
 // Lookup opens url in a NEW BACKGROUND tab (the session's active page is never
