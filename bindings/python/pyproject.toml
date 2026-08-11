@@ -1,0 +1,41 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "manul"
+version = "0.1.0"
+description = "Browser automation in plain English — for humans and LLM agents."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE" }
+keywords = ["browser", "automation", "testing", "cdp", "chrome", "llm", "agent"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Software Development :: Testing :: Acceptance",
+]
+
+# No runtime dependencies: the engine is a binary shipped in the wheel, and
+# everything this package does is in the standard library.
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/alexbeatnik/Manul"
+Source = "https://github.com/alexbeatnik/Manul"
+Issues = "https://github.com/alexbeatnik/Manul/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["manul"]
+
+# The engine binary is dropped into manul/_bin/ by the release job before the
+# wheel is built; it is not in the repository.
+artifacts = ["manul/_bin/*"]
+
+[tool.hatch.build.targets.sdist]
+exclude = ["tests/"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
