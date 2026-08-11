@@ -3,11 +3,19 @@
 Browser automation in plain English — for humans and LLM agents.
 
 ```bash
-pip install manul
+pip install manul-browser
 ```
 
-The wheel carries the engine binary. There is nothing else to install except a
-system Chrome/Chromium.
+> Not on PyPI yet — the release workflow builds the wheels but does not upload
+> them. Until it does, install from a workflow artifact or build one yourself:
+> `MANUL_TARGET=<goos>/<goarch> python -m build --wheel`.
+
+The distribution is `manul-browser`; the import stays `manul`. The wheel carries
+the engine binary and installs the `manul` command, so there is nothing else to
+install except a system Chrome/Chromium.
+
+It supersedes `manul-engine`, the standalone pure-Python engine, and installs the
+same `manul` command — so the two do not belong in one environment.
 
 ## Use
 

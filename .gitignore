@@ -18,6 +18,10 @@ Thumbs.db
 /bindings/**/vendor/manul
 /bindings/**/vendor/manul.exe
 
+# The engine binary the release job stages inside the Python package. Never
+# committed; `artifacts` in pyproject.toml is what puts it into the wheel.
+/bindings/python/manul/_bin/
+
 # Python binding
 __pycache__/
 *.py[cod]
