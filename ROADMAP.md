@@ -132,12 +132,30 @@ What is still open:
   because Go derives the version from the subdirectory the module lives in. The
   release job does not create it.
 
-### 5. CI covers one thing
+### 5. CI runs on Linux only
 
-`.github/workflows/synthetic-tests.yml` runs the Go tests on push and PR. Not
-run there: the Python binding tests, `gofmt`, any linter, any cross-platform
-build. The release workflow does run the Python tests, but only on a tag — which
-is the worst moment to discover they fail.
+Mostly closed. `.github/workflows/synthetic-tests.yml` became
+`.github/workflows/ci.yml` and grew three jobs beside the engine tests: a
+`gofmt` gate with `go vet`, a cross-compile of all six release targets, and the
+Python binding tests on 3.9 and 3.13 across Linux and Windows. The binding no
+longer waits for a tag to be tested.
+
+Closing the `gofmt` gate needed a one-time cleanup of 19 files, and a
+`.gitattributes` pinning `*.go` to `eol=lf`. The claim that ~80 files were
+unformatted was a measurement error: `core.autocrlf` on Windows made gofmt
+compare CRLF against its own LF output and report almost every file.
+
+What is still not covered:
+
+- **The Go tests run on `ubuntu-latest` and nowhere else.** The cross-build job
+  proves every target compiles, which is not the same as passing. A Windows
+  runner would go red today on the twelve failures described in `CLAUDE.md` —
+  eleven of them a `TempDir` cleanup artefact rather than a defect, so switching
+  it on means fixing or skipping those first. That is §verify 2's real cost.
+- **Nothing drives Chrome.** Only the release workflow does, and only on a tag.
+- **No Python linting or type checking.** `mypy`/`ruff` would each be a new
+  development dependency in a package that deliberately has none; if they go in,
+  they go in as CI-only tools, not as `pyproject` dependencies.
 
 ### 6. Suite-level lifecycle: `MANUL_GLOBAL_VARS`
 
@@ -149,7 +167,8 @@ here only so nobody re-adds it thinking it was forgotten.
 
 ## Suggested order
 
-1. Add the Python tests and `gofmt` to CI. (§missing 5)
+1. ~~Add the Python tests and `gofmt` to CI.~~ **Done** — see §missing 5 for
+   what that left behind.
 2. Decide the CLI extension story. (§missing 1)
 3. Verify `attach` end-to-end, and on one non-Windows platform. (§verify 1)
 4. Settle `run-suite` session semantics and write it into the contract. (§verify 4)
@@ -157,5 +176,5 @@ here only so nobody re-adds it thinking it was forgotten.
 6. Push a tag, watch the release pipeline actually run, then the Node binding.
    (§missing 4, 3)
 
-Items 1–4 are cheap and each one stops a class of future surprise. Items 5–6 are
+Items 2–4 are cheap and each one stops a class of future surprise. Items 5–6 are
 the real remaining engineering.
