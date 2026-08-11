@@ -5,7 +5,7 @@ Thin language clients for the engine.
 ```
 bindings/
 ├─ python/    manul-browser (PyPI)     — implemented
-└─ node/      manul-browser (npm)      — not started
+└─ node/      manul-browser (npm)      — implemented
 ```
 
 One name in every registry: `manul-browser` on PyPI and npm, `Manul.Browser` on

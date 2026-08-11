@@ -10,10 +10,10 @@ name: CI
 on:
   push:
     branches: [main, 'feat/*']
-    paths: ['core/**', 'bindings/python/**', '.github/workflows/**']
+    paths: ['core/**', 'bindings/**', '.github/workflows/**']
   pull_request:
     branches: [main]
-    paths: ['core/**', 'bindings/python/**', '.github/workflows/**']
+    paths: ['core/**', 'bindings/**', '.github/workflows/**']
 
 permissions:
   contents: read
@@ -146,3 +146,37 @@ jobs:
 
       - name: Test
         run: python -m pytest tests/ -q
+
+  node:
+    name: Node binding (${{ matrix.os }}, node ${{ matrix.node-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Same shape as the Python job: the ends of the supported range, on the
+        # two platforms where process handling differs. These tests speak the
+        # protocol to a fake engine, so they need neither Chrome nor a binary.
+        os: [ubuntu-latest, windows-latest]
+        node-version: ['22.x', '24.x']
+    defaults:
+      run:
+        working-directory: bindings/node
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install
+        # `ci` rather than `install`: it installs exactly the committed lockfile
+        # and fails if package.json has drifted from it, which is the point of
+        # having one.
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test

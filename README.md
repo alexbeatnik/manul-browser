@@ -47,7 +47,7 @@ existed — it just needed a session that outlives a single command.
 | `spec/contracts/` | Current, describes shipped behaviour |
 | `spec/protocol.md` | Implemented as `manul serve --stdio` |
 | `bindings/python` | Working — packaged as `manul-browser`, not yet published |
-| `bindings/node` | Not started |
+| `bindings/node` | Working — packaged as `manul-browser` (npm), not yet published |
 | `conformance/` | Not started |
 | Release pipeline | Written, then switched off — `.github/workflows/release.yml.disabled`. Nothing fires on a tag |
 | What-If REPL | Ported to Go — terminal-only, see the debug contract |

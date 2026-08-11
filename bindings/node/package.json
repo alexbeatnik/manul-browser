@@ -1,0 +1,41 @@
+{
+  "name": "manul-browser",
+  "version": "0.1.0",
+  "description": "Browser automation in plain English — for humans and LLM agents.",
+  "keywords": ["browser", "automation", "testing", "cdp", "chrome", "llm", "agent"],
+  "license": "Apache-2.0",
+  "author": "Oleksii Poliakov",
+  "homepage": "https://github.com/alexbeatnik/manul-browser",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alexbeatnik/manul-browser.git",
+    "directory": "bindings/node"
+  },
+  "bugs": "https://github.com/alexbeatnik/manul-browser/issues",
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "manul": "./dist/cli.js"
+  },
+  "files": ["dist", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "tsc -p tsconfig.test.json && node --test \"dist-test/test/*.test.js\"",
+    "typecheck": "tsc -p tsconfig.test.json --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  }
+}

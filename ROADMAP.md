@@ -114,11 +114,34 @@ gives the same bytes through the one-shot CLI, a `serve` session, and each
 binding. Right now nothing enforces that, which is precisely the failure mode
 this repository was created to end.
 
-### 3. Node binding
+### 3. Node binding — written, unpublished
 
-`bindings/node/` does not exist. The protocol and the Python client are the
-template; the work is packaging (`optionalDependencies` per platform) more than
-logic.
+`bindings/node/` exists: TypeScript, ESM, no runtime dependencies, Node ≥ 22.
+`Session` mirrors Go's `agent.Session` and Python's `manul.Session` method for
+method, the handler registry and reverse-call dispatch match Python's, and
+`serveHooks()` is the `--hooks` peer so a `.js` hook script works from the CLI.
+43 tests run against a fake engine, needing neither Chrome nor a binary.
+
+Verified against a real Chrome: `saucedemo.hunt` through the binding gives the
+same 15/15 the CLI and the Python client give, and a Node hook script publishing
+a variable, answering `CALL HOST`, and evaluating in the page all work.
+
+The prediction that this would be "packaging more than logic" was wrong in one
+place. Python blocks on a read and holds a lock; Node cannot block, so replies
+are matched by id against a pending map. That makes nested `page.eval` fall out
+for free, but it also means two overlapping commands could each open a reverse
+call — and reverse calls are strictly nested. Top-level commands are therefore
+serialised through a queue, which is what Python's lock does by other means.
+
+What is left is the packaging half:
+
+- **Nothing is published.** `optionalDependencies` is empty because the
+  `@manul-browser/engine-<platform>-<arch>` packages do not exist yet; the
+  release workflow that would build them is §4, and it is switched off. Until
+  then the binding finds the engine through `$MANUL_BINARY` or `PATH`, which is
+  what the tests and the manual runs used.
+- **The release workflow does not know about npm.** It builds six wheels; it
+  builds no tarballs, and `bindings/node` is not in it at all.
 
 ### 4. Release pipeline — written, switched off, never fired
 
@@ -196,8 +219,8 @@ here only so nobody re-adds it thinking it was forgotten.
 3. Verify `attach` end-to-end, and on one non-Windows platform. (§verify 1)
 4. Settle `run-suite` session semantics and write it into the contract. (§verify 4)
 5. Conformance suite. (§missing 2)
-6. Push a tag, watch the release pipeline actually run, then the Node binding.
-   (§missing 4, 3)
+6. Teach the release pipeline about npm, push a tag, and watch it run.
+   (§missing 4, and the packaging half of §missing 3)
 
 Items 2–4 are cheap and each one stops a class of future surprise. Items 5–6 are
 the real remaining engineering.
