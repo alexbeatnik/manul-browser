@@ -65,12 +65,14 @@ type Runtime struct {
 	mockRules map[string]mockRule
 
 	// debug state — only populated when cfg.DebugMode is true
-	breakLines       map[int]bool             // source line numbers that are breakpoints; empty = pause every step
-	breakSteps       map[int]bool             // command indices queued by extension-mode "next" to pause at
-	debugContinue    bool                     // when true, skip all future pauses
-	lastExplainData  []scorer.RankedCandidate // cached ranking for the "explain" debug command
-	pendingDebugPause bool                    // set in runCommands when an action step should pause after resolution
-	pendingDebugIdx  int                      // command index for the pending debug pause
+	breakLines        map[int]bool             // source line numbers that are breakpoints; empty = pause every step
+	breakSteps        map[int]bool             // command indices queued by extension-mode "next" to pause at
+	debugContinue     bool                     // when true, skip all future pauses
+	lastExplainData   []scorer.RankedCandidate // cached ranking for the "explain" debug command
+	pendingDebugPause bool                     // set in runCommands when an action step should pause after resolution
+	pendingDebugIdx   int                      // command index for the pending debug pause
+	whatIfHistory     []WhatIfResult           // dry-run evaluations made during this debug session
+	whatIfExecuteStep string                   // step chosen via the REPL's !execute, consumed by runCommands
 
 	// onStep, when non-nil, is invoked synchronously after each step
 	// completes (pass or fail) with that step's ExecutionResult. Set via
@@ -97,16 +99,16 @@ type mockRule struct {
 // The returned Runtime is single-goroutine; see the type doc for the
 // concurrency contract. For parallel execution, use pkg/worker.
 func New(cfg config.Config, page browser.Page, logger *utils.Logger) *Runtime {
-		rt := &Runtime{
-			cfg:                  cfg,
-			page:                 page,
-			logger:               logger,
-			vars:                 NewScopedVariables(),
-			pages:                pages.NewRegistry(""),
-			stickyCheckboxStates: make(map[string]bool),
-			mockRules:            make(map[string]mockRule),
-			breakLines:           make(map[int]bool),
-		}
+	rt := &Runtime{
+		cfg:                  cfg,
+		page:                 page,
+		logger:               logger,
+		vars:                 NewScopedVariables(),
+		pages:                pages.NewRegistry(""),
+		stickyCheckboxStates: make(map[string]bool),
+		mockRules:            make(map[string]mockRule),
+		breakLines:           make(map[int]bool),
+	}
 	for _, ln := range cfg.BreakLines {
 		rt.breakLines[ln] = true
 	}
@@ -276,38 +278,59 @@ func (rt *Runtime) runCommands(ctx context.Context, commands []dsl.Command, hunt
 		}
 
 		globalIdx := offset + i
-		rt.pendingDebugPause = false
-		if rt.cfg.DebugMode && rt.shouldPause(cmd, globalIdx) {
-			if isActionCommand(cmd.Type) {
-				// Defer debug pause until after element resolution inside executeCommand.
-				rt.pendingDebugPause = true
-				rt.pendingDebugIdx = globalIdx
-			} else {
-				if dbgErr := rt.debugPrompt(ctx, cmd, globalIdx); dbgErr != nil {
-					return passed, failed, dbgErr
+
+		// The What-If REPL can swap the step in flight via !execute. The
+		// substitute is run in place of the original, and is not paused on
+		// again — the user already decided at this breakpoint.
+		replaced := false
+
+	step:
+		for {
+			rt.pendingDebugPause = false
+			if !replaced && rt.cfg.DebugMode && rt.shouldPause(cmd, globalIdx) {
+				if isActionCommand(cmd.Type) {
+					// Defer debug pause until after element resolution inside executeCommand.
+					rt.pendingDebugPause = true
+					rt.pendingDebugIdx = globalIdx
+				} else {
+					if dbgErr := rt.debugPrompt(ctx, cmd, globalIdx); dbgErr != nil {
+						if next, ok := rt.takeWhatIfReplacement(dbgErr, cmd); ok {
+							cmd, replaced = next, true
+							continue step
+						}
+						return passed, failed, dbgErr
+					}
 				}
 			}
-		}
 
-		rt.logger.ActionStart(cmd.Raw)
-		stepStart := time.Now()
-		stepResult, err := rt.executeCommand(ctx, cmd)
-		durMs := time.Since(stepStart).Milliseconds()
+			rt.logger.ActionStart(cmd.Raw)
+			stepStart := time.Now()
+			stepResult, err := rt.executeCommand(ctx, cmd)
+			durMs := time.Since(stepStart).Milliseconds()
 
-		if huntRes != nil {
-			huntRes.Results = append(huntRes.Results, stepResult)
+			// Checked before the step is recorded: an abandoned step must not
+			// reach the report, the onStep stream, or the pass/fail tally.
+			if next, ok := rt.takeWhatIfReplacement(err, cmd); ok {
+				cmd, replaced = next, true
+				continue step
+			}
+
+			if huntRes != nil {
+				huntRes.Results = append(huntRes.Results, stepResult)
+			}
+			if rt.onStep != nil {
+				rt.onStep(stepResult)
+			}
+			if err != nil {
+				failed++
+				rt.logger.ActionFail(err)
+				rt.logger.Error("step failed (%s): %v", cmd.Raw, err)
+				return passed, failed, err
+			}
+			rt.logger.ActionPass(float64(durMs) / 1000)
+			passed++
+			break
 		}
-		if rt.onStep != nil {
-			rt.onStep(stepResult)
-		}
-		if err != nil {
-			failed++
-			rt.logger.ActionFail(err)
-			rt.logger.Error("step failed (%s): %v", cmd.Raw, err)
-			return passed, failed, err
-		}
-		rt.logger.ActionPass(float64(durMs) / 1000)
-		passed++
 	}
 	return passed, failed, nil
 }
@@ -473,6 +496,32 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 	case dsl.CmdWait:
 		err = rt.page.Wait(ctx, time.Duration(cmd.WaitSeconds*float64(time.Second)))
 
+	case dsl.CmdWaitFor:
+		err = rt.waitForElement(ctx, cmd)
+
+	case dsl.CmdWaitForSelector:
+		res.ActionValue = cmd.Selector
+		err = rt.waitForSelector(ctx, cmd.Selector)
+
+	case dsl.CmdHighlight:
+		err = rt.highlightTarget(ctx, cmd)
+
+	case dsl.CmdFullScan:
+		var report string
+		report, err = rt.fullScan(ctx)
+		if err == nil {
+			res.ActionValue = report
+			rt.logger.Info("%s", report)
+		}
+
+	case dsl.CmdScanPage:
+		var draft string
+		draft, err = rt.scanPageDraft(ctx, cmd.ScanOutput)
+		if err == nil {
+			res.ActionValue = draft
+			rt.logger.Info("%s", draft)
+		}
+
 	case dsl.CmdPress:
 		// PRESS <key> dispatches a keyboard event to whatever element
 		// currently has focus. Typical use: FILL '<field>' '<text>'
@@ -547,7 +596,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 		}
 		rt.logger.Info("PAUSE command encountered")
 		err = rt.debugPrompt(ctx, cmd, -1)
- 
+
 	case dsl.CmdDebugVars:
 		vars := rt.vars.String()
 		rt.logger.Info(vars)

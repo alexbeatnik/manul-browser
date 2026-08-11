@@ -29,3 +29,6 @@ node_modules/
 
 # Conformance run output
 /conformance/actual/
+
+# Test output
+screenshots/

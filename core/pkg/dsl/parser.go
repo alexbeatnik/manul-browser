@@ -41,6 +41,9 @@ const (
 	CmdWait            CommandType = "WAIT"
 	CmdWaitFor         CommandType = "WAIT_FOR"
 	CmdWaitForResponse CommandType = "WAIT_FOR_RESPONSE"
+	CmdWaitForSelector CommandType = "WAIT_FOR_SELECTOR"
+	CmdFullScan        CommandType = "FULL_SCAN"
+	CmdScanPage        CommandType = "SCAN_PAGE"
 	CmdHover           CommandType = "HOVER"
 	CmdDrag            CommandType = "DRAG"
 	CmdSet             CommandType = "SET"
@@ -155,6 +158,12 @@ type Command struct {
 	WaitForState string
 	// WaitResponseURL is the URL pattern for WAIT FOR RESPONSE.
 	WaitResponseURL string
+	// Selector is a raw CSS selector, used by WAIT FOR SELECTOR. Unlike
+	// Target it is not a human label and never reaches the scorer.
+	Selector string
+	// ScanOutput is the optional file SCAN PAGE writes its draft to.
+	// Empty means console only.
+	ScanOutput string
 
 	// SetVar is the variable name for SET commands.
 	SetVar string
@@ -857,6 +866,15 @@ func parseCommandLine(line string) Command {
 			cmd.PressKey = rest
 		}
 
+	// ── WAIT FOR SELECTOR ─────────────────────────────────────────────────────
+	//
+	// Checked before the other WAIT FOR forms, which would otherwise swallow
+	// it: the target here is a CSS selector, not a human label, so it takes a
+	// different path through the runtime.
+	case strings.HasPrefix(upper, "WAIT FOR SELECTOR "):
+		cmd.Type = CmdWaitForSelector
+		cmd.Selector = unquote(strings.TrimSpace(stripPrefix(line, "WAIT FOR SELECTOR ")))
+
 	// ── WAIT FOR RESPONSE ─────────────────────────────────────────────────────
 	case strings.HasPrefix(upper, "WAIT FOR RESPONSE "):
 		cmd.Type = CmdWaitForResponse
@@ -929,6 +947,21 @@ func parseCommandLine(line string) Command {
 	case strings.HasPrefix(upper, "SCREENSHOT"):
 		cmd.Type = CmdScreenshot
 		cmd.ScreenshotName = unquote(strings.TrimSpace(line[len("SCREENSHOT"):]))
+
+	// ── FULL SCAN / SCAN PAGE ─────────────────────────────────────────────────
+	case upper == "FULL SCAN":
+		cmd.Type = CmdFullScan
+
+	case upper == "SCAN PAGE" || strings.HasPrefix(upper, "SCAN PAGE "):
+		cmd.Type = CmdScanPage
+		rest := strings.TrimSpace(stripPrefix(line, "SCAN PAGE"))
+		// Optional `into {filename}` / `to {filename}`; without one the draft
+		// goes to the console only.
+		if idx := indexAnyFold(rest, " into ", " to ", "into ", "to "); idx >= 0 {
+			name := rest[idx:]
+			name = stripPrefix(name, " into ", " to ", "into ", "to ")
+			cmd.ScanOutput = strings.Trim(strings.TrimSpace(name), "{}'\"")
+		}
 
 	// ── HIGHLIGHT ─────────────────────────────────────────────────────────────
 	case strings.HasPrefix(upper, "HIGHLIGHT "):
@@ -1008,10 +1041,26 @@ func parseCommandLine(line string) Command {
 	case upper == "END REPEAT" || upper == "END REPEAT:" || upper == "ENDREPEAT":
 		cmd.Type = CmdEndRepeat
 
-	// ── CALL GO ─────────────────────────────────────────────────────────────
-	case strings.HasPrefix(upper, "CALL GO "):
+	// ── CALL GO / CALL PYTHON / CALL HOST ───────────────────────────────────
+	//
+	// One command with three spellings. The handler does not live in the
+	// engine — it lives in whatever host registered it, which is Go when the
+	// engine is embedded and Python when it is driven through the binding. A
+	// .hunt file written for the Python engine says CALL PYTHON, so that
+	// spelling keeps working unchanged; CALL HOST is the language-neutral name
+	// for new scripts.
+	case strings.HasPrefix(upper, "CALL GO "),
+		strings.HasPrefix(upper, "CALL PYTHON "),
+		strings.HasPrefix(upper, "CALL HOST "):
 		cmd.Type = CmdCallGo
-		rest := strings.TrimSpace(stripPrefix(line, "CALL GO "))
+		prefix := "CALL GO "
+		switch {
+		case strings.HasPrefix(upper, "CALL PYTHON "):
+			prefix = "CALL PYTHON "
+		case strings.HasPrefix(upper, "CALL HOST "):
+			prefix = "CALL HOST "
+		}
+		rest := strings.TrimSpace(stripPrefix(line, prefix))
 		cmd.GoCallName, cmd.GoCallArgs, cmd.GoCallResultVar = parseCallGo(rest)
 
 	// ── USE / CALL STEP ──────────────────────────────────────────────────────
@@ -1024,7 +1073,7 @@ func parseCommandLine(line string) Command {
 			cmd.CallStepName = stripPrefix(line, "RUN STEP ", "CALL ")
 		}
 		cmd.CallStepName = strings.TrimSpace(cmd.CallStepName)
- 
+
 	// ── DEBUGGING ─────────────────────────────────────────────────────────────
 	case upper == "PAUSE":
 		cmd.Type = CmdPause
@@ -1336,4 +1385,17 @@ func splitShellTokens(s string) []string {
 func isVariableToken(s string) bool {
 	s = strings.TrimSpace(s)
 	return len(s) >= 3 && strings.HasPrefix(s, "{") && strings.HasSuffix(s, "}")
+}
+
+// indexAnyFold returns the index of the earliest of subs in s, case-insensitively,
+// or -1 when none appear.
+func indexAnyFold(s string, subs ...string) int {
+	lower := strings.ToLower(s)
+	best := -1
+	for _, sub := range subs {
+		if i := strings.Index(lower, strings.ToLower(sub)); i >= 0 && (best < 0 || i < best) {
+			best = i
+		}
+	}
+	return best
 }

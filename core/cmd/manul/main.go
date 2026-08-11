@@ -40,6 +40,7 @@ import (
 	"github.com/alexbeatnik/Manul/core/pkg/data"
 	"github.com/alexbeatnik/Manul/core/pkg/dsl"
 	"github.com/alexbeatnik/Manul/core/pkg/explain"
+	"github.com/alexbeatnik/Manul/core/pkg/lifecycle"
 	"github.com/alexbeatnik/Manul/core/pkg/pages"
 	"github.com/alexbeatnik/Manul/core/pkg/record"
 	"github.com/alexbeatnik/Manul/core/pkg/report"
@@ -103,6 +104,11 @@ func main() {
 		}
 	case "schema":
 		if err := cmdSchema(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
+	case "serve":
+		if err := cmdServe(os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			os.Exit(1)
 		}
@@ -209,7 +215,7 @@ func cmdRun(args []string) error {
 		os.Stdout.Sync()
 		return nil
 	}
- 
+
 	if target == "" {
 		fs.Usage()
 		return fmt.Errorf("hunt file or directory path is required")
@@ -369,16 +375,33 @@ func cmdRun(args []string) error {
 		return terr
 	}
 
+	// Suite-level hooks bracket the whole run. A before-all failure aborts
+	// before any browser is launched — its job is to establish preconditions,
+	// and running twenty hunts without them only wastes time.
+	var gctx *lifecycle.GlobalContext
+	if !lifecycle.IsEmpty() {
+		gctx = lifecycle.NewGlobalContext()
+		if err := lifecycle.RunBeforeAll(ctx, gctx); err != nil {
+			return fmt.Errorf("suite aborted: %w", err)
+		}
+		defer func() {
+			// Teardown runs whatever happened above, including a panic path.
+			for _, hookErr := range lifecycle.RunAfterAll(ctx, gctx) {
+				logger.Warn("%v", hookErr)
+			}
+		}()
+	}
+
 	var totalFailed int
 	if cfg.Workers > 1 && len(hunts) > 1 {
 		// Parallel execution via worker pool.
 		if tabURLSubstr != "" {
 			logger.Warn("-target is ignored in --workers >1 (each worker spawns its own Chrome)")
 		}
-		totalFailed = runParallel(ctx, cfg, hunts, opts, logger)
+		totalFailed = runParallel(ctx, cfg, hunts, opts, logger, gctx)
 	} else {
 		// Sequential execution.
-		totalFailed = runSequential(ctx, cfg, hunts, opts, *cdpEndpoint, *userDataDir, *headless, *executablePath, tabURLSubstr, logger)
+		totalFailed = runSequential(ctx, cfg, hunts, opts, *cdpEndpoint, *userDataDir, *headless, *executablePath, tabURLSubstr, logger, gctx)
 	}
 
 	totalFailed += parseFailed
@@ -424,8 +447,13 @@ func parseTargetSelector(raw string) (urlSubstr string, err error) {
 // -jsonl is active. Each step's ExecutionResult is encoded as a single
 // compact JSON line tagged with `"event":"step"` so consumers can tell
 // streaming rows apart from the final HuntResult.
-func newRuntimeWithStreaming(cfg config.Config, page browser.Page, logger *utils.Logger, opts outputOpts) *runtime.Runtime {
+func newRuntimeWithStreaming(cfg config.Config, page browser.Page, logger *utils.Logger, opts outputOpts, gctx *lifecycle.GlobalContext) *runtime.Runtime {
 	rt := runtime.New(cfg, page, logger)
+	// Suite-level hooks publish at global scope, so a hunt's own values and
+	// per-row data still shadow them.
+	if gctx != nil {
+		rt.SetGlobalVars(gctx.Vars())
+	}
 	if opts.jsonl {
 		enc := json.NewEncoder(os.Stdout)
 		var streamMu sync.Mutex // workers may share stdout
@@ -449,7 +477,7 @@ func newRuntimeWithStreaming(cfg config.Config, page browser.Page, logger *utils
 // page whose URL contains this substring (case-insensitive). Empty means
 // "first available page", which matches Chrome's most-recently-active
 // tab in practice.
-func runSequential(ctx context.Context, cfg config.Config, hunts []*dsl.Hunt, opts outputOpts, cdpEndpoint, userDataDir string, headless bool, executablePath, tabURLSubstr string, logger *utils.Logger) int {
+func runSequential(ctx context.Context, cfg config.Config, hunts []*dsl.Hunt, opts outputOpts, cdpEndpoint, userDataDir string, headless bool, executablePath, tabURLSubstr string, logger *utils.Logger, gctx *lifecycle.GlobalContext) int {
 	var chrome *browser.ChromeProcess
 	if cdpEndpoint == "" {
 		opts := browser.DefaultChromeOptions()
@@ -507,6 +535,17 @@ func runSequential(ctx context.Context, cfg config.Config, hunts []*dsl.Hunt, op
 		logger.Info("Commands: %d", len(hunt.Commands))
 		logger.Info("CDP: %s", cfg.CDPEndpoint)
 
+		// Group hooks run before a page is even opened: if the group's
+		// precondition is broken there is no point connecting a browser to it.
+		// Only this hunt is skipped — the rest of the suite is unaffected.
+		if gctx != nil {
+			if hookErr := lifecycle.RunBeforeGroup(ctx, hunt.Tags, gctx); hookErr != nil {
+				logger.Error("skipping %q: %v", hunt.SourcePath, hookErr)
+				totalFailed++
+				continue
+			}
+		}
+
 		b := browser.NewCDPBrowser(cfg.CDPEndpoint)
 		var page browser.Page
 		var err error
@@ -543,7 +582,7 @@ func runSequential(ctx context.Context, cfg config.Config, hunts []*dsl.Hunt, op
 						fmt.Fprintf(os.Stderr, "\n%s\n📊 Data row %d/%d: %v\n%s\n",
 							strings.Repeat("-", 40), rowIdx+1, len(rows), row, strings.Repeat("-", 40))
 					}
-					rt := newRuntimeWithStreaming(cfg, page, logger, opts)
+					rt := newRuntimeWithStreaming(cfg, page, logger, opts, gctx)
 					result, runErr := rt.RunHunt(ctx, hunt, row)
 					if runErr != nil {
 						logger.Error("hunt %q row %d failed: %v", hunt.SourcePath, rowIdx+1, runErr)
@@ -572,7 +611,7 @@ func runSequential(ctx context.Context, cfg config.Config, hunts []*dsl.Hunt, op
 			}
 
 			// Standard (non-data-driven) execution.
-			rt := newRuntimeWithStreaming(cfg, page, logger, opts)
+			rt := newRuntimeWithStreaming(cfg, page, logger, opts, gctx)
 			result, err := rt.RunHunt(ctx, hunt)
 			if err != nil {
 				logger.Error("hunt %q failed: %v", hunt.SourcePath, err)
@@ -602,12 +641,20 @@ func runSequential(ctx context.Context, cfg config.Config, hunts []*dsl.Hunt, op
 				totalFailed++
 			}
 		}()
+
+		// Teardown for the group runs whether the hunt passed or failed, and a
+		// failure here is reported without changing the hunt's result.
+		if gctx != nil {
+			for _, hookErr := range lifecycle.RunAfterGroup(ctx, hunt.Tags, gctx) {
+				logger.Warn("%v", hookErr)
+			}
+		}
 	}
 	return totalFailed
 }
 
 // runParallel executes hunts across a worker pool.
-func runParallel(ctx context.Context, cfg config.Config, hunts []*dsl.Hunt, opts outputOpts, logger *utils.Logger) int {
+func runParallel(ctx context.Context, cfg config.Config, hunts []*dsl.Hunt, opts outputOpts, logger *utils.Logger, gctx *lifecycle.GlobalContext) int {
 	if opts.jsonl {
 		// pkg/worker spins its own runtime.Runtime per hunt; per-step
 		// streaming would need a worker-level callback we haven't
@@ -615,7 +662,7 @@ func runParallel(ctx context.Context, cfg config.Config, hunts []*dsl.Hunt, opts
 		fmt.Fprintln(os.Stderr, "warning: -jsonl per-step streaming is not yet supported with --workers >1; emitting hunt-level events only")
 	}
 	fmt.Fprintf(os.Stderr, "🐾 Running %d hunts in parallel (workers: %d)\n", len(hunts), cfg.Workers)
-	results, err := worker.RunHuntsInParallel(ctx, cfg, hunts, cfg.Workers, logger)
+	results, err := worker.RunHuntsInParallel(ctx, cfg, hunts, cfg.Workers, logger, gctx)
 	if err != nil {
 		logger.Error("parallel run failed: %v", err)
 	}
