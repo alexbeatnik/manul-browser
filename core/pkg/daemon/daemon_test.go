@@ -174,10 +174,13 @@ func TestCollectScheduledHunts_Subdirectories(t *testing.T) {
 	if len(hunts) != 2 {
 		t.Fatalf("expected 2 scheduled hunts, got %d", len(hunts))
 	}
-	// Verify paths include subdirectories
+	// Verify paths include subdirectories. The separator has to come from
+	// filepath: the walk produces sub\nested.hunt on Windows, and a literal
+	// "sub/nested.hunt" here fails there while the code under test is correct.
+	nested := filepath.Join("sub", "nested.hunt")
 	foundNested := false
 	for _, h := range hunts {
-		if strings.Contains(h.Path, "sub/nested.hunt") {
+		if strings.Contains(h.Path, nested) {
 			foundNested = true
 		}
 	}

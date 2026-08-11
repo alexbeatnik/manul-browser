@@ -85,7 +85,14 @@ type Page interface {
 	ClearHighlight(ctx context.Context) error
 
 	// GetElementCenter returns the center viewport coordinates of an element.
+	// It scrolls that element into view first, so calling it twice invalidates
+	// the coordinates it returned the first time — see GetDragCenters.
 	GetElementCenter(ctx context.Context, id int, xpath string) (float64, float64, error)
+
+	// GetDragCenters returns the centres of two elements measured after a
+	// single scroll, which is what a drag needs and what two GetElementCenter
+	// calls cannot give.
+	GetDragCenters(ctx context.Context, srcID int, srcXPath string, dstID int, dstXPath string) (float64, float64, float64, float64, error)
 
 	// DispatchKey dispatches a keyboard event. key is the key name (e.g. "Enter").
 	// modifiers is a bitmask: 1=Alt, 2=Ctrl, 4=Meta, 8=Shift.

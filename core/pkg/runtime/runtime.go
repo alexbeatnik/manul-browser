@@ -1004,12 +1004,6 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 		}
 		srcEl := rankedSrc[0].Element
 
-		x1, y1, errSrc := rt.page.GetElementCenter(ctx, srcEl.ID, srcEl.XPath)
-		if errSrc != nil {
-			err = fmt.Errorf("source center calc failed: %w", errSrc)
-			break
-		}
-
 		dropPath := rt.resolveVariables(cmd.DragTarget)
 		rankedDest := scorer.Rank(dropPath, "", string(dsl.ModeClickable), elements, 5, nil)
 		if len(rankedDest) == 0 {
@@ -1021,9 +1015,11 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 		}
 		destEl := rankedDest[0].Element
 
-		x2, y2, errDest := rt.page.GetElementCenter(ctx, destEl.ID, destEl.XPath)
-		if errDest != nil {
-			err = fmt.Errorf("destination center calc failed: %w", errDest)
+		// Both centres in one measurement. Measuring them separately scrolls
+		// twice, and the first result is stale by the time the second returns.
+		x1, y1, x2, y2, errCenters := rt.page.GetDragCenters(ctx, srcEl.ID, srcEl.XPath, destEl.ID, destEl.XPath)
+		if errCenters != nil {
+			err = fmt.Errorf("drag centre calc failed: %w", errCenters)
 			break
 		}
 

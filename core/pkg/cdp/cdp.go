@@ -296,31 +296,65 @@ func Hover(ctx context.Context, c *Conn, x, y float64) error {
 	return err
 }
 
+// dragSteps is how many intermediate moves a drag is broken into.
+//
+// One jump from source to target is not a drag as far as the page is
+// concerned. jQuery UI and every HTML5 drop library start their drag on the
+// first mousemove *after* mousedown, track the pointer across subsequent ones,
+// and decide what is under it when the button is released — a lone move gives
+// them nothing to track and frequently never enters the drag state at all.
+const dragSteps = 10
+
 // DragAndDrop dispatches a drag-and-drop sequence.
+//
+// Two details make the difference between this working and silently doing
+// nothing. Every move between press and release carries `buttons: 1`: that
+// field is the pointer state the page reads as `event.buttons`, and a page that
+// sees 0 concludes the button was let go and cancels the drag it had started.
+// And the pointer travels in steps rather than teleporting, for the reason
+// above. Both are invisible from the outside — the CDP calls all succeed, the
+// step passes, and only the verification afterwards notices nothing moved.
 func DragAndDrop(ctx context.Context, c *Conn, fromX, fromY, toX, toY float64) error {
-	// Mouse move to start
-	if err := Hover(ctx, c, fromX, fromY); err != nil {
+	move := func(x, y float64, buttons int) error {
+		_, err := c.Call(ctx, "Input.dispatchMouseEvent", map[string]interface{}{
+			"type": "mouseMoved", "button": "left", "buttons": buttons, "x": x, "y": y,
+		})
 		return err
 	}
-	// Press
+
+	// Settle the pointer on the source before pressing, so anything listening
+	// for hover has already reacted.
+	if err := move(fromX, fromY, 0); err != nil {
+		return err
+	}
+
+	if _, err := c.Call(ctx, "Input.dispatchMouseEvent", map[string]interface{}{
+		"type": "mousePressed", "button": "left", "buttons": 1,
+		"x": fromX, "y": fromY, "clickCount": 1,
+	}); err != nil {
+		return err
+	}
+
+	// Interpolate. The first step is deliberately a small one off the source:
+	// drag implementations have a distance threshold before they engage, and a
+	// single large jump can satisfy the threshold and the drop in the same
+	// event, which some of them treat as neither.
+	for i := 1; i <= dragSteps; i++ {
+		p := float64(i) / float64(dragSteps)
+		if err := move(fromX+(toX-fromX)*p, fromY+(toY-fromY)*p, 1); err != nil {
+			return err
+		}
+	}
+
+	// One more move at rest on the target: a droppable decides what it is over
+	// on a move, not on the release.
+	if err := move(toX, toY, 1); err != nil {
+		return err
+	}
+
 	_, err := c.Call(ctx, "Input.dispatchMouseEvent", map[string]interface{}{
-		"type": "mousePressed", "button": "left", "x": fromX, "y": fromY, "clickCount": 1,
-	})
-	if err != nil {
-		return err
-	}
-
-	// Move slowly (simulate multiple steps?) Simple 1-step move:
-	_, err = c.Call(ctx, "Input.dispatchMouseEvent", map[string]interface{}{
-		"type": "mouseMoved", "button": "left", "x": toX, "y": toY,
-	})
-	if err != nil {
-		return err
-	}
-
-	// Release
-	_, err = c.Call(ctx, "Input.dispatchMouseEvent", map[string]interface{}{
-		"type": "mouseReleased", "button": "left", "x": toX, "y": toY, "clickCount": 1,
+		"type": "mouseReleased", "button": "left", "buttons": 0,
+		"x": toX, "y": toY, "clickCount": 1,
 	})
 	return err
 }
@@ -494,6 +528,79 @@ func (c *Conn) SetChecked(ctx context.Context, id int, xpath string, checked boo
 	`, id, xpath, checked)
 	_, err := Evaluate(ctx, c, js)
 	return err
+}
+
+// GetDragCenters returns the viewport centres of two elements, measured after
+// one scroll rather than two.
+//
+// GetElementCenter scrolls its element into view before measuring, which makes
+// it wrong to call twice for a drag: the second call scrolls to the target and
+// moves the source out from under the coordinates the first call just returned.
+// The press then lands wherever the source used to be. Nothing errors — the
+// coordinates are real, they are simply stale — so the step passes and only a
+// later verification notices nothing was dragged.
+//
+// This scrolls once, to the midpoint of the two, and measures both afterwards.
+// Elements far enough apart that both cannot share a viewport are still beyond
+// what a coordinate drag can express, but those are rare; a drag source and its
+// drop target are near each other by construction.
+func (c *Conn) GetDragCenters(ctx context.Context, srcID int, srcXPath string, dstID int, dstXPath string) (x1, y1, x2, y2 float64, err error) {
+	js := fmt.Sprintf(`
+		var pick = function(id, xp) {
+			return (window.__manulReg && window.__manulReg[id]) ||
+				document.evaluate(xp, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+		};
+		var a = pick(%[1]d, %[2]q), b = pick(%[3]d, %[4]q);
+		if (!a) { throw new Error("drag source not found in the page"); }
+		if (!b) { throw new Error("drop target not found in the page"); }
+
+		// Centre the source first. scrollIntoView is used rather than a computed
+		// window.scrollTo because it is the primitive the rest of this file
+		// relies on and it works against pages that scroll something other than
+		// the window.
+		a.scrollIntoView({block: 'center', inline: 'center'});
+
+		// If that left the target off screen, split the difference: nudge by
+		// half the gap so both sit inside the viewport. A source and its drop
+		// target that cannot share a viewport are beyond what a coordinate drag
+		// can express anyway.
+		var ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+		var vh = window.innerHeight, vw = window.innerWidth;
+		var dy = 0, dx = 0;
+		if (rb.bottom > vh) { dy = Math.min(rb.bottom - vh + 8, ra.top - 8); }
+		else if (rb.top < 0) { dy = Math.max(rb.top - 8, ra.bottom - vh + 8); }
+		if (rb.right > vw) { dx = Math.min(rb.right - vw + 8, ra.left - 8); }
+		else if (rb.left < 0) { dx = Math.max(rb.left - 8, ra.right - vw + 8); }
+		if (dy !== 0 || dx !== 0) { window.scrollBy(dx, dy); }
+
+		ra = a.getBoundingClientRect();
+		rb = b.getBoundingClientRect();
+		JSON.stringify({
+			x1: ra.x + ra.width / 2, y1: ra.y + ra.height / 2,
+			x2: rb.x + rb.width / 2, y2: rb.y + rb.height / 2
+		});
+	`, srcID, srcXPath, dstID, dstXPath)
+
+	val, err := Evaluate(ctx, c, js)
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+	var coords struct {
+		X1 float64 `json:"x1"`
+		Y1 float64 `json:"y1"`
+		X2 float64 `json:"x2"`
+		Y2 float64 `json:"y2"`
+	}
+	// JSON.stringify means the result arrives as a string, as it does for
+	// GetElementCenter.
+	str, ok := val.(string)
+	if !ok {
+		return 0, 0, 0, 0, fmt.Errorf("unexpected evaluate result format: %T", val)
+	}
+	if err := json.Unmarshal([]byte(str), &coords); err != nil {
+		return 0, 0, 0, 0, fmt.Errorf("drag centres: %w", err)
+	}
+	return coords.X1, coords.Y1, coords.X2, coords.Y2, nil
 }
 
 // ScrollIntoView scrolls the element resolved by ID or XPath into the viewport.

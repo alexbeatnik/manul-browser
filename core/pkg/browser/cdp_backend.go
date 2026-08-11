@@ -402,6 +402,10 @@ func (p *CDPPage) ClearHighlight(ctx context.Context) error {
 	return p.conn.ClearHighlight(ctx)
 }
 
+func (p *CDPPage) GetDragCenters(ctx context.Context, srcID int, srcXPath string, dstID int, dstXPath string) (float64, float64, float64, float64, error) {
+	return p.conn.GetDragCenters(ctx, srcID, srcXPath, dstID, dstXPath)
+}
+
 func (p *CDPPage) GetElementCenter(ctx context.Context, id int, xpath string) (float64, float64, error) {
 	return p.conn.GetElementCenter(ctx, id, xpath)
 }

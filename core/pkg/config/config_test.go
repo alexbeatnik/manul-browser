@@ -88,9 +88,7 @@ func writeJSON(t *testing.T, dir string, v any) {
 
 func TestApplyJSONFile_NoFile(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.Chdir(dir); err != nil {
-		t.Fatalf("chdir: %v", err)
-	}
+	t.Chdir(dir)
 	cfg := Default()
 	if err := applyJSONFile(&cfg); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -103,9 +101,7 @@ func TestApplyJSONFile_NoFile(t *testing.T) {
 
 func TestApplyJSONFile_OverridesFields(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.Chdir(dir); err != nil {
-		t.Fatalf("chdir: %v", err)
-	}
+	t.Chdir(dir)
 
 	raw := map[string]any{
 		"browser":            "firefox",
@@ -180,9 +176,7 @@ func TestApplyJSONFile_OverridesFields(t *testing.T) {
 
 func TestApplyJSONFile_DoesNotClobberDefaults(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.Chdir(dir); err != nil {
-		t.Fatalf("chdir: %v", err)
-	}
+	t.Chdir(dir)
 	// Empty JSON object — nothing should change.
 	writeJSON(t, dir, map[string]any{})
 
@@ -203,9 +197,7 @@ func TestApplyJSONFile_DoesNotClobberDefaults(t *testing.T) {
 
 func TestApplyJSONFile_ExplicitFalseAndZero(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.Chdir(dir); err != nil {
-		t.Fatalf("chdir: %v", err)
-	}
+	t.Chdir(dir)
 
 	// Start with a config where booleans are true and ints are non-zero,
 	// then confirm JSON can explicitly set them to false/0.
@@ -263,9 +255,7 @@ func TestApplyJSONFile_ExplicitFalseAndZero(t *testing.T) {
 
 func TestApplyJSONFile_BrokenJSON(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.Chdir(dir); err != nil {
-		t.Fatalf("chdir: %v", err)
-	}
+	t.Chdir(dir)
 	_ = os.WriteFile(filepath.Join(dir, "manul_engine_configuration.json"), []byte("not json"), 0644)
 
 	cfg := Default()
@@ -277,9 +267,7 @@ func TestApplyJSONFile_BrokenJSON(t *testing.T) {
 
 func TestApplyJSONFile_ExecutablePath(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.Chdir(dir); err != nil {
-		t.Fatalf("chdir: %v", err)
-	}
+	t.Chdir(dir)
 	writeJSON(t, dir, map[string]any{"executable_path": "/usr/bin/chromium"})
 
 	cfg := Default()
@@ -474,9 +462,7 @@ func TestOverrideFromEnv_ExecutablePath(t *testing.T) {
 
 func TestLoad_EnvBeatsJSON(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.Chdir(dir); err != nil {
-		t.Fatalf("chdir: %v", err)
-	}
+	t.Chdir(dir)
 	writeJSON(t, dir, map[string]any{"browser": "firefox"})
 	t.Setenv("MANUL_BROWSER", "webkit")
 
@@ -491,9 +477,7 @@ func TestLoad_EnvBeatsJSON(t *testing.T) {
 
 func TestLoad_JSONBeatsDefault(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.Chdir(dir); err != nil {
-		t.Fatalf("chdir: %v", err)
-	}
+	t.Chdir(dir)
 	writeJSON(t, dir, map[string]any{"browser": "firefox"})
 
 	cfg, err := Load()
@@ -507,9 +491,7 @@ func TestLoad_JSONBeatsDefault(t *testing.T) {
 
 func TestLoad_NoFileNoEnv(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.Chdir(dir); err != nil {
-		t.Fatalf("chdir: %v", err)
-	}
+	t.Chdir(dir)
 
 	cfg, err := Load()
 	if err != nil {
@@ -526,9 +508,7 @@ func TestLoad_NoFileNoEnv(t *testing.T) {
 
 func TestLoad_BrokenJSON(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.Chdir(dir); err != nil {
-		t.Fatalf("chdir: %v", err)
-	}
+	t.Chdir(dir)
 	_ = os.WriteFile(filepath.Join(dir, "manul_engine_configuration.json"), []byte("not json"), 0644)
 
 	_, err := Load()
@@ -539,9 +519,7 @@ func TestLoad_BrokenJSON(t *testing.T) {
 
 func TestLoad_EnvEmptyStringDoesNotOverride(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.Chdir(dir); err != nil {
-		t.Fatalf("chdir: %v", err)
-	}
+	t.Chdir(dir)
 	writeJSON(t, dir, map[string]any{"browser": "firefox"})
 	t.Setenv("MANUL_BROWSER", "")
 

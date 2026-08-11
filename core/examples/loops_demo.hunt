@@ -1,3 +1,14 @@
+# ⚠️  NOT RUNNABLE — syntax reference only. Do not expect this to pass.
+#
+# example-shop.com is an invented address; nothing here has ever been executed
+# against a real page. The file exists to show what FOR EACH, REPEAT and WHILE
+# look like, and it fails on the first VERIFY.
+#
+# It is also slow to fail: `WHILE button 'Load More' exists` keeps matching on a
+# page that has no such button, because a top-ranked candidate is not the same
+# as a present one. The loop is capped at 100 iterations, so a headed run spends
+# roughly three minutes before giving up.
+
 @context: Demonstration of loops and page objects in ManulEngine (Go)
 @title: loops-and-pages-demo
 @var: {products} = Laptop, Headphones, Mouse
