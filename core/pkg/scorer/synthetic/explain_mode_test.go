@@ -67,19 +67,19 @@ func TestExplain_AllValuesInRange(t *testing.T) {
 	score := scorer.Score("username", "", "input", &el, nil)
 
 	fields := map[string]float64{
-		"ExactTextMatch":      score.ExactTextMatch,
+		"ExactTextMatch":       score.ExactTextMatch,
 		"NormalizedTextMatch":  score.NormalizedTextMatch,
-		"LabelMatch":          score.LabelMatch,
-		"PlaceholderMatch":    score.PlaceholderMatch,
-		"AriaMatch":           score.AriaMatch,
-		"DataQAMatch":         score.DataQAMatch,
-		"IDMatch":             score.IDMatch,
-		"TagSemantics":        score.TagSemantics,
-		"TypeHintAlignment":   score.TypeHintAlignment,
-		"VisibilityScore":     score.VisibilityScore,
+		"LabelMatch":           score.LabelMatch,
+		"PlaceholderMatch":     score.PlaceholderMatch,
+		"AriaMatch":            score.AriaMatch,
+		"DataQAMatch":          score.DataQAMatch,
+		"IDMatch":              score.IDMatch,
+		"TagSemantics":         score.TagSemantics,
+		"TypeHintAlignment":    score.TypeHintAlignment,
+		"VisibilityScore":      score.VisibilityScore,
 		"InteractabilityScore": score.InteractabilityScore,
-		"ProximityScore":      score.ProximityScore,
-		"Total":               score.Total,
+		"ProximityScore":       score.ProximityScore,
+		"Total":                score.Total,
 	}
 
 	for name, val := range fields {

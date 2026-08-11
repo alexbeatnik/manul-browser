@@ -120,11 +120,16 @@ func (sv *ScopedVariables) String() string {
 	for i := Level(1); i <= 5; i++ {
 		lvlName := ""
 		switch i {
-		case LevelRow: lvlName = "ROW"
-		case LevelStep: lvlName = "STEP"
-		case LevelMission: lvlName = "MISSION"
-		case LevelGlobal: lvlName = "GLOBAL"
-		case LevelImport: lvlName = "IMPORT"
+		case LevelRow:
+			lvlName = "ROW"
+		case LevelStep:
+			lvlName = "STEP"
+		case LevelMission:
+			lvlName = "MISSION"
+		case LevelGlobal:
+			lvlName = "GLOBAL"
+		case LevelImport:
+			lvlName = "IMPORT"
 		}
 		sb.WriteString(fmt.Sprintf("  [%s]:\n", lvlName))
 		for k, v := range sv.levels[i] {

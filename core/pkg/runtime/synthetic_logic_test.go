@@ -61,9 +61,9 @@ func TestRuntime_Loops(t *testing.T) {
 	hunt := &dsl.Hunt{
 		Commands: []dsl.Command{
 			{
-				Type: dsl.CmdRepeat,
+				Type:        dsl.CmdRepeat,
 				RepeatCount: 3,
-				RepeatVar: "i",
+				RepeatVar:   "i",
 				Body: []dsl.Command{
 					{Type: dsl.CmdPrint, PrintText: "Iteration {i}"},
 				},
@@ -86,7 +86,7 @@ func TestRuntime_Loops(t *testing.T) {
 	huntWhile := &dsl.Hunt{
 		Commands: []dsl.Command{
 			{
-				Type: dsl.CmdWhile,
+				Type:           dsl.CmdWhile,
 				WhileCondition: "{counter} != '3'",
 				Body: []dsl.Command{
 					{Type: dsl.CmdPrint, PrintText: "While {counter}"},

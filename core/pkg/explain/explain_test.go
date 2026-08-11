@@ -30,20 +30,20 @@ func TestScoreBreakdown_RawScoreExcludedFromJSON(t *testing.T) {
 
 func TestScoreBreakdown_Roundtrip(t *testing.T) {
 	orig := ScoreBreakdown{
-		ExactTextMatch:      0.9,
-		NormalizedTextMatch: 0.8,
-		LabelMatch:          0.7,
-		PlaceholderMatch:    0.6,
-		AriaMatch:           0.5,
-		DataQAMatch:         0.4,
-		IDMatch:             0.3,
-		TagSemantics:        0.85,
-		TypeHintAlignment:   0.75,
-		VisibilityScore:     1.0,
+		ExactTextMatch:       0.9,
+		NormalizedTextMatch:  0.8,
+		LabelMatch:           0.7,
+		PlaceholderMatch:     0.6,
+		AriaMatch:            0.5,
+		DataQAMatch:          0.4,
+		IDMatch:              0.3,
+		TagSemantics:         0.85,
+		TypeHintAlignment:    0.75,
+		VisibilityScore:      1.0,
 		InteractabilityScore: 1.0,
-		ProximityScore:      0.0,
-		Total:               0.88,
-		RawScore:            99.9, // not serialized
+		ProximityScore:       0.0,
+		Total:                0.88,
+		RawScore:             99.9, // not serialized
 	}
 	data, _ := json.Marshal(orig)
 	var got ScoreBreakdown

@@ -6,10 +6,10 @@ import "fmt"
 
 // ResolutionError is returned when the targeting pipeline cannot resolve an element.
 type ResolutionError struct {
-	Target      string
-	Reason      string
-	Candidates  int
-	BestScore   float64
+	Target     string
+	Reason     string
+	Candidates int
+	BestScore  float64
 }
 
 func (e *ResolutionError) Error() string {
@@ -19,9 +19,9 @@ func (e *ResolutionError) Error() string {
 
 // ActionError is returned when a resolved element action fails.
 type ActionError struct {
-	Action  string
-	Target  string
-	Cause   error
+	Action string
+	Target string
+	Cause  error
 }
 
 func (e *ActionError) Error() string {

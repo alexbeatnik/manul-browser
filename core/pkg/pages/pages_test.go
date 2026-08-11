@@ -154,9 +154,9 @@ func TestBelongsToSite(t *testing.T) {
 
 func TestNormalizeFragment_Lean(t *testing.T) {
 	raw := map[string]any{
-		"site":    "https://example.com/",
-		"Domain":  "Example",
-		"/login":  "Login",
+		"site":   "https://example.com/",
+		"Domain": "Example",
+		"/login": "Login",
 	}
 	got := normalizeFragment(raw)
 	if len(got) != 1 {

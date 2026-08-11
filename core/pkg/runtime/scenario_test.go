@@ -34,11 +34,11 @@ func TestRuntime_ConditionalScenario(t *testing.T) {
 	hunt := &dsl.Hunt{
 		Commands: []dsl.Command{
 			{
-				Type: dsl.CmdIf,
+				Type:      dsl.CmdIf,
 				Condition: "button 'Save' exists",
 				Branches: []dsl.Branch{
 					{
-						Kind: "if",
+						Kind:      "if",
 						Condition: "button 'Save' exists",
 						Body: []dsl.Command{
 							{Type: dsl.CmdClick, Target: "Save", TypeHint: "button"},
