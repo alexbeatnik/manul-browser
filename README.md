@@ -48,16 +48,18 @@ existed — it just needed a session that outlives a single command.
 | `core/` engine | Shipping — builds, tests green |
 | `spec/contracts/` | Current, describes shipped behaviour |
 | `spec/protocol.md` | Implemented as `manul serve --stdio` |
-| `bindings/python` | Working — `manul` on PyPI |
+| `bindings/python` | Working — packaged as `manul-browser`, not yet published |
 | `bindings/node` | Not started |
 | `conformance/` | Not started |
+| Release pipeline | `.github/workflows/release.yml` — builds and smoke-tests; publishing commented out, never run against a real tag |
 | What-If REPL | Ported to Go — terminal-only, see the debug contract |
 | Custom controls, `CALL HOST` | Go handlers, or client handlers via reverse call |
 | Suite hooks | `pkg/lifecycle` — `before_all`/`after_all`/`before_group`/`after_group` |
 
 ## Use it
 
-**Python** — the binding ships the binary; you need only a system Chrome.
+**Python** — `pip install manul-browser`; the wheel ships the binary, and you
+need only a system Chrome.
 
 ```python
 import manul

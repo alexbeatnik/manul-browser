@@ -4,9 +4,16 @@ Thin language clients for the engine.
 
 ```
 bindings/
-├─ python/    manul    (PyPI)          — implemented
-└─ node/      @manul/engine (npm)      — not started
+├─ python/    manul-browser (PyPI)     — implemented
+└─ node/      manul-browser (npm)      — not started
 ```
+
+One name in every registry: `manul-browser` on PyPI and npm, `Manul.Browser` on
+NuGet if a C# client happens, and `github.com/alexbeatnik/manul-browser/core` as
+the Go module. What a user types to install differs by ecosystem convention;
+what they write in code does not — `import manul`, `from 'manul-browser'`.
+(The bare name `manul` on PyPI belongs to an unrelated project, which is what
+settled the question.)
 
 Go needs no binding: it embeds the engine directly via
 [`core/pkg/agent`](../core/pkg/agent), with
@@ -46,14 +53,27 @@ wrapper and both are already right here:
 The esbuild model, in both ecosystems:
 
 - **PyPI** — platform-tagged wheels with the binary at `manul/_bin/`. Not a C
-  extension, so no compiler and no `cibuildwheel`: a script takes the goreleaser
-  output and writes wheels with the right `--plat-name`.
-- **npm** — `@manul/engine` declaring `optionalDependencies` on per-platform
-  packages (`@manul/engine-linux-x64`, `-darwin-arm64`, `-win32-x64`, …), each
-  carrying one binary and gated by `os`/`cpu`.
+  extension, so there is nothing for hatchling to infer a tag from and no
+  `cibuildwheel` to run: [`python/hatch_build.py`](python/hatch_build.py) states
+  the tag outright, from the same `GOOS/GOARCH` pair the cross-compile used.
+  Shipped, in [`.github/workflows/release.yml`](../.github/workflows/release.yml).
+- **npm** — `manul-browser` declaring `optionalDependencies` on per-platform
+  packages (`manul-browser-linux-x64`, `-darwin-arm64`, `-win32-x64`, …), each
+  carrying one binary and gated by `os`/`cpu`. Not started.
 
-One git tag builds the binaries and publishes both packages in a single
-workflow, so versions can never disagree.
+One git tag — `vX.Y.Z` — builds every binary and packages them together, so
+versions cannot disagree; the release job refuses to start unless the tag, the
+engine's `version` constant and `manul.__version__` are the same string. The Go
+module is tagged separately as `core/vX.Y.Z`, because Go derives module versions
+from the subdirectory the module lives in.
+
+A wheel is useless if the engine inside it will not start, so the same workflow
+installs each wheel on a matching runner and drives a real Chrome through it.
+
+Nothing is uploaded anywhere yet: the `publish` and `github-release` jobs are
+commented out, deliberately, until the name is settled on PyPI's side. A tag
+today produces artifacts and stops. The comment block above those jobs says what
+to switch on and in what order.
 
 ## Note on pure-Python
 
