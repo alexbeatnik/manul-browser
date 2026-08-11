@@ -1,41 +1,74 @@
 [build-system]
-requires = ["hatchling"]
+# 1.27 is the first release with PEP 639 `license`/`license-files` support.
+requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
-name = "manul"
-version = "0.1.0"
+# The distribution is `manul-browser`; the import name stays `manul`. The bare
+# name `manul` on PyPI belongs to an unrelated project, and `manul-engine` is
+# the standalone Python engine this package supersedes — it keeps its own line.
+name = "manul-browser"
+dynamic = ["version"]
 description = "Browser automation in plain English — for humans and LLM agents."
 readme = "README.md"
 requires-python = ">=3.9"
-license = { file = "LICENSE" }
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Oleksii Poliakov" }]
 keywords = ["browser", "automation", "testing", "cdp", "chrome", "llm", "agent"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
     "Topic :: Software Development :: Testing",
     "Topic :: Software Development :: Testing :: Acceptance",
+    "Typing :: Typed",
 ]
 
 # No runtime dependencies: the engine is a binary shipped in the wheel, and
 # everything this package does is in the standard library.
 dependencies = []
 
+[project.scripts]
+# The command is `manul`, the same word in every ecosystem. Note that the older
+# `manul-engine` package installs a `manul` script too — the two cannot share an
+# environment, which is intended for a successor.
+manul = "manul._cli:main"
+
 [project.urls]
-Homepage = "https://github.com/alexbeatnik/Manul"
-Source = "https://github.com/alexbeatnik/Manul"
-Issues = "https://github.com/alexbeatnik/Manul/issues"
+Homepage = "https://github.com/alexbeatnik/manul-browser"
+Source = "https://github.com/alexbeatnik/manul-browser"
+Issues = "https://github.com/alexbeatnik/manul-browser/issues"
+
+# One version, read from the package, so the wheel cannot disagree with
+# `manul.__version__`. The release workflow checks both against the engine.
+[tool.hatch.version]
+path = "manul/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["manul"]
 
 # The engine binary is dropped into manul/_bin/ by the release job before the
-# wheel is built; it is not in the repository.
+# wheel is built; it is not in the repository. `artifacts` is what gets it past
+# the .gitignore rule that keeps it out of git.
 artifacts = ["manul/_bin/*"]
 
+# Rewrites the wheel tag from `any` to the target platform — see hatch_build.py.
+[tool.hatch.build.targets.wheel.hooks.custom]
+path = "hatch_build.py"
+
 [tool.hatch.build.targets.sdist]
-exclude = ["tests/"]
+# The sdist is source only. It carries no binary, and installing from it yields
+# a package that falls back to $MANUL_BINARY or `manul` on PATH.
+exclude = ["tests/", "manul/_bin/"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
