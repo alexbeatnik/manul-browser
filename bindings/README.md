@@ -56,7 +56,8 @@ The esbuild model, in both ecosystems:
   extension, so there is nothing for hatchling to infer a tag from and no
   `cibuildwheel` to run: [`python/hatch_build.py`](python/hatch_build.py) states
   the tag outright, from the same `GOOS/GOARCH` pair the cross-compile used.
-  Shipped, in [`.github/workflows/release.yml`](../.github/workflows/release.yml).
+  Written, in [`.github/workflows/release.yml.disabled`](../.github/workflows/release.yml.disabled),
+  and switched off there — see below.
 - **npm** — `manul-browser` declaring `optionalDependencies` on per-platform
   packages (`manul-browser-linux-x64`, `-darwin-arm64`, `-win32-x64`, …), each
   carrying one binary and gated by `os`/`cpu`. Not started.
@@ -70,10 +71,11 @@ from the subdirectory the module lives in.
 A wheel is useless if the engine inside it will not start, so the same workflow
 installs each wheel on a matching runner and drives a real Chrome through it.
 
-Nothing is uploaded anywhere yet: the `publish` and `github-release` jobs are
-commented out, deliberately, until the name is settled on PyPI's side. A tag
-today produces artifacts and stops. The comment block above those jobs says what
-to switch on and in what order.
+None of which happens yet. The whole workflow is switched off — the file does
+not end in `.yml`, and its contents are commented out on top of that — so a tag
+today starts nothing at all. Inside it, the `publish` and `github-release` jobs
+are commented a second time, because publishing is the step to re-enable last
+and separately. Both headers say what to switch on and in what order.
 
 ## Note on pure-Python
 
