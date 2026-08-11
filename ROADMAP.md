@@ -97,18 +97,43 @@ this repository was created to end.
 template; the work is packaging (`optionalDependencies` per platform) more than
 logic.
 
-### 4. Release pipeline
+### 4. Release pipeline — Python only, and never fired
 
-No goreleaser config, no wheel build, no npm publish. The Python package expects
-the binary at `manul/_bin/` and nothing puts it there. One git tag should build
-the binaries and publish both packages together, so versions cannot disagree.
+`.github/workflows/release.yml` takes a `vX.Y.Z` tag, cross-compiles the engine
+for six targets, wraps each in a platform-tagged wheel, and installs every wheel
+on a matching runner to drive a real Chrome through it. Locally verified as far
+as a Windows machine allows: the wheel builds, installs, and `manul --version`
+answers from the bundled binary.
+
+**Publishing is commented out on purpose.** Nothing has been released as
+`manul-browser`, and the first upload to PyPI is the single irreversible step in
+this repository — the version number is spent whether or not the artifact was
+any good, and yanking does not give it back. So a tag currently ends at the
+smoke jobs and leaves the wheels as workflow artifacts. The `publish` and
+`github-release` jobs are intact, commented, with the switch-on order written
+above them: repository renamed first, then the PyPI trusted publisher and the
+`pypi` environment, then uncomment.
+
+What is still open:
+
+- **It has never run.** No tag has been pushed, so the workflow itself is
+  unverified — including whether `pypi` as a trusted publisher is configured at
+  all, which is a setting on PyPI, not in this repository.
+- **npm and NuGet do not exist yet.** "Both packages together" is currently one
+  package. The npm half is §3.
+- **`macos-15-intel` and `ubuntu-24.04-arm` smoke jobs are best-effort.** They
+  are marked `continue-on-error` so a retired runner label cannot hold up a
+  release; those two wheels ship built but unproven.
+- **Nothing publishes the Go module.** It needs its own `core/vX.Y.Z` tag,
+  because Go derives the version from the subdirectory the module lives in. The
+  release job does not create it.
 
 ### 5. CI covers one thing
 
-`.github/workflows/synthetic-tests.yml` runs the Go tests. Not run: the Python
-binding tests, `gofmt`, any linter, any cross-platform build. The Python tests
-take about a second and need no browser — that is the cheapest gap to close on
-this list.
+`.github/workflows/synthetic-tests.yml` runs the Go tests on push and PR. Not
+run there: the Python binding tests, `gofmt`, any linter, any cross-platform
+build. The release workflow does run the Python tests, but only on a tag — which
+is the worst moment to discover they fail.
 
 ### 6. Suite-level lifecycle: `MANUL_GLOBAL_VARS`
 
@@ -125,7 +150,8 @@ here only so nobody re-adds it thinking it was forgotten.
 3. Verify `attach` end-to-end, and on one non-Windows platform. (§verify 1)
 4. Settle `run-suite` session semantics and write it into the contract. (§verify 4)
 5. Conformance suite. (§missing 2)
-6. Release pipeline, then the Node binding. (§missing 4, 3)
+6. Push a tag, watch the release pipeline actually run, then the Node binding.
+   (§missing 4, 3)
 
 Items 1–4 are cheap and each one stops a class of future surprise. Items 5–6 are
 the real remaining engineering.
