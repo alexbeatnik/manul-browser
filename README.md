@@ -22,15 +22,15 @@ core/            The engine. Go. The only implementation.
 spec/            Contracts + the stdio session protocol. Source of truth.
 bindings/        Thin language clients that drive the binary. (planned)
 conformance/     Fixtures every path must agree on. (planned)
-legacy/python/   The frozen Python engine. Not built, not tested, not shipped.
 ```
 
 ## Why one implementation instead of three
 
 The Python and Go engines were the same product written twice. Keeping them in
 step was manual, and it did not hold: by the time they were merged, eight of the
-nine shared contracts had drifted, and one Python feature had no Go port at all.
-Writing the scorer a third time in TypeScript would have made that worse.
+nine shared contracts had drifted, and one Python feature — the What-If REPL —
+had no Go port at all. Writing the scorer a third time in TypeScript would have
+made that worse.
 
 So the engine is Go, once. Python and JavaScript/TypeScript get **thin bindings**
 that ship the platform binary and talk to it over the protocol in
@@ -47,10 +47,48 @@ existed — it just needed a session that outlives a single command.
 |---|---|
 | `core/` engine | Shipping — builds, tests green |
 | `spec/contracts/` | Current, describes shipped behaviour |
-| `spec/protocol.md` | Draft — `manul serve` not implemented yet |
-| `bindings/python`, `bindings/node` | Not started |
+| `spec/protocol.md` | Implemented as `manul serve --stdio` |
+| `bindings/python` | Working — `manul` on PyPI |
+| `bindings/node` | Not started |
 | `conformance/` | Not started |
-| What-If REPL | **Python only**, no Go port — see [`spec/README.md`](spec/README.md) |
+| What-If REPL | Ported to Go — terminal-only, see the debug contract |
+| Custom controls, `CALL HOST` | Go handlers, or client handlers via reverse call |
+| Suite hooks | `pkg/lifecycle` — `before_all`/`after_all`/`before_group`/`after_group` |
+
+## Use it
+
+**Python** — the binding ships the binary; you need only a system Chrome.
+
+```python
+import manul
+
+with manul.Session() as s:
+    s.step("NAVIGATE to https://example.com")
+    s.step("CLICK the 'Sign in' button")
+    print(s.map().labels())
+```
+
+**Go** — embed the engine directly, no subprocess.
+
+```go
+sess, _ := agent.Launch(ctx, agent.Options{Headless: true})
+defer sess.Close()
+sess.Step(ctx, "CLICK the 'Sign in' button")
+```
+
+**CLI**
+
+```bash
+manul checkout.hunt
+manul run-step "CLICK the 'Login' button" --cdp http://127.0.0.1:9222
+```
+
+To drive a Chrome that is already running, set `browser_mode` to `attach` (or
+`MANUL_BROWSER_MODE=attach`, or `--attach`). That browser is left open when the
+session ends — Manul did not open it.
+
+See [`bindings/python/README.md`](bindings/python/README.md) and
+[`core/examples/go`](core/examples/go).
 
 ## Build
 
@@ -66,7 +104,11 @@ static binary with `gorilla/websocket` as its only dependency.
 
 - [`core/docs/`](core/docs/) — engine documentation
 - [`spec/contracts/`](spec/contracts/) — behavioural contracts
+- [`spec/protocol.md`](spec/protocol.md) — the stdio session protocol
+- [`spec/test-parity.md`](spec/test-parity.md) — where the Python engine's tests went
 - [`core/examples/`](core/examples/) — sample `.hunt` files
+- [`CLAUDE.md`](CLAUDE.md) — working notes: invariants and traps
+- [`ROADMAP.md`](ROADMAP.md) — what is unverified, and what is missing
 
 ## License
 

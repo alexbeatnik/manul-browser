@@ -46,13 +46,28 @@
       "cliFlag": "--headless"
     },
     {
+      "key": "browser_mode",
+      "envVar": "MANUL_BROWSER_MODE",
+      "type": "string",
+      "default": "",
+      "allowedValues": ["launch", "attach"],
+      "description": "Whether the engine starts its own Chrome (`launch`) or drives one that is already running (`attach`). This is the single explicit answer to that question. Empty means infer — see resolveBrowserMode. In `attach` mode the browser is NOT closed when the session ends, because the engine did not open it; launch-only keys (channel, executable_path, browser_args, headless) are ignored.",
+      "cliFlag": "--attach | --launch",
+      "since": "0.2.0"
+    },
+    {
       "key": "browser",
       "envVar": "MANUL_BROWSER",
       "type": "string",
       "default": "chromium",
       "allowedValues": ["chromium", "electron"],
-      "description": "Launch mode for the CDP backend, which always drives Chrome/Chromium. `chromium` launches a fresh system Chrome; `electron` attaches to an already-running Chrome/Electron over CDP (MANUL_CDP_PORT). Firefox/WebKit are no longer supported (CDP is Chromium-only). Use `channel`/`executable_path` to pick which Chrome binary to launch. Unknown values fall back to `chromium`.",
-      "cliFlag": "--browser"
+      "description": "Which browser binary to launch. Always Chrome/Chromium — Firefox/WebKit are not supported (CDP is Chromium-only). Use `channel`/`executable_path` to pick a specific binary. Unknown values fall back to `chromium`.",
+      "cliFlag": "--browser",
+      "deprecatedValue": {
+        "value": "electron",
+        "reason": "`electron` was a second, implicit way of saying `browser_mode: attach`. It still works and still selects attach, but the engine logs a deprecation warning. Use browser_mode instead.",
+        "supersededBy": "browser_mode"
+      }
     },
     {
       "key": "browser_args",
@@ -85,7 +100,7 @@
       "envVar": "MANUL_CDP_ENDPOINT",
       "type": "string | null",
       "default": null,
-      "description": "Attach to an already-running browser at this CDP HTTP endpoint (e.g. http://127.0.0.1:9222) instead of launching a new Chrome. Mirrors ManulEngine (Go)'s --cdp. When set, the engine connects via CDPBrowser.connect_over_cdp and drives the first existing page.",
+      "description": "The CDP HTTP endpoint to dial when attaching (e.g. http://127.0.0.1:9222). Defaults to http://127.0.0.1:9222 in attach mode. Setting it also *implies* attach when browser_mode is empty — inference kept for existing configs; prefer setting browser_mode explicitly.",
       "cliFlag": "--cdp"
     },
     {
@@ -209,6 +224,24 @@
       "cliFlag": "--explain"
     }
   ],
+
+  "resolveBrowserMode": {
+    "function": "config.Config.ResolveBrowserMode() string",
+    "returns": ["launch", "attach"],
+    "description": "Settles the one question every session must answer: start a new Chrome, or drive one that is already running. Historically that bit was spread across two keys that could disagree — cdp_endpoint (set ⇒ attach) and browser (electron ⇒ attach) — so `browser: chromium` plus a cdp_endpoint was ambiguous. browser_mode is the explicit answer; the rest is inference kept so existing configs keep working.",
+    "precedence": [
+      "1. browser_mode, when it names a known mode (case-insensitive).",
+      "2. browser == 'electron' — the deprecated spelling of attach.",
+      "3. cdp_endpoint being set at all.",
+      "4. launch."
+    ],
+    "notes": [
+      "An unrecognised browser_mode value does not error here; it falls through to inference. The serve protocol rejects an unknown `open` mode explicitly, so a caller cannot silently get a browser they did not ask for.",
+      "BrowserModeIsDeprecatedSpelling() reports when attach was chosen only by the electron alias, so the engine can warn once instead of honouring it silently.",
+      "AttachEndpoint() supplies http://127.0.0.1:9222 when attaching with no endpoint configured."
+    ],
+    "lifetime": "A launched browser is closed with the session. An attached one is not — the engine did not open it."
+  },
 
   "pagesRegistry": {
     "directory": "<project>/pages/",

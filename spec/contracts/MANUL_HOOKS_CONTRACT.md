@@ -3,16 +3,19 @@
 > **Machine-readable contract for the hook system, Go extension registration, and variable scoping.**
 > Consumed by test framework integrations, CI/CD runners, and downstream tooling that extends ManulEngine (Go)'s execution lifecycle.
 >
-> **Shared surface.** ManulEngine (Go) copy of a contract shared with ManulEngine
-> (Python). The `.hunt`-level surface is **identical** — `[SETUP]`/`[TEARDOWN]`
-> blocks and the five-level variable scoping behave the same in both runtimes.
-> Two things differ and are reflected below: (1) the inline call verb is `CALL GO`
-> (resolving a handler registered via `RegisterGoCall`) instead of `CALL PYTHON`
-> importing a module; (2) ManulEngine (Go) has **no** suite-level lifecycle decorators
-> (`@before_all`/`@after_all`/`@before_group`/`@after_group`) and **no**
-> `MANUL_GLOBAL_VARS` serialization — those are Engine-only. ManulEngine (Go) extends
-> the runtime through process-init Go registration (`RegisterGoCall` /
-> `RegisterCustomControl`) instead.
+> **Host surface.** The `.hunt`-level surface is `[SETUP]`/`[TEARDOWN]` blocks
+> plus five-level variable scoping. The inline call verb is `CALL HOST` (also
+> spelled `CALL GO` / `CALL PYTHON`), resolving a handler the host registered —
+> `RegisterGoCall` when the engine is embedded, or a client-side function
+> reached by reverse call when it is driven through a binding. It no longer
+> imports a module by dotted path.
+>
+> **Suite-level hooks** (`before_all` / `after_all` / `before_group` /
+> `after_group`) live in `pkg/lifecycle`. They are registered at process init in
+> Go, or declared over the session protocol by a binding. `MANUL_GLOBAL_VARS`
+> has no equivalent and none is needed: the suite's global variables are held in
+> a `GlobalContext` and seeded into each hunt's runtime directly, including
+> across worker-pool goroutines.
 
 ```json
 {
@@ -123,6 +126,53 @@
     },
 
     "notInHeart": "No @before_all/@after_all/@before_group/@after_group decorators, no GlobalContext, no load_hooks_file(), and no MANUL_GLOBAL_VARS env serialization. These are ManulEngine (Python) only."
+  },
+
+  "suiteLifecycle": {
+    "package": "pkg/lifecycle",
+    "description": "Hooks around a whole run, and around every hunt carrying a given tag. A hunt's own [SETUP]/[TEARDOWN] covers one file; these cover the suite — logging in once for twenty hunts, tearing an environment down afterwards.",
+    "why": "They live in the engine because the engine is what knows when a suite begins, which files it contains, and what @tags: each carries. A client looping over `run` could not select group hooks at all.",
+
+    "globalContext": {
+      "type": "lifecycle.GlobalContext",
+      "variables": "Published to every hunt at LEVEL_GLOBAL (priority 4), so a hunt's own values and per-row data still shadow them.",
+      "metadata": "Hook-to-hook scratch space. Never reaches a hunt.",
+      "concurrency": "Mutex-guarded; Vars() returns a copy. Group hooks may run on several goroutines at once under --workers."
+    },
+
+    "hooks": [
+      {
+        "kind": "before_all",
+        "register": "lifecycle.RegisterBeforeAll(handler)",
+        "timing": "Once, before any hunt file runs and before any browser is launched.",
+        "onFailure": "The suite aborts; no hunt runs. after_all still fires, because a half-finished before_all may have left something to clean up.",
+        "note": "No page exists yet, so page primitives are unavailable inside it."
+      },
+      {
+        "kind": "after_all",
+        "register": "lifecycle.RegisterAfterAll(handler)",
+        "timing": "Once, after every hunt, whatever happened.",
+        "onFailure": "Reported, changes no result. Every remaining after_all hook still runs."
+      },
+      {
+        "kind": "before_group",
+        "register": "lifecycle.RegisterBeforeGroup(tag, handler)",
+        "timing": "Before each hunt whose @tags: includes tag.",
+        "onFailure": "That hunt is skipped and counted as skipped. The rest of the suite runs."
+      },
+      {
+        "kind": "after_group",
+        "register": "lifecycle.RegisterAfterGroup(tag, handler)",
+        "timing": "After each hunt whose @tags: includes tag.",
+        "onFailure": "Reported, changes no result."
+      }
+    ],
+
+    "tagMatching": "Case- and whitespace-insensitive on both sides, so `@tags: Smoke` and tag=\"smoke\" are one group. A hunt with no tags fires no group hooks.",
+    "ordering": "Handlers run in registration order. before_all and before_group stop at the first failure; the after_* hooks never short-circuit.",
+    "executionModes": "Applied identically in sequential and worker-pool runs. In the pool each worker's Runtime is seeded with the suite's global variables and every hunt is bracketed by its group hooks.",
+    "reset": "lifecycle.Reset() clears every registration. For test fixtures; must not be called while a suite is running.",
+    "protocol": "A binding declares hooks through the session protocol's `register` command (one slot per kind+tag) and runs them via `run-suite`. See spec/protocol.md."
   },
 
   "scopedVariables": {
