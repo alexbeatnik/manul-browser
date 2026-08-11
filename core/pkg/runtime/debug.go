@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alexbeatnik/Manul/core/pkg/dsl"
-	"github.com/alexbeatnik/Manul/core/pkg/scorer"
+	"github.com/alexbeatnik/manul-browser/core/pkg/dsl"
+	"github.com/alexbeatnik/manul-browser/core/pkg/scorer"
 )
 
 var ErrDebugStop = errors.New("debug: stop requested")

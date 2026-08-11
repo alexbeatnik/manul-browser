@@ -15,12 +15,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alexbeatnik/Manul/core/pkg/browser"
-	"github.com/alexbeatnik/Manul/core/pkg/config"
-	"github.com/alexbeatnik/Manul/core/pkg/dsl"
-	"github.com/alexbeatnik/Manul/core/pkg/report"
-	"github.com/alexbeatnik/Manul/core/pkg/runtime"
-	"github.com/alexbeatnik/Manul/core/pkg/utils"
+	"github.com/alexbeatnik/manul-browser/core/pkg/browser"
+	"github.com/alexbeatnik/manul-browser/core/pkg/config"
+	"github.com/alexbeatnik/manul-browser/core/pkg/dsl"
+	"github.com/alexbeatnik/manul-browser/core/pkg/report"
+	"github.com/alexbeatnik/manul-browser/core/pkg/runtime"
+	"github.com/alexbeatnik/manul-browser/core/pkg/utils"
 )
 
 var weekdays = map[string]int{

@@ -14,7 +14,7 @@ package synthetic
 import (
 	"testing"
 
-	"github.com/alexbeatnik/Manul/core/pkg/dom"
+	"github.com/alexbeatnik/manul-browser/core/pkg/dom"
 )
 
 func mediaDOM() []dom.ElementSnapshot {

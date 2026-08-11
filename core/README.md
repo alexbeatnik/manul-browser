@@ -303,7 +303,7 @@ The same runtime and the same DSL serve four use cases:
 - **Interactive debugger** — `--debug` pauses before every step with a browser modal UI; breakpoint lines (`--break-lines`); `explain-next` previews the scoring for the upcoming (or an overridden) step without executing it.
 - **Embeddable agent API (`pkg/agent`)** — `agent.Session` owns Chrome and exposes compact, agent-friendly calls: `Read` (zero-scan), `ReadText`, `Step`/`Run` (typed `Reason` + `Near` candidates), `Map` (budgeted scan). CLI `read` / `run-step --compact` are thin wrappers over it.
   ```go
-  import "github.com/alexbeatnik/ManulEngineGo/pkg/agent"
+  import "github.com/alexbeatnik/manul-browser/core/pkg/agent"
 
   sess, _ := agent.Launch(ctx, agent.Options{Headless: true})
   defer sess.Close()
@@ -365,7 +365,7 @@ make install                # user-local (~/.local/bin)
 make install-system         # system-wide (/usr/local/bin)
 
 # or straight from the module
-go install github.com/alexbeatnik/ManulEngineGo/cmd/manul@latest
+go install github.com/alexbeatnik/manul-browser/core/cmd/manul@latest
 ```
 
 ### Configure
@@ -430,7 +430,7 @@ go build -o manul ./cmd/manul
 To drive a browser from a Go program — an assistant, an agent, a custom tool — embed `pkg/agent`. ManulEngine owns the entire browser lifecycle; the consumer just calls a small, compact API and never touches CDP or the runtime directly:
 
 ```go
-import "github.com/alexbeatnik/ManulEngineGo/pkg/agent"
+import "github.com/alexbeatnik/manul-browser/core/pkg/agent"
 
 sess, err := agent.Connect(ctx, agent.Options{Port: 9222}) // attach if Chrome is up, else launch & own it
 // or: agent.Launch(ctx, agent.Options{Headless: true})    // always spawn & own Chrome
@@ -463,10 +463,10 @@ The `manul` CLI runs single-threaded unless you pass `--workers`. For full contr
 ```go
 import (
     "context"
-    "github.com/alexbeatnik/ManulEngineGo/pkg/config"
-    "github.com/alexbeatnik/ManulEngineGo/pkg/dsl"
-    "github.com/alexbeatnik/ManulEngineGo/pkg/report"
-    "github.com/alexbeatnik/ManulEngineGo/pkg/worker"
+    "github.com/alexbeatnik/manul-browser/core/pkg/config"
+    "github.com/alexbeatnik/manul-browser/core/pkg/dsl"
+    "github.com/alexbeatnik/manul-browser/core/pkg/report"
+    "github.com/alexbeatnik/manul-browser/core/pkg/worker"
 )
 
 func runSuite(ctx context.Context, hunts []*dsl.Hunt) error {
@@ -493,15 +493,15 @@ func runSuite(ctx context.Context, hunts []*dsl.Hunt) error {
 | Component | Role | Links |
 |-----------|------|-------|
 | **ManulEngine (Python)** | Deterministic automation runtime (Python). The reference sibling — same DSL, scorer, and agent JSON. | [PyPI](https://pypi.org/project/manul-engine/) · [GitHub](https://github.com/alexbeatnik/ManulEngine) |
-| **ManulEngine (Go)** | This project — the Go runtime. Single static binary, goroutine parallelism, embeddable `pkg/agent`. | [GitHub](https://github.com/alexbeatnik/ManulEngineGo) |
+| **ManulEngine (Go)** | This project — the Go runtime. Single static binary, goroutine parallelism, embeddable `pkg/agent`. | [GitHub](https://github.com/alexbeatnik/manul-browser) |
 | **Manul Engine Extension** | VS Code extension with debug panel, explain mode, and Test Explorer integration. Auto-detects the Go runtime from `go.mod`. | [Marketplace](https://marketplace.visualstudio.com/items?itemName=manul-engine.manul-engine) · [Open VSX](https://open-vsx.org/extension/manul-engine/manul-engine) · [GitHub](https://github.com/alexbeatnik/ManulEngineExtension) |
 | **ManulMcpServer** | MCP bridge that gives Copilot Chat and other agents access to the engine. | [Marketplace](https://marketplace.visualstudio.com/items?itemName=manul-engine.manul-mcp-server) · [GitHub](https://github.com/alexbeatnik/ManulMcpServer) |
 
 ### Contributing and running tests
 
 ```bash
-git clone https://github.com/alexbeatnik/ManulEngineGo.git
-cd ManulEngineGo
+git clone https://github.com/alexbeatnik/manul-browser.git
+cd manul-browser/core
 # Requires Go ≥ 1.26 and a system-installed Google Chrome / Chromium on PATH.
 
 go build ./...                                   # build everything
@@ -523,8 +523,8 @@ go test -race ./pkg/worker/...                   # concurrency safety
 
 ManulEngine (Go) is alpha-stage and solo-developed. If deterministic, explainable browser automation interests you:
 
-- Build it: `go install github.com/alexbeatnik/ManulEngineGo/cmd/manul@latest` (needs system Chrome/Chromium)
-- File issues: [github.com/alexbeatnik/ManulEngineGo/issues](https://github.com/alexbeatnik/ManulEngineGo/issues)
+- Build it: `go install github.com/alexbeatnik/manul-browser/core/cmd/manul@latest` (needs system Chrome/Chromium)
+- File issues: [github.com/alexbeatnik/manul-browser/issues](https://github.com/alexbeatnik/manul-browser/issues)
 
 ---
 
@@ -542,7 +542,7 @@ ManulEngine (Go) is alpha-stage and solo-developed. If deterministic, explainabl
 - Embeddable `pkg/agent` API (`Read`/`ReadText`/`Step`/`Run`/`Map`) with typed failure reasons and plain-language rendering for LLM drivers
 - Strongly-typed extension API (`CALL GO`, `RegisterCustomControl`); race-detector-safe CDP transport
 
-**Version:** `0.1.0` — `manul --version` and the contracts report `0.1.0` (no prefix); the git module tag carries the `v` prefix Go requires: `go get github.com/alexbeatnik/ManulEngineGo@v0.1.0`.
+**Version:** `0.1.0` — `manul --version` and the contracts report `0.1.0` (no prefix); the git module tag carries the `v` prefix Go requires: `go get github.com/alexbeatnik/manul-browser/core@v0.1.0`. The engine is a module in a subdirectory, so that request resolves to the tag `core/v0.1.0`, not `v0.1.0` — the plain `v0.1.0` tag belongs to the binary and wheel release.
 
 > **VS Code Extension:** The [Manul Engine Extension](https://marketplace.visualstudio.com/items?itemName=manul-engine.manul-engine) supports ManulEngine (Go) out of the box. Open a workspace containing `go.mod` and the extension auto-detects the Go runtime, surfaces `CALL GO` snippets, and validates `CALL GO` steps inside hook blocks.
 

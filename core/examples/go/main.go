@@ -16,7 +16,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/alexbeatnik/Manul/core/pkg/agent"
+	"github.com/alexbeatnik/manul-browser/core/pkg/agent"
 )
 
 func main() {

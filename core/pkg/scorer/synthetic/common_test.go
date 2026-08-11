@@ -3,8 +3,8 @@ package synthetic
 import (
 	"testing"
 
-	"github.com/alexbeatnik/Manul/core/pkg/dom"
-	"github.com/alexbeatnik/Manul/core/pkg/scorer"
+	"github.com/alexbeatnik/manul-browser/core/pkg/dom"
+	"github.com/alexbeatnik/manul-browser/core/pkg/scorer"
 )
 
 // ── Helpers for Synthetic Tests ──────────────────────────────────────────────

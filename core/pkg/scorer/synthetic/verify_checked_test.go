@@ -23,10 +23,10 @@ package synthetic
 // ─────────────────────────────────────────────────────────────────────────────
 
 import (
-	"github.com/alexbeatnik/Manul/core/pkg/scorer"
+	"github.com/alexbeatnik/manul-browser/core/pkg/scorer"
 	"testing"
 
-	"github.com/alexbeatnik/Manul/core/pkg/dom"
+	"github.com/alexbeatnik/manul-browser/core/pkg/dom"
 )
 
 func allCheckboxElements() []dom.ElementSnapshot {

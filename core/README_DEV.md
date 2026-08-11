@@ -173,8 +173,8 @@ golden-number tests. Don't touch weights without bumping the contract.
 ### From source (dev mode)
 
 ```bash
-git clone https://github.com/alexbeatnik/ManulEngineGo.git
-cd ManulEngineGo
+git clone https://github.com/alexbeatnik/manul-browser.git
+cd manul-browser/core
 make build            # → ./manul
 make install          # → ~/.local/bin/manul
 make install-system   # → /usr/local/bin/manul
@@ -183,7 +183,7 @@ make install-system   # → /usr/local/bin/manul
 ### From the module
 
 ```bash
-go install github.com/alexbeatnik/ManulEngineGo/cmd/manul@latest
+go install github.com/alexbeatnik/manul-browser/core/cmd/manul@latest
 ```
 
 ---

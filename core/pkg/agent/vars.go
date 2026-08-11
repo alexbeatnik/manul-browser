@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/alexbeatnik/Manul/core/pkg/browser"
+	"github.com/alexbeatnik/manul-browser/core/pkg/browser"
 )
 
 // Page exposes the session's live page for callers that need the browser

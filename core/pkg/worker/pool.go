@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/alexbeatnik/Manul/core/pkg/browser"
-	"github.com/alexbeatnik/Manul/core/pkg/config"
-	"github.com/alexbeatnik/Manul/core/pkg/dsl"
-	"github.com/alexbeatnik/Manul/core/pkg/explain"
-	"github.com/alexbeatnik/Manul/core/pkg/lifecycle"
-	"github.com/alexbeatnik/Manul/core/pkg/utils"
+	"github.com/alexbeatnik/manul-browser/core/pkg/browser"
+	"github.com/alexbeatnik/manul-browser/core/pkg/config"
+	"github.com/alexbeatnik/manul-browser/core/pkg/dsl"
+	"github.com/alexbeatnik/manul-browser/core/pkg/explain"
+	"github.com/alexbeatnik/manul-browser/core/pkg/lifecycle"
+	"github.com/alexbeatnik/manul-browser/core/pkg/utils"
 )
 
 // WorkerFactory constructs a Worker given a context and Options. The default

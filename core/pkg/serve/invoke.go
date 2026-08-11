@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/alexbeatnik/Manul/core/pkg/browser"
-	"github.com/alexbeatnik/Manul/core/pkg/lifecycle"
-	"github.com/alexbeatnik/Manul/core/pkg/runtime"
+	"github.com/alexbeatnik/manul-browser/core/pkg/browser"
+	"github.com/alexbeatnik/manul-browser/core/pkg/lifecycle"
+	"github.com/alexbeatnik/manul-browser/core/pkg/runtime"
 )
 
 // Reverse calls: the engine asking the client to run something.

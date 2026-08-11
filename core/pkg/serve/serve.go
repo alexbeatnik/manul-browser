@@ -17,11 +17,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/alexbeatnik/Manul/core/pkg/agent"
-	"github.com/alexbeatnik/Manul/core/pkg/config"
-	"github.com/alexbeatnik/Manul/core/pkg/lifecycle"
-	"github.com/alexbeatnik/Manul/core/pkg/runtime"
-	"github.com/alexbeatnik/Manul/core/pkg/utils"
+	"github.com/alexbeatnik/manul-browser/core/pkg/agent"
+	"github.com/alexbeatnik/manul-browser/core/pkg/config"
+	"github.com/alexbeatnik/manul-browser/core/pkg/lifecycle"
+	"github.com/alexbeatnik/manul-browser/core/pkg/runtime"
+	"github.com/alexbeatnik/manul-browser/core/pkg/utils"
 )
 
 // ProtocolVersion is the major.minor of the wire contract. Minor bumps add

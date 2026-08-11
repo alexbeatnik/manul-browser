@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alexbeatnik/Manul/core/pkg/core"
+	"github.com/alexbeatnik/manul-browser/core/pkg/core"
 )
 
 // ── Types ──────────────────────────────────────────────────────────────────────

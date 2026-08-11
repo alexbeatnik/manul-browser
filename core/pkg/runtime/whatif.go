@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/alexbeatnik/Manul/core/pkg/dsl"
-	"github.com/alexbeatnik/Manul/core/pkg/scorer"
+	"github.com/alexbeatnik/manul-browser/core/pkg/dsl"
+	"github.com/alexbeatnik/manul-browser/core/pkg/scorer"
 )
 
 // errWhatIfReplace signals that the What-If REPL picked a replacement step via
