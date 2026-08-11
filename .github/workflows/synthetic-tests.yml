@@ -8,7 +8,7 @@ on:
     branches: [main]
     paths: ['core/**', '.github/workflows/**']
 
-# The engine lives in core/. legacy/python/ is frozen and never built here.
+# The engine lives in core/ and is the only thing built here.
 defaults:
   run:
     working-directory: core

@@ -1,6 +1,6 @@
 # Manul stdio session protocol
 
-Status: **draft** — not yet implemented in `core/`.
+Status: **implemented** — `manul serve --stdio`, in `core/pkg/serve`.
 
 This is the wire contract between the `manul` binary and the language bindings
 in `bindings/`. It is the only thing a binding is allowed to depend on; bindings
@@ -84,14 +84,32 @@ Every agent command keeps the argument names and result shape it already has in
 |-------------|---------------------------------------------------|--------|
 | `schema`    | —                                                 | engine schema (same payload as `manul schema`) |
 | `open`      | per-session config overrides (see below)          | `{mode,cdp,url}` — opens the browser session |
+| `register`  | `controls?`, `calls?`, `hooks?`                    | `{controls,calls,hooks}` — counts accepted |
 | `map`       | `maxPerGroup?`, `includeUnlabeled?`               | page map `{url, groups:[…]}` |
 | `read`      | `label?`, `selector?`, `maxChars?`                | `{value,found,reason}` or `{text,selector}` |
-| `run-step`  | `step`, `compact?`                                | `StepOutcome` |
-| `run`       | `path` or `source`                                | full `ExecutionResult` for a whole `.hunt` |
+| `run-step`  | `step`                                            | `StepOutcome` |
+| `run`       | `path` or `source`                                | `RunOutcome` for a whole `.hunt` |
+| `run-suite` | `paths` (array of `.hunt` files)                  | `SuiteResult` — per-hunt outcomes with the suite lifecycle applied |
 | `vars`      | `set?` (object), `get?` (array of names)          | current variable map |
+| `state`     | —                                                 | `{title,url}` |
 | `close`     | —                                                 | `{}`, then the server exits |
 
-Calling `open` twice in a session is `bad_request`.
+Calling `open` twice in a session is `already_open`.
+
+Error codes: `bad_request`, `not_open`, `already_open`, `step_failed`,
+`internal`.
+
+**A malformed request outranks a missing session.** `map` with a bad argument
+answers `bad_request` even before `open` has been called — telling the caller to
+open a browser first, only for them to hit the same argument error afterwards,
+would waste a browser launch on a request that was never going to work.
+
+**A step that resolves nothing is not a transport failure.** `run-step` answers
+`ok: true` carrying a `StepOutcome` whose own `ok` is `false`. Not finding an
+element is something an agent reacts to; the session stays healthy.
+
+A leading UTF-8 BOM on a request line is ignored — shell pipelines and Windows
+editors add one, and rejecting it would only ever look like a client bug.
 
 ### Launch a new Chrome, or attach to a running one
 
@@ -131,6 +149,100 @@ config chain: `open` args › env › JSON config › defaults.
 Variables written by `EXTRACT` persist across `run-step` calls within one
 session. `vars` exposes that state explicitly so an LLM driver can read a value
 out mid-flow, or seed one before starting, without inventing a DSL line.
+
+## Reverse calls
+
+Custom controls and `CALL HOST` handlers live in the **client**, not the engine.
+When the engine is embedded in Go they are Go funcs; driven through a binding
+they are on the far side of the pipe, so the engine has to call back.
+
+The client declares them with `register`, and thereafter the engine may write an
+**invoke** line. The `invoke` key marks the direction, so neither side can
+mistake one for the other:
+
+```json
+{"invoke":1,"kind":"custom_control","page":"Login Page","target":"Username","action":"input","value":"ada","step":"FILL 'Username' field with 'ada'","vars":{}}
+{"invoke":2,"kind":"call","name":"compute_total","args":["12","30"],"vars":{}}
+{"invoke":3,"kind":"hook","hook":"before_group","tag":"smoke","vars":{}}
+```
+
+The client answers with the same id:
+
+```json
+{"invoke":1,"ok":true,"result":null}
+{"invoke":2,"ok":true,"result":"42"}
+{"invoke":2,"ok":false,"error":{"code":"handler_failed","message":"…"}}
+```
+
+A handler that fails **fails the step**, not the session. The client stays
+usable and the browser stays open.
+
+`register` may be sent before `open`: handlers describe the client, and a
+decorator that runs at import time cannot wait for a browser.
+
+### Nesting
+
+The exchange is strictly nested inside a request the client is already waiting
+on. The client sends `run-step`; the engine reaches a registered control, writes
+the invoke, and blocks; the client — sitting in its own read loop — runs the
+handler and answers. No second connection, no background thread on either side.
+
+While an invoke is outstanding the engine also serves two **page primitives**,
+so a handler can look at and touch the page the way an embedded Go handler does
+with its `browser.Page`:
+
+| `cmd` | args | result |
+|---|---|---|
+| `page.eval` | `js` | the evaluated value |
+| `page.url` | — | current URL |
+
+Everything else is refused with `bad_request` while a handler is running:
+`run-step`, `map` and friends would re-enter the step that is currently
+executing, so refusing is the alternative to deadlocking.
+
+`page.eval` returns strings as strings, numbers as numbers and objects as
+objects. (The engine's own `EvalJS` is not uniform here — string results arrive
+unquoted — so the server normalises before replying.)
+
+### Handler results
+
+The result of a `call` is handed to the runtime exactly as an embedded Go
+handler's would be:
+
+- an **object** becomes runtime variables,
+- a **scalar** goes into `into {var}` when the step named one,
+- `null` sets nothing.
+
+A `custom_control` result is ignored: its job is the side effect.
+
+A `hook` result that is an object is merged into the suite's global variables,
+which is how `before_all` seeds a token for every hunt that follows. Anything
+else publishes nothing.
+
+## Suite hooks
+
+`register` accepts `hooks` as an array of `{kind, tag}`, where kind is
+`before_all`, `after_all`, `before_group` or `after_group`; `tag` is required
+for the group kinds and ignored otherwise.
+
+Declare **one slot per (kind, tag)**, not one per handler. The engine registers
+a single bridge per slot and the client runs every handler it holds for that
+slot; declaring twice makes the engine call back twice and each handler run
+twice.
+
+Failure behaviour is not uniform, deliberately:
+
+| Hook | On failure |
+|---|---|
+| `before_all` | the suite aborts — no hunt runs. `after_all` still fires. |
+| `before_group` | the hunts in that group are skipped; the rest of the suite runs. |
+| `after_all`, `after_group` | reported, changes no result. Every remaining hook still runs. |
+
+Cleanup that stops halfway leaves more behind than it saves, which is why the
+`after_*` hooks never short-circuit.
+
+`before_all` runs before any browser exists, so `page.eval` is unavailable
+inside it — the engine answers that there is no page rather than inventing one.
 
 ## Versioning
 

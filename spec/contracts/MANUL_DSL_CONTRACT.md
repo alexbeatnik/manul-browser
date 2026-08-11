@@ -4,11 +4,17 @@
 > Generated from the Go source code of ManulEngine (Go).
 > Consumed by Manul Studio and other downstream tooling.
 >
-> **Shared surface.** ManulEngine (Go) copy of a contract shared with ManulEngine
-> (Python). The `.hunt` grammar is **identical** across both runtimes; the only
-> differences here: `CALL GO` replaces `CALL PYTHON`, and Engine-only verbs
-> `FULL SCAN` / `SCAN PAGE` / `WAIT FOR SELECTOR` are omitted (ManulEngine (Go) exposes
-> scanning via the `scan` CLI subcommand instead).
+> **Host calls.** `CALL GO`, `CALL PYTHON` and `CALL HOST` are three spellings
+> of one command. The handler never lives in the engine — it lives in whatever
+> host registered it, which is Go when the engine is embedded and Python when it
+> is driven through the binding. `.hunt` files written for the standalone Python
+> engine keep working unchanged; `CALL HOST` is the language-neutral spelling for
+> new scripts.
+>
+> Every verb listed here is executable. `pkg/runtime` carries a guard test that
+> walks each declared `CommandType` and fails on "not yet implemented", because
+> a verb that parses and appears in this contract but has no runtime case is a
+> silent mistake until a user hits it.
 
 ```json
 {
@@ -157,7 +163,20 @@
       "uiText": "WAIT FOR '' to be visible",
       "snippet": "WAIT FOR '${1:target}' to ${2|be visible,be hidden,disappear|}",
       "regex": "^\\s*(?:\\d+\\.\\s*)?WAIT\\s+FOR\\s+(?P<quote>[\"'])(?P<target>.+?)(?P=quote)\\s+TO\\s+(?:(?:BE\\s+(?P<state_be>VISIBLE|HIDDEN))|(?P<state_disappear>DISAPPEAR))\\s*$",
-      "description": "Explicit wait for a quoted element to reach a desired visibility state (visible, hidden, or disappear). If the quoted target looks like a CSS selector (starts with #, ., [, contains -, >, or :) the engine matches by CSS selector instead of visible text, so custom elements like 'ytd-video-renderer' work correctly.",
+      "description": "Explicit wait for a quoted element to reach a desired state. States: visible (the default), hidden / disappear, enabled, disabled. Polls every 250ms for up to 15s, invalidating the snapshot cache each time so the wait can see the change it is waiting for. Presence is judged at ThresholdAmbiguous — the same bar the rest of the engine uses to call a target resolved — because the scorer always ranks something and 'a top candidate exists' is not 'the target is present'.",
+      "timeout": "15s",
+      "pollInterval": "250ms",
+      "category": "wait"
+    },
+    {
+      "id": "wait_for_selector",
+      "label": "WAIT FOR SELECTOR",
+      "uiText": "WAIT FOR SELECTOR ''",
+      "snippet": "WAIT FOR SELECTOR '${1:css-selector}'",
+      "regex": "\\bWAIT\\s+FOR\\s+SELECTOR\\b",
+      "description": "Explicit wait for a CSS selector to appear in the DOM. Bypasses the scorer entirely — the caller gave an exact selector, so it is honoured literally. Prefer it over WAIT FOR when targeting by tag or class rather than visible text (e.g. 'ytd-video-renderer'). Parsed ahead of the other WAIT FOR forms, which would otherwise swallow it.",
+      "timeout": "15s",
+      "invalidSelector": "Reported immediately rather than after the timeout: a selector that cannot parse will never match, so waiting out 15s would only delay the message.",
       "category": "wait"
     },
     {
@@ -278,13 +297,15 @@
       "category": "network"
     },
     {
-      "id": "call_go",
-      "label": "CALL GO",
-      "uiText": "CALL GO package.function",
-      "snippet": "CALL GO ${1:package}.${2:function}${3: with args: \"${4:arg}\"}${5: into {${6:variable}}}",
-      "regex": "\\bCALL\\s+GO\\b",
-      "description": "Invokes a registered Go function inline (registered via the embedding API). Supports positional arguments ('with args:' sugar), optional 'into {var}' / 'to {var}' capture, and @script alias rewriting for CALL GO {alias}.func syntax. This is ManulEngine (Go)'s runtime-specific call verb (mirrors ManulEngine's CALL GO).",
-      "category": "go"
+      "id": "call_host",
+      "label": "CALL HOST",
+      "uiText": "CALL HOST package.function",
+      "snippet": "CALL HOST ${1:package}.${2:function}${3: with args: \"${4:arg}\"}${5: into {${6:variable}}}",
+      "regex": "\\bCALL\\s+(?:HOST|GO|PYTHON)\\b",
+      "aliases": ["CALL GO", "CALL PYTHON"],
+      "description": "Invokes a handler registered by the host inline. In Go the handler is registered via the embedding API (RegisterGoCall); through a language binding it is a function in the client process, reached by a reverse call over the session protocol. Supports positional arguments ('with args:' sugar), optional 'into {var}' / 'to {var}' capture, and @script alias rewriting for CALL HOST {alias}.func syntax. CALL GO and CALL PYTHON are accepted spellings of the same command and parse identically.",
+      "resultBinding": "An object return becomes runtime variables; a scalar goes into 'into {var}'; null sets nothing.",
+      "category": "host"
     },
     {
       "id": "set_var",
@@ -310,7 +331,34 @@
       "uiText": "SCREENSHOT [\"name\"]",
       "snippet": "SCREENSHOT \"${1:name}\"",
       "regex": "^\\s*(?:\\d+\\.\\s*)?SCREENSHOT\\b",
-      "description": "Captures a full-page PNG on demand into screenshots/<name>.png under the CWD (auto-named when no label is given). Mirrors ManulEngine (Go)'s SCREENSHOT command.",
+      "description": "Captures a full-page PNG on demand into screenshots/<name>.png under the CWD (auto-named when no label is given).",
+      "category": "utility"
+    },
+    {
+      "id": "highlight",
+      "label": "HIGHLIGHT",
+      "uiText": "HIGHLIGHT the ''",
+      "snippet": "HIGHLIGHT the '${1:target}'",
+      "regex": "\\bHIGHLIGHT\\b",
+      "description": "Flashes a border around a resolved element for two seconds. Purely diagnostic — it changes nothing on the page. A target that does not resolve is an error rather than a silent no-op, since a highlight nobody can see is not worth passing.",
+      "category": "utility"
+    },
+    {
+      "id": "full_scan",
+      "label": "FULL SCAN",
+      "uiText": "FULL SCAN",
+      "snippet": "FULL SCAN",
+      "regex": "\\bFULL\\s+SCAN\\b",
+      "description": "Scans the current page and prints every interactive control as Markdown tables grouped by landmark ancestor, one '## group' heading per landmark with a role/label/tag/editable/locator table. Console only, no file output. Groups are emitted in sorted order so two scans of the same page diff cleanly. Markdown rather than JSON because the audience is a person reading a terminal or a model reading a prompt.",
+      "category": "utility"
+    },
+    {
+      "id": "scan_page",
+      "label": "SCAN PAGE",
+      "uiText": "SCAN PAGE",
+      "snippet": "SCAN PAGE${1: into {${2:filename}}}",
+      "regex": "\\bSCAN\\s+PAGE\\b",
+      "description": "Scans the current page and prints a draft .hunt to the console, optionally writing it to a file with 'into {filename}' or 'to {filename}'. Complements the `scan` CLI subcommand, which needs a URL: these verbs work on a page you can only reach by driving there — behind a login, or three steps into a flow.",
       "category": "utility"
     },
     {

@@ -15,22 +15,32 @@ Both the Go and the Python repositories carried a `contracts/` directory with
 the same nine filenames. At the time of the merge, eight of the nine had
 drifted apart — same names, different content, no mechanism forcing them to
 agree. The copy kept here is the Go one, because `core/` is the single
-implementation going forward. The Python copy is still readable at
-`legacy/python/contracts/` if a lost detail needs recovering.
+implementation.
 
 That drift is the whole argument for this repository existing. Contracts live in
 exactly one place now.
 
-## Known gap: What-If / Explain
+## Recovering the Python engine
 
-`contracts/MANUL_DEBUG_CONTRACT.md` is the Go version, which covers Debug &
-Explain. The Python version of that contract was three times longer and
-specified a **What-If Analysis REPL** — interactive resolution debugging with a
-confidence scale and a highlight lifecycle — implemented in
-`legacy/python/manul_engine/debug.py` and `explain_next.py` (~890 lines
-together). Nothing in `core/` references it.
+The Python implementation is not in the working tree — nothing unused is kept
+here — but it is not lost either. Its full history is an ancestor of `main`, so
+any file can be read back without a network round-trip:
 
-So "full parity with the Python engine" is not quite true, and this is the hole.
-Anyone porting it should read the Python contract at
-`legacy/python/contracts/MANUL_DEBUG_CONTRACT.md` first, then fold it back into
-`contracts/MANUL_DEBUG_CONTRACT.md` here.
+```bash
+git show 9249843:legacy/python/manul_engine/explain_next.py
+git ls-tree -r 9249843 --name-only legacy/python/
+```
+
+`9249843` is the commit that grafted it in; `b5d85d7` is the final upstream
+Python commit.
+
+## What-If
+
+`contracts/MANUL_DEBUG_CONTRACT.md` v0.2.0 covers Debug, Explain **and**
+What-If. The What-If REPL was the one feature that existed only in Python when
+the repositories were merged — the Go engine's claim of "full parity" had this
+one hole. It is now implemented in `core/pkg/runtime/whatif.go`, and the
+contract documents the two places the Go behaviour deliberately differs from the
+Python original: system steps skip the DOM snapshot entirely, and the terminal
+`WhatIfResult` is kept separate from the extension's `explainNextPayload` so the
+existing wire format stays byte-compatible.
