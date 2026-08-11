@@ -1,0 +1,14 @@
+# Line endings.
+#
+# Everything is stored in git with LF; that has always been true, but it was
+# only ever true by accident of `core.autocrlf`. Stating it here means a clone
+# on any machine agrees with CI.
+#
+# Go sources are checked out with LF as well, not just stored that way. gofmt
+# treats CR as content, so a CRLF working tree makes `gofmt -l` name every file
+# in the repository and the real offenders vanish into the noise. CI runs the
+# same check on Linux, where the checkout is LF regardless — without this line
+# the local check and the gate disagree.
+* text=auto
+*.go text eol=lf
+*.png binary

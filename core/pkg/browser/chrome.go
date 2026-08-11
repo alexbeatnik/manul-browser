@@ -18,10 +18,10 @@ import (
 
 // ChromeProcess manages a Chrome browser process spawned for automation.
 type ChromeProcess struct {
-	cmd            *exec.Cmd
-	port           int
-	userDataDir    string
-	ownsDataDir    bool // true when we created the dir and should clean it up
+	cmd         *exec.Cmd
+	port        int
+	userDataDir string
+	ownsDataDir bool // true when we created the dir and should clean it up
 }
 
 // ChromeOptions configures the Chrome process to spawn.
@@ -278,17 +278,17 @@ func writeAutomationPrefs(userDataDir string) error {
 	}
 
 	prefs := map[string]any{
-		"credentials_enable_service":                  false,
-		"credentials_enable_autosignin":               false,
+		"credentials_enable_service":    false,
+		"credentials_enable_autosignin": false,
 		"profile": map[string]any{
-			"password_manager_enabled":              false,
-			"password_manager_leak_detection":       false,
+			"password_manager_enabled":        false,
+			"password_manager_leak_detection": false,
 			"default_content_setting_values": map[string]any{
 				"notifications": 2, // block
 			},
 		},
 		"autofill": map[string]any{
-			"profile_enabled":    false,
+			"profile_enabled":     false,
 			"credit_card_enabled": false,
 		},
 		"savefile": map[string]any{

@@ -450,7 +450,7 @@ func TestNearProximity_CloserWins(t *testing.T) {
 	closeBtn := makeEl(withTag("button"), withText("Add to Cart"),
 		withXPath("/html/body/div[1]/button[1]"))
 	closeBtn.Rect = dom.Rect{Left: 100, Top: 100, Width: 80, Height: 30}
-	
+
 	farBtn := makeEl(withTag("button"), withText("Add to Cart"),
 		withXPath("/html/body/div[2]/button[1]"))
 	farBtn.Rect = dom.Rect{Left: 100, Top: 600, Width: 80, Height: 30}
@@ -552,11 +552,11 @@ func TestSignificantWords(t *testing.T) {
 		input string
 		want  int
 	}{
-		{"cpu of chrome", 2},           // "cpu", "chrome"; "of" is stop word
+		{"cpu of chrome", 2},               // "cpu", "chrome"; "of" is stop word
 		{"price of master in selenium", 3}, // "price", "master", "selenium"
-		{"a", 0},                       // single letter, too short
+		{"a", 0},                           // single letter, too short
 		{"submit", 1},
-		{"the quick brown fox", 3},     // "quick", "brown", "fox"; "the" is stop word
+		{"the quick brown fox", 3}, // "quick", "brown", "fox"; "the" is stop word
 	}
 	for _, tc := range tests {
 		got := scorer.SignificantWords(tc.input)

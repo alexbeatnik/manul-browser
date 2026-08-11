@@ -17,7 +17,7 @@ func EcommerceDOM() []ElementSnapshot {
 		e.Normalize()
 		return e
 	}
-	
+
 	// Property helpers
 	withTag := func(tag string) func(*ElementSnapshot) { return func(e *ElementSnapshot) { e.Tag = tag } }
 	withID := func(id string) func(*ElementSnapshot) { return func(e *ElementSnapshot) { e.HTMLId = id } }
@@ -52,7 +52,9 @@ func SocialDOM() []ElementSnapshot {
 			ID: idx, XPath: xpath, Tag: "div", IsVisible: true,
 			Rect: Rect{Top: float64(idx * 40), Left: 10, Width: 100, Height: 30},
 		}
-		for _, o := range opts { o(&e) }
+		for _, o := range opts {
+			o(&e)
+		}
 		e.Normalize()
 		return e
 	}
@@ -74,7 +76,9 @@ func TravelDOM() []ElementSnapshot {
 			ID: idx, XPath: xpath, Tag: "div", IsVisible: true,
 			Rect: Rect{Top: float64(idx * 40), Left: 10, Width: 100, Height: 30},
 		}
-		for _, o := range opts { o(&e) }
+		for _, o := range opts {
+			o(&e)
+		}
 		e.Normalize()
 		return e
 	}
@@ -94,7 +98,9 @@ func SaasDOM() []ElementSnapshot {
 			ID: idx, XPath: xpath, Tag: "div", IsVisible: true,
 			Rect: Rect{Top: float64(idx * 40), Left: 10, Width: 100, Height: 30},
 		}
-		for _, o := range opts { o(&e) }
+		for _, o := range opts {
+			o(&e)
+		}
 		e.Normalize()
 		return e
 	}
@@ -115,7 +121,9 @@ func MediaDOM() []ElementSnapshot {
 			ID: idx, XPath: xpath, Tag: "div", IsVisible: true,
 			Rect: Rect{Top: float64(idx * 40), Left: 10, Width: 100, Height: 30},
 		}
-		for _, o := range opts { o(&e) }
+		for _, o := range opts {
+			o(&e)
+		}
 		e.Normalize()
 		return e
 	}

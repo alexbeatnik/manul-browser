@@ -277,9 +277,9 @@ func TestMap_OnClosedSession(t *testing.T) {
 // can be exercised without a browser. The selector argument is recorded.
 type textMockPage struct {
 	*runtime.MockPage
-	text     string
-	gotArg   any
-	probeFn  string
+	text    string
+	gotArg  any
+	probeFn string
 }
 
 func (p *textMockPage) CallProbe(ctx context.Context, fn string, arg any) ([]byte, error) {

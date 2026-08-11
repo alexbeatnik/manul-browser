@@ -30,12 +30,12 @@ var weekdays = map[string]int{
 
 // Schedule is a parsed @schedule expression.
 type Schedule struct {
-	Raw               string
-	IntervalSeconds   int
-	DailyAt           *time.Time
-	WeeklyDay         int
-	WeeklyHour        int
-	WeeklyMinute      int
+	Raw             string
+	IntervalSeconds int
+	DailyAt         *time.Time
+	WeeklyDay       int
+	WeeklyHour      int
+	WeeklyMinute    int
 }
 
 // ParseSchedule converts expressions like "every 5 minutes" into a Schedule.

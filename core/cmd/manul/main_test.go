@@ -15,9 +15,9 @@ import (
 )
 
 // TestCustomControlAndCallGo demonstrates the full SDET workflow:
-//   1. Register a Custom Control that intercepts a standard DSL step.
-//   2. Register a CALL GO helper that returns a map (flattened into variables).
-//   3. Run a hunt that exercises both extensions end-to-end.
+//  1. Register a Custom Control that intercepts a standard DSL step.
+//  2. Register a CALL GO helper that returns a map (flattened into variables).
+//  3. Run a hunt that exercises both extensions end-to-end.
 func TestCustomControlAndCallGo(t *testing.T) {
 	// Reset global registries so tests don't interfere with each other.
 	runtime.ResetRuntimeRegistries()

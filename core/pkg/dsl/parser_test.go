@@ -122,10 +122,10 @@ func TestParseClickElement(t *testing.T) {
 // radio-specific semantic boost and letting the wrapping <label> win.
 func TestParseClickRadioButtonCompoundHint(t *testing.T) {
 	cases := []struct {
-		line     string
-		hint     string
-		mode     InteractionMode
-		target   string
+		line   string
+		hint   string
+		mode   InteractionMode
+		target string
 	}{
 		{"CLICK the radio button for 'Radio1'", "radio", ModeCheckbox, "Radio1"},
 		{"CLICK the 'Radio1' radio button", "radio", ModeCheckbox, "Radio1"},

@@ -218,8 +218,8 @@ func TestRuntime_CallGoFlattensMapAnyReturnIntoVariables(t *testing.T) {
 
 	err := RegisterGoCall("config.load.any", func(ctx context.Context, invocation GoCallInvocation) (any, error) {
 		return map[string]any{
-			"port":     8080,
-			"enabled":  true,
+			"port":    8080,
+			"enabled": true,
 		}, nil
 	})
 	if err != nil {

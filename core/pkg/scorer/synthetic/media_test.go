@@ -143,10 +143,10 @@ func TestMedia(t *testing.T) {
 	elements := mediaDOM()
 
 	tests := []struct {
-		name    string
-		query   string
-		mode    string
-		wantID  string
+		name   string
+		query  string
+		mode   string
+		wantID string
 	}{
 		// Video Player Controls
 		{"01 Play Video", "Play Video", "clickable", "m1"},

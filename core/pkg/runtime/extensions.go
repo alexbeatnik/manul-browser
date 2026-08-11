@@ -39,10 +39,10 @@ type GoCallHandler func(context.Context, GoCallInvocation) (any, error)
 // Runtime in the process. They are safe for concurrent reads (sync.RWMutex)
 // and for concurrent registration, but the intended lifecycle is:
 //
-//   1. All Register* calls happen at process init (TestMain, main(),
-//      or init() functions in plugin packages).
-//   2. Worker pool spawns; goroutines call only Get* / handler invocation.
-//   3. Process exits.
+//  1. All Register* calls happen at process init (TestMain, main(),
+//     or init() functions in plugin packages).
+//  2. Worker pool spawns; goroutines call only Get* / handler invocation.
+//  3. Process exits.
 //
 // Registering or unregistering handlers WHILE workers are executing is
 // permitted by the type system (the mutex makes it data-race-free) but is
