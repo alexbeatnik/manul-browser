@@ -16,7 +16,7 @@ The same runtime serves two drivers from one artifact:
 - **Humans** author readable `.hunt` steps (`Click the 'Login' button`) — QA tests, RPA, synthetic monitors. No selectors to maintain.
 - **LLM agents** drive it through JSON CLI commands (`manul map` / `run-step` / `read` / `schema`) that target elements by human label, never CSS/XPath.
 
-This is the Go sibling of [ManulEngine (Python)](https://github.com/alexbeatnik/ManulEngine): the same `.hunt` DSL, the same deterministic scorer, and the same agent JSON shapes — built on a single dependency (`gorilla/websocket`), shipping as one static binary, with true goroutine-level parallelism and an embeddable in-process API (`pkg/agent`).
+This is the engine itself, and the only implementation of it: the `.hunt` DSL, the deterministic scorer, and the agent JSON shapes — built on a single dependency (`gorilla/websocket`), shipping as one static binary, with true goroutine-level parallelism and an embeddable in-process API (`pkg/agent`). Every other language drives this rather than reimplementing it.
 
 ### Built for agents — and it's measurably cheaper on tokens
 
@@ -492,7 +492,7 @@ func runSuite(ctx context.Context, hunts []*dsl.Hunt) error {
 
 | Component | Role | Links |
 |-----------|------|-------|
-| **ManulEngine (Python)** | Deterministic automation runtime (Python). The reference sibling — same DSL, scorer, and agent JSON. | [PyPI](https://pypi.org/project/manul-engine/) · [GitHub](https://github.com/alexbeatnik/ManulEngine) |
+| **Python binding** | Thin client over this engine — ships the binary, speaks the stdio protocol. Not a second implementation. | [`bindings/python`](../bindings/python) · `manul-browser` on PyPI, not yet published |
 | **ManulEngine (Go)** | This project — the Go runtime. Single static binary, goroutine parallelism, embeddable `pkg/agent`. | [GitHub](https://github.com/alexbeatnik/manul-browser) |
 | **Manul Engine Extension** | VS Code extension with debug panel, explain mode, and Test Explorer integration. Auto-detects the Go runtime from `go.mod`. | [Marketplace](https://marketplace.visualstudio.com/items?itemName=manul-engine.manul-engine) · [Open VSX](https://open-vsx.org/extension/manul-engine/manul-engine) · [GitHub](https://github.com/alexbeatnik/ManulEngineExtension) |
 | **ManulMcpServer** | MCP bridge that gives Copilot Chat and other agents access to the engine. | [Marketplace](https://marketplace.visualstudio.com/items?itemName=manul-engine.manul-mcp-server) · [GitHub](https://github.com/alexbeatnik/ManulMcpServer) |

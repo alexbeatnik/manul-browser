@@ -6,8 +6,7 @@
 
 > **Developer README.** The user-facing tour lives in [README.md](README.md); this file is the
 > engineering manual: project structure, runtime architecture, extension points, configuration,
-> testing, and release mechanics. The Python sibling keeps the same manual in
-> [ManulEngine/README_DEV.md](https://github.com/alexbeatnik/ManulEngine/blob/main/README_DEV.md).
+> testing, and release mechanics.
 
 **Status: Alpha.** Solo-developed, battle-tested against synthetic DOM suites and real sites.
 No stability promises; the core claim is transparency — every resolution is explainable.
@@ -286,7 +285,7 @@ Python engine's `pyproject.toml` version — the two runtimes release the same s
 
 ## 📜 Release Notes: 0.1.0
 
-- **Rebrand:** ManulHeart → **ManulEngine (Go)**; module path `github.com/alexbeatnik/ManulEngineGo`.
+- **Rebrand:** ManulHeart → **ManulEngine (Go)**; module path now `github.com/alexbeatnik/manul-browser/core`.
 - **Cross-runtime parity** with ManulEngine (Python): shared DSL surface (`PRINT`, `SCREENSHOT`,
   `OPEN APP`, END-terminators), identical agent JSON (`schema`/`map`/`read`/`run-step`,
   `failure_reasons`, `step_outcome.score`, `editable` in `map`), identical CLI flags
