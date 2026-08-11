@@ -51,7 +51,7 @@ existed — it just needed a session that outlives a single command.
 | `bindings/python` | Working — packaged as `manul-browser`, not yet published |
 | `bindings/node` | Not started |
 | `conformance/` | Not started |
-| Release pipeline | `.github/workflows/release.yml` — builds and smoke-tests; publishing commented out, never run against a real tag |
+| Release pipeline | Written, then switched off — `.github/workflows/release.yml.disabled`. Nothing fires on a tag |
 | What-If REPL | Ported to Go — terminal-only, see the debug contract |
 | Custom controls, `CALL HOST` | Go handlers, or client handlers via reverse call |
 | Suite hooks | `pkg/lifecycle` — `before_all`/`after_all`/`before_group`/`after_group` |

@@ -97,28 +97,32 @@ this repository was created to end.
 template; the work is packaging (`optionalDependencies` per platform) more than
 logic.
 
-### 4. Release pipeline — Python only, and never fired
+### 4. Release pipeline — written, switched off, never fired
 
-`.github/workflows/release.yml` takes a `vX.Y.Z` tag, cross-compiles the engine
-for six targets, wraps each in a platform-tagged wheel, and installs every wheel
-on a matching runner to drive a real Chrome through it. Locally verified as far
-as a Windows machine allows: the wheel builds, installs, and `manul --version`
-answers from the bundled binary.
+`.github/workflows/release.yml.disabled` takes a `vX.Y.Z` tag, cross-compiles the
+engine for six targets, wraps each in a platform-tagged wheel, and installs every
+wheel on a matching runner to drive a real Chrome through it. Locally verified as
+far as a Windows machine allows: the wheel builds, installs, and `manul
+--version` answers from the bundled binary.
 
-**Publishing is commented out on purpose.** Nothing has been released as
-`manul-browser`, and the first upload to PyPI is the single irreversible step in
-this repository — the version number is spent whether or not the artifact was
-any good, and yanking does not give it back. So a tag currently ends at the
-smoke jobs and leaves the wheels as workflow artifacts. The `publish` and
-`github-release` jobs are intact, commented, with the switch-on order written
+**None of it runs.** The file is disabled twice over — the extension is not
+`.yml`, so GitHub never parses it, and every line inside is commented out as
+well. A tag pushed today starts nothing.
+
+That is deliberate while the repository is still being put in order. It also
+buys the one thing worth being careful about: the first upload to PyPI is the
+single irreversible step here — the version number is spent whether or not the
+artifact was any good, and yanking does not give it back. So the `publish` and
+`github-release` jobs are commented a *second* time inside the workflow, and
+stay that way when the rest is switched back on. The order to follow is written
 above them: repository renamed first, then the PyPI trusted publisher and the
 `pypi` environment, then uncomment.
 
 What is still open:
 
-- **It has never run.** No tag has been pushed, so the workflow itself is
-  unverified — including whether `pypi` as a trusted publisher is configured at
-  all, which is a setting on PyPI, not in this repository.
+- **It has never run**, and cannot until it is re-enabled. Everything below is
+  therefore theory, including whether `pypi` as a trusted publisher is
+  configured at all — which is a setting on PyPI, not in this repository.
 - **npm and NuGet do not exist yet.** "Both packages together" is currently one
   package. The npm half is §3.
 - **`macos-15-intel` and `ubuntu-24.04-arm` smoke jobs are best-effort.** They
