@@ -1,0 +1,148 @@
+name: CI
+
+# Everything that can be checked without a browser, checked on every push.
+#
+# This used to run the Go tests and nothing else, which left three ways to break
+# the repository silently: unformatted Go, a binding whose tests nobody ran until
+# a release tag, and code that only compiles for windows/amd64. Each has a job
+# below. Chrome-driven work still belongs to the release workflow.
+
+on:
+  push:
+    branches: [main, 'feat/*']
+    paths: ['core/**', 'bindings/python/**', '.github/workflows/**']
+  pull_request:
+    branches: [main]
+    paths: ['core/**', 'bindings/python/**', '.github/workflows/**']
+
+permissions:
+  contents: read
+
+env:
+  # Every target the release workflow ships a wheel for. Cross-compiling them
+  # here means a tag never fails on a platform nobody built until then.
+  TARGETS: 'linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64'
+
+jobs:
+  format:
+    name: Format and vet
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: core
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          # Action inputs are resolved from the workspace root, not `defaults`.
+          go-version-file: core/go.mod
+
+      - name: gofmt
+        # gofmt reads CR as content, so this is only meaningful because .gitattributes
+        # pins *.go to LF — otherwise a Windows contributor's checkout disagrees with
+        # this runner about every file in the repository.
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::gofmt would rewrite these files; run gofmt -w on them"
+            echo "$unformatted"
+            gofmt -d .
+            exit 1
+          fi
+
+      - name: go vet
+        # The only linter here, and the only one that ships with the toolchain.
+        # Keeping it that way is the same "one dependency" rule the engine follows.
+        run: go vet ./...
+
+  engine:
+    name: Engine
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: core
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: core/go.mod
+
+      - name: Build
+        run: go build ./...
+
+      - name: 🔍 Run Synthetic Scorer (DOM Resolution)
+        run: go test -race -v -count=1 ./pkg/scorer/synthetic/...
+
+      - name: ⚙️ Run Runtime Engine Logic (Flow & Vars)
+        run: go test -race -v -count=1 ./pkg/runtime/...
+
+      - name: 🔌 Run CDP Transport Tests (concurrency-critical)
+        run: go test -race -v -count=1 ./pkg/cdp/...
+
+      - name: 👷 Run Worker Pool & Port Allocator Tests
+        run: go test -race -v -count=1 ./pkg/worker/...
+
+      - name: 🧪 Run Package-level Unit Tests
+        run: go test -race ./pkg/...
+
+      - name: ✅ Run All Integration Tests
+        run: go test -race ./...
+
+  cross-build:
+    name: Cross-compile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: core/go.mod
+
+      - name: Build every release target
+        working-directory: core
+        # Compile only — these cannot be run here. The point is that
+        # chrome_unix.go and chrome_windows.go both still build, which nothing
+        # else in this workflow proves.
+        run: |
+          set -euo pipefail
+          for target in $TARGETS; do
+            echo "::group::$target"
+            CGO_ENABLED=0 GOOS="${target%/*}" GOARCH="${target#*/}" go build ./...
+            echo "::endgroup::"
+          done
+
+  python:
+    name: Python binding (${{ matrix.os }}, ${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # The ends of the supported range, on the two platforms where process
+        # handling differs. These tests speak the protocol to a fake engine, so
+        # they need neither Chrome nor a compiled binary.
+        os: [ubuntu-latest, windows-latest]
+        python-version: ['3.9', '3.13']
+    defaults:
+      run:
+        working-directory: bindings/python
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install pytest
+        # The package itself has no runtime dependencies, and is imported from
+        # the working tree rather than installed — an install would want the
+        # engine binary the release job builds.
+        run: python -m pip install --upgrade pip pytest
+
+      - name: Test
+        run: python -m pytest tests/ -q

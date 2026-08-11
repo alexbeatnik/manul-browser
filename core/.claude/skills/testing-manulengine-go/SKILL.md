@@ -114,14 +114,18 @@ When adding a new scoring heuristic:
 4. Run the full synthetic suite; a change is only green if all 476+ cases
    pass.
 
-## CI (`.github/workflows/synthetic-tests.yml`)
+## CI (`.github/workflows/ci.yml`)
 
 - Triggers on push to `main` / `feat/*`, plus PRs to `main`.
-- Each step isolates a package group and runs with `-race`.
-- The final step is `go test -race ./...` — a catch-all.
+- `engine` — each step isolates a package group and runs with `-race`; the
+  final step is `go test -race ./...`, a catch-all. Linux only.
+- `format` — `gofmt -l .` must print nothing, then `go vet ./...`. Both are
+  hard gates, so run them before pushing.
+- `cross-build` — `go build ./...` for all six release targets. Compile only.
+- `python` — the binding's tests, which need no Go and no Chrome.
 
 If a new package should be surfaced (e.g. a named step for visibility), add
-a dedicated job step next to the CDP and worker steps.
+a dedicated step to the `engine` job next to the CDP and worker steps.
 
 ## Common failures
 

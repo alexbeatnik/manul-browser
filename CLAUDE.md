@@ -24,6 +24,7 @@ local implementation in the binding.
 
 ```bash
 cd core && go build ./... && go test -short ./...      # engine
+cd core && gofmt -l . && go vet ./...                  # both are CI gates
 cd bindings/python && python -m pytest tests/ -q       # binding (no Chrome needed)
 ```
 
@@ -78,8 +79,13 @@ test logic itself passes) and `TestCollectScheduledHunts_Subdirectories` in
 rather than timing. Both predate the merge; confirm against a clean upstream
 clone before blaming a change.
 
-The repository is **not** gofmt-clean and never was — roughly 80 files. Run
-`gofmt -w` only on files you touched, or the diff drowns in unrelated churn.
+The repository **is** gofmt-clean, and CI fails if it stops being. It used to
+look otherwise: `core.autocrlf=true` gives this machine a CRLF working tree
+against an LF index, gofmt counts CR as content, and so `gofmt -l` named 115
+files while only 19 were actually unformatted. `.gitattributes` now pins `*.go`
+to `eol=lf`, which makes the local check agree with the runner. If you still see
+a wall of unformatted files, your checkout predates that file — re-checkout, or
+compare against the index with `git show :path/to/file.go | gofmt -d`.
 
 ## Conventions
 
