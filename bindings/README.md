@@ -59,8 +59,14 @@ The esbuild model, in both ecosystems:
   Written, in [`.github/workflows/release.yml.disabled`](../.github/workflows/release.yml.disabled),
   and switched off there — see below.
 - **npm** — `manul-browser` declaring `optionalDependencies` on per-platform
-  packages (`manul-browser-linux-x64`, `-darwin-arm64`, `-win32-x64`, …), each
-  carrying one binary and gated by `os`/`cpu`. Not started.
+  packages (`@manul-browser/engine-linux-x64`,
+  `@manul-browser/engine-darwin-arm64`, …), each carrying one binary and gated
+  by `os`/`cpu`. Unscoped main package, scoped platform packages — the same
+  split esbuild and rollup use, and it means one npm organisation reserves every
+  platform name instead of six global ones being claimable separately.
+  [`node/src/binary.ts`](node/src/binary.ts) resolves exactly this name at
+  runtime. None is published yet, so the binding falls through to
+  `$MANUL_BINARY` or `PATH`.
 
 One git tag — `vX.Y.Z` — builds every binary and packages them together, so
 versions cannot disagree; the release job refuses to start unless the tag, the
