@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/alexbeatnik/manul-browser/core/pkg/config"
 	"github.com/alexbeatnik/manul-browser/core/pkg/dom"
@@ -353,5 +354,51 @@ func TestClose_Idempotent(t *testing.T) {
 	}
 	if err := sess.Close(); err != nil {
 		t.Errorf("second Close should be a no-op, got: %v", err)
+	}
+}
+
+func TestTruncateText_CountsRunesNotBytes(t *testing.T) {
+	// Cyrillic is two bytes per character in UTF-8. Slicing the string directly
+	// would give roughly half the requested characters, and could cut the last
+	// rune in half.
+	s := "Найдешевша газонокосарка коштує"
+	got := TruncateText(s, 10)
+
+	head, _, _ := strings.Cut(got, "\n")
+	if n := utf8.RuneCountInString(head); n != 10 {
+		t.Errorf("kept %d characters, want 10: %q", n, head)
+	}
+	if !utf8.ValidString(got) {
+		t.Errorf("truncation produced invalid UTF-8: %q", got)
+	}
+	if !strings.HasPrefix(got, "Найдешевша") {
+		t.Errorf("kept the wrong characters: %q", got)
+	}
+}
+
+func TestTruncateText_LeavesShortTextAlone(t *testing.T) {
+	s := "Короткий текст"
+	if got := TruncateText(s, 100); got != s {
+		t.Errorf("text within budget was altered: %q", got)
+	}
+	if got := TruncateText(s, 0); got != s {
+		t.Errorf("a budget of 0 means no limit: %q", got)
+	}
+	if got := TruncateText(s, -1); got != s {
+		t.Errorf("a negative budget means no limit: %q", got)
+	}
+}
+
+func TestTruncateText_SaysHowMuchWasDropped(t *testing.T) {
+	got := TruncateText(strings.Repeat("я", 30), 10)
+	if !strings.Contains(got, "[+20 chars truncated]") {
+		t.Errorf("marker missing or miscounted: %q", got)
+	}
+}
+
+func TestTruncateText_BoundaryIsExact(t *testing.T) {
+	s := strings.Repeat("ї", 5)
+	if got := TruncateText(s, 5); got != s {
+		t.Errorf("text of exactly the budget was truncated: %q", got)
 	}
 }
