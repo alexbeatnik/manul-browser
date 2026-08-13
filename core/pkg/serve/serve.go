@@ -469,9 +469,12 @@ func (s *Server) cmdRead(ctx context.Context, raw json.RawMessage) (any, string,
 		if err != nil {
 			return nil, CodeInternal, err
 		}
-		if a.MaxChars > 0 && len(text) > a.MaxChars {
-			text = text[:a.MaxChars]
-		}
+		// The same helper the CLI uses. Slicing the string directly counted
+		// bytes, not characters, so a budget of N gave roughly N/2 characters of
+		// Cyrillic and could cut the final rune in half — and the two paths
+		// disagreed about what maxChars means, which is exactly the drift the
+		// protocol exists to prevent.
+		text = agent.TruncateText(text, a.MaxChars)
 		return readTextResult{Text: text, Selector: a.Selector}, "", nil
 	}
 	if a.Label == "" {
