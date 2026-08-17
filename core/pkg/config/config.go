@@ -1,4 +1,4 @@
-// Package config holds the engine-wide runtime configuration for ManulEngine (Go).
+// Package config holds the engine-wide runtime configuration for Manul Browser.
 // Each hunt execution gets a Config passed through the runtime stack.
 package config
 
@@ -34,7 +34,7 @@ type Config struct {
 	ExecutablePath *string `json:"executable_path,omitempty"`
 
 	// Channel selects a system Chrome/Chromium binary by name (chrome,
-	// chrome-beta, chrome-dev, chromium, msedge). Mirrors ManulEngine's channel.
+	// chrome-beta, chrome-dev, chromium, msedge, firefox-esr, firefox-nightly).
 	Channel *string `json:"channel,omitempty"`
 
 	// Headless runs the browser in headless mode.
@@ -136,7 +136,7 @@ func Default() Config {
 // Load returns a Config with the 3-level priority applied:
 //
 //  1. Hardcoded defaults (Default())
-//  2. manul_engine_configuration.json in CWD (if present)
+//  2. manul.config.json in CWD (if present)
 //  3. MANUL_* environment variables (highest priority)
 func Load() (Config, error) {
 	cfg := Default()
@@ -148,14 +148,14 @@ func Load() (Config, error) {
 	return cfg, nil
 }
 
-// applyJSONFile reads manul_engine_configuration.json from the CWD and overlays
+// applyJSONFile reads manul.config.json from the CWD and overlays
 // any fields present in the file onto cfg.
 func applyJSONFile(cfg *Config) error {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return nil // non-fatal; proceed with defaults
 	}
-	path := filepath.Join(cwd, "manul_engine_configuration.json")
+	path := filepath.Join(cwd, "manul.config.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -322,7 +322,7 @@ func overrideFromEnv(cfg *Config) {
 		}
 	}
 	if v := os.Getenv("MANUL_SEMANTIC_CACHE_ENABLED"); v != "" {
-		// ManulEngine parity: the inverse control — disabling the cache is
+		// Python-engine parity: the inverse control — disabling the cache is
 		// equivalent to DisableCache=true. Read after MANUL_DISABLE_CACHE so
 		// the explicit semantic-cache toggle wins if both are set.
 		if b, err := strconv.ParseBool(v); err == nil {

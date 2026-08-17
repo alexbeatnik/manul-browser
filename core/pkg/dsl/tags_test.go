@@ -3,7 +3,7 @@ package dsl
 // ─────────────────────────────────────────────────────────────────────────────
 // TAGS PARSING TEST SUITE
 //
-// Port of ManulEngine test_22_tags.py — @tags: header parsing and filtering.
+// @tags: header parsing and filtering.
 //
 // Validates:
 // 1. Parser extracts @tags: into Hunt.Tags

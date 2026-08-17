@@ -3,7 +3,7 @@ package synthetic
 // ─────────────────────────────────────────────────────────────────────────────
 // MEDIA & VIDEO STREAMING DOM SCORING TEST SUITE
 //
-// Port of ManulEngine test_06_media.py — 100-element media/streaming page.
+// 100-element media/streaming page.
 // Validates: video player controls, metadata/engagement, comments, autoplay,
 // Netflix-style hero/carousel/episodes, Spotify music player, search/genre,
 // ads, age gate.

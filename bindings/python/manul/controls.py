@@ -23,7 +23,7 @@ the awkwardness stays in one Python function.
         return str(sum(float(a) for a in ctx.args))
 
 Registration is process-global and happens at import time, exactly as it did in
-the standalone Python engine. A `Session` publishes whatever is registered when
+this module. A `Session` publishes whatever is registered when
 it opens, so decorators do not need a session to exist yet.
 """
 

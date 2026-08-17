@@ -1,6 +1,6 @@
 # Loops & Page Objects
 
-> ManulEngine (Go) now supports the same loop constructs and page-name registry as Python ManulEngine.
+> Loop constructs and the page-name registry, as the runtime implements them.
 
 ## Loops
 
@@ -53,7 +53,7 @@ REPEAT 2 TIMES:
 
 ## Page Objects (pages/ directory)
 
-ManulEngine (Go) uses a `pages/` directory next to your hunt files to map URLs to human-readable page names.
+Manul Browser uses a `pages/` directory next to your hunt files to map URLs to human-readable page names.
 
 ### Fragment format
 
@@ -111,14 +111,3 @@ runtime.RegisterCustomControl("Checkout Page", "React Datepicker", handler)
 
 The page label is resolved via `document.title` first, then the `pages/` registry, then URL-derived fallback.
 
-### Comparison with Python ManulEngine
-
-| Feature | Python ManulEngine | Go ManulEngine (Go) |
-|---------|-------------------|---------------|
-| Loop types | REPEAT, FOR EACH, WHILE | REPEAT, FOR EACH, WHILE |
-| Max WHILE iterations | `MAX_LOOP_ITERATIONS = 100` | hard limit = 100 |
-| Loop variable | `{i}` auto-set for REPEAT | `{i}` auto-set for REPEAT |
-| Page registry | `pages/<site>.json` | `pages/<site>.json` |
-| Auto-populate | `_auto_populate_registry()` | `Registry.autoPopulate()` |
-| Registry reload | every `lookup_page_name()` call | every `LookupPageName()` call |
-| Lean/wrapped forms | both supported | both supported |

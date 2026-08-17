@@ -3,8 +3,6 @@ package dsl
 // ─────────────────────────────────────────────────────────────────────────────
 // CONDITIONALS AND LOOPS TEST SUITE
 //
-// Port of ManulEngine test_54_conditionals.py and test_55_loops.py
-//
 // Validates:
 // A. IF/ELIF/ELSE parsing and block nesting
 // B. WHILE loops

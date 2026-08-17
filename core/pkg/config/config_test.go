@@ -81,7 +81,7 @@ func writeJSON(t *testing.T, dir string, v any) {
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "manul_engine_configuration.json"), data, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "manul.config.json"), data, 0o644); err != nil {
 		t.Fatalf("write json: %v", err)
 	}
 }
@@ -256,7 +256,7 @@ func TestApplyJSONFile_ExplicitFalseAndZero(t *testing.T) {
 func TestApplyJSONFile_BrokenJSON(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
-	_ = os.WriteFile(filepath.Join(dir, "manul_engine_configuration.json"), []byte("not json"), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "manul.config.json"), []byte("not json"), 0644)
 
 	cfg := Default()
 	err := applyJSONFile(&cfg)
@@ -386,7 +386,7 @@ func TestOverrideFromEnv(t *testing.T) {
 			"DisableCache should be true",
 		},
 		{
-			"semantic cache disabled (ManulEngine parity)",
+			"semantic cache disabled (Python-engine parity)",
 			"MANUL_SEMANTIC_CACHE_ENABLED", "false",
 			func(c Config) bool { return c.DisableCache },
 			"MANUL_SEMANTIC_CACHE_ENABLED=false should set DisableCache=true",
@@ -406,7 +406,7 @@ func TestOverrideFromEnv(t *testing.T) {
 			"TestsHome mismatch",
 		},
 		{
-			"channel (ManulEngine parity)",
+			"channel (Python-engine parity)",
 			"MANUL_CHANNEL", "chrome",
 			func(c Config) bool { return c.Channel != nil && *c.Channel == "chrome" },
 			"MANUL_CHANNEL should set Channel",
@@ -509,7 +509,7 @@ func TestLoad_NoFileNoEnv(t *testing.T) {
 func TestLoad_BrokenJSON(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
-	_ = os.WriteFile(filepath.Join(dir, "manul_engine_configuration.json"), []byte("not json"), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "manul.config.json"), []byte("not json"), 0644)
 
 	_, err := Load()
 	if err == nil {

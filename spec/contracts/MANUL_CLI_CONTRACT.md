@@ -1,17 +1,14 @@
-# ManulEngine (Go) — CLI Contract
+# Manul Browser — CLI Contract
 
 > **Machine-readable contract for the `manul` CLI interface.**
-> Consumed by Manul Studio, VS Code extension, CI/CD integrations, and other downstream tooling.
+> Consumed by CI/CD integrations, editor tooling, and other downstream consumers.
 >
-> **Shared surface.** ManulEngine (Go) copy of a contract shared with ManulEngine
-> (Python). Subcommands, flags, env vars, and exit codes are **identical** across
-> both runtimes — except `pack`/`install` (`.huntlib`), which are Engine-only and
-> omitted here. Install via `go install`/`make` instead of `pip`; impl lives under
-> `cmd/manul` + `pkg/...`.
+> **Scope.** Subcommands, flags, env vars and exit codes of the `manul` binary.
+> Implementation lives under `cmd/manul` + `pkg/...`.
 
 ```json
 {
-  "version": "0.1.0",
+  "version": "0.1.1",
   "generatedFrom": "cmd/manul :: main(), _run_hunt_file(), parse_hunt_file(), sync_main(); pkg/config :: _KEY_MAP, global config constants; pkg/scan :: scan_main(); pkg/record :: record_main(); pkg/daemon :: daemon_main()",
   "entryPoints": {
     "console_script": "manul",
@@ -164,8 +161,9 @@
       "default": "chromium",
       "configKey": "browser",
       "envVar": "MANUL_BROWSER",
-      "allowedValues": ["chromium", "electron"],
-      "description": "Browser engine to use.",
+      "allowedValues": ["chromium", "firefox", "electron"],
+      "aliases": {"chromium": ["chrome", "chromium-browser", "msedge", "edge"], "firefox": ["mozilla", "gecko"]},
+      "description": "Browser engine to launch. `chromium` is driven over CDP, `firefox` over WebDriver BiDi. An unsupported value exits non-zero before anything is launched.",
       "appliesTo": ["run", "scan", "record", "daemon"]
     },
     {
@@ -210,7 +208,7 @@
       "flag": "--break-lines",
       "type": "string",
       "default": null,
-      "description": "Comma-separated list of .hunt file line numbers to pause at. Used by the VS Code extension gutter breakpoint runner. Forces --workers 1.",
+      "description": "Comma-separated list of .hunt file line numbers to pause at. Drives gutter-breakpoint style debugging from an editor. Forces --workers 1.",
       "example": "--break-lines 5,10,15",
       "appliesTo": ["run"]
     },
@@ -263,7 +261,7 @@
       "default": false,
       "configKey": null,
       "envVar": null,
-      "description": "Print the final RunSummary as indented JSON to stdout; human logs are routed to stderr. Base64 screenshots are stripped. Mirrors ManulEngine (Go)'s --json.",
+      "description": "Print the final RunSummary as indented JSON to stdout; human logs are routed to stderr. Base64 screenshots are stripped. Prints the run's own summary shape.",
       "appliesTo": ["run"]
     },
     {
@@ -273,7 +271,7 @@
       "default": false,
       "configKey": null,
       "envVar": null,
-      "description": "Stream per-step JSON Lines (one object per step, type=step) followed by a final type=summary line to stdout; human logs are routed to stderr. Mirrors ManulEngine (Go)'s --jsonl.",
+      "description": "Stream per-step JSON Lines (one object per step, type=step) followed by a final type=summary line to stdout; human logs are routed to stderr. One line per step, so a consumer can render progress live.",
       "appliesTo": ["run"]
     },
     {
@@ -283,7 +281,7 @@
       "default": false,
       "configKey": "semantic_cache_enabled",
       "envVar": "MANUL_SEMANTIC_CACHE_ENABLED",
-      "description": "Disable the in-session semantic cache (learned_elements) for a fully cold, deterministic run. Mirrors ManulEngine (Go)'s --disable-cache. Inverse of semantic_cache_enabled.",
+      "description": "Disable the in-session semantic cache (learned_elements) for a fully cold, deterministic run. Inverse of semantic_cache_enabled.",
       "appliesTo": ["run"]
     },
     {
@@ -303,7 +301,7 @@
       "default": null,
       "configKey": "cdp_endpoint",
       "envVar": "MANUL_CDP_ENDPOINT",
-      "description": "Attach to a running browser at this CDP HTTP endpoint (e.g. http://127.0.0.1:9222) instead of launching Chrome. Mirrors ManulEngine (Go)'s --cdp.",
+      "description": "Attach to a running browser at this endpoint instead of launching one. The scheme selects the protocol: http://127.0.0.1:9222 is CDP/Chromium, ws://127.0.0.1:9222/session is WebDriver BiDi/Firefox (a bare ws://host:port, as Firefox prints it, gets /session appended).",
       "appliesTo": ["run"]
     },
     {
@@ -313,7 +311,7 @@
       "default": null,
       "configKey": null,
       "envVar": "MANUL_CDP_TAB",
-      "description": "With --cdp, select the page whose URL contains the given substring (form: url=<substr>; the url= prefix is optional). Falls back to the first page. Mirrors ManulEngine (Go)'s --target.",
+      "description": "With --cdp, select the page whose URL contains the given substring (form: url=<substr>; the url= prefix is optional). Falls back to the first page.",
       "appliesTo": ["run"]
     },
     {
@@ -336,13 +334,12 @@
   "configPriority": [
     "CLI flag (highest)",
     "Environment variable (MANUL_*)",
-    "manul_engine_configuration.json",
+    "manul.config.json",
     "Built-in default (lowest)"
   ],
   "configFile": {
-    "filename": "manul_engine_configuration.json",
+    "filename": "manul.config.json",
     "resolution": "CWD first, then executable directory fallback",
-    "overrideSetting": "manulEngine.configFile (VS Code extension setting)",
     "keys": [
       { "key": "headless",               "envVar": "MANUL_HEADLESS",               "type": "boolean",       "default": "false" },
       { "key": "browser",                "envVar": "MANUL_BROWSER",                "type": "string",        "default": "chromium" },
@@ -437,7 +434,7 @@
   ],
   "parallelModel": {
     "mechanism": "Subprocess per hunt file via asyncio.create_subprocess_exec",
-    "command": "[sys.executable, '-m', 'ManulEngine (Go)', '--workers', '1', ...flags, hunt_file]",
+    "command": "[sys.executable, '-m', 'Manul Browser', '--workers', '1', ...flags, hunt_file]",
     "concurrency": "asyncio.Semaphore(workers)",
     "timeout": "600s default (configurable via MANUL_WORKER_TIMEOUT env var)",
     "stdout": "Captured per worker, printed in submission order after all complete",
@@ -468,7 +465,7 @@
     "scriptAliasRewriting": "@script: aliases are resolved and rewritten to real dotted paths in mission lines and hook lines before returning"
   },
   "debugProtocol": {
-    "description": "Stdin/stdout protocol between the CLI runner and VS Code extension for gutter breakpoint debugging.",
+    "description": "Stdin/stdout protocol between the CLI runner and a non-TTY driver for gutter breakpoint debugging.",
     "pauseMarker": "\\x00MANUL_DEBUG_PAUSE\\x00{\"step\":\"...\",\"idx\":N}\\n",
     "stdinCommands": [
       { "command": "next\\n",       "effect": "Advance one step then pause again" },

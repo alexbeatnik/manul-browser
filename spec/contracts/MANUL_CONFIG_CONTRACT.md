@@ -1,25 +1,22 @@
-# ManulEngine (Go) — Configuration Contract
+# Manul Browser — Configuration Contract
 
-> **Machine-readable contract for the ManulEngine (Go) configuration surface.**
-> Consumed by VS Code extension config panel, CI/CD integrations, and downstream tooling.
+> **Machine-readable contract for the Manul Browser configuration surface.**
+> Consumed by CI/CD integrations, editor tooling, and downstream consumers.
 >
-> **Shared surface.** ManulEngine (Go) copy of a contract shared with ManulEngine
-> (Python). The config keys, `MANUL_*` env vars, defaults, and precedence are
-> **identical** across both runtimes; only impl paths differ (`pkg/config` here
-> vs `manul_engine/config.py` in Engine). `CALL GO` replaces `CALL PYTHON`.
+> **Scope.** Config keys, `MANUL_*` env vars, defaults and precedence, as
+> implemented in `pkg/config`.
 
 ```json
 {
-  "version": "0.1.0",
+  "version": "0.1.1",
   "generatedFrom": "pkg/config :: _KEY_MAP, _CFG, get_threshold(), lookup_page_name(); pkg/runtime :: ScopedVariables; pkg/config :: envBool()",
 
   "configFile": {
-    "filename": "manul_engine_configuration.json",
+    "filename": "manul.config.json",
     "format": "JSON",
     "resolution": [
-      "CWD (./manul_engine_configuration.json) — the only lookup location in the Go runtime"
-    ],
-    "vscodeOverride": "manulEngine.configFile (VS Code extension setting via getConfigFileName())"
+      "CWD (./manul.config.json) — the only lookup location in the Go runtime"
+    ]
   },
 
   "priority": [
@@ -60,8 +57,9 @@
       "envVar": "MANUL_BROWSER",
       "type": "string",
       "default": "chromium",
-      "allowedValues": ["chromium", "electron"],
-      "description": "Which browser binary to launch. Always Chrome/Chromium — Firefox/WebKit are not supported (CDP is Chromium-only). Use `channel`/`executable_path` to pick a specific binary. Unknown values fall back to `chromium`.",
+      "allowedValues": ["chromium", "firefox", "electron"],
+      "aliases": {"chromium": ["chrome", "chromium-browser", "msedge", "edge"], "firefox": ["mozilla", "gecko"]},
+      "description": "Which browser engine to launch. `chromium` (the default) is driven over CDP; `firefox` is driven over WebDriver BiDi, because Firefox deprecated CDP in 129 and removed it in 141. WebKit/Safari are not supported. Use `channel`/`executable_path` to pick a specific binary. An unrecognised value is an error, not a silent fall back to Chromium.",
       "cliFlag": "--browser",
       "deprecatedValue": {
         "value": "electron",
@@ -83,9 +81,9 @@
       "envVar": "MANUL_CHANNEL",
       "type": "string | null",
       "default": null,
-      "description": "Chrome/Chromium channel — selects an installed browser binary (chrome, msedge, chromium, ...).",
-      "examples": [null, "chrome", "chrome-beta", "msedge"],
-      "validation": "Must be a valid Chrome channel identifier (chrome/chrome-beta/msedge/chromium/...) or null."
+      "description": "Browser channel — selects an installed binary of the engine named by `browser` (chrome, msedge, chromium, firefox-esr, firefox-nightly, ...). An unknown value is treated as a bare binary name to look up on PATH.",
+      "examples": [null, "chrome", "chrome-beta", "msedge", "firefox-esr", "firefox-dev", "firefox-nightly"],
+      "validation": "Must be a channel identifier of the selected engine (chrome/chrome-beta/chrome-dev/chromium/msedge, or firefox/firefox-esr/firefox-dev/firefox-beta/firefox-nightly), a binary name on PATH, or null."
     },
     {
       "key": "executable_path",
@@ -100,7 +98,7 @@
       "envVar": "MANUL_CDP_ENDPOINT",
       "type": "string | null",
       "default": null,
-      "description": "The CDP HTTP endpoint to dial when attaching (e.g. http://127.0.0.1:9222). Defaults to http://127.0.0.1:9222 in attach mode. Setting it also *implies* attach when browser_mode is empty — inference kept for existing configs; prefer setting browser_mode explicitly.",
+      "description": "The endpoint to dial when attaching. Its scheme selects the protocol: an HTTP endpoint (e.g. http://127.0.0.1:9222) is CDP/Chromium, a WebSocket URL (e.g. ws://127.0.0.1:9222/session) is WebDriver BiDi/Firefox — a bare ws://host:port, as Firefox prints it at startup, gets /session appended. Defaults to http://127.0.0.1:9222 in attach mode. Setting it also *implies* attach when browser_mode is empty — inference kept for existing configs; prefer setting browser_mode explicitly.",
       "cliFlag": "--cdp"
     },
     {
@@ -126,7 +124,7 @@
       "envVar": "MANUL_SEMANTIC_CACHE_ENABLED",
       "type": "boolean",
       "default": true,
-      "description": "Enable in-session semantic cache (learned_elements). Feeds the scorer as one channel (never bypasses scoring); provides a +200,000 scaled score boost within a single run. Resets when the ManulEngine instance is destroyed.",
+      "description": "Enable in-session semantic cache (learned_elements). Feeds the scorer as one channel (never bypasses scoring); provides a +200,000 scaled score boost within a single run. Resets when the engine instance is destroyed.",
       "uiLabel": "Semantic Cache"
     },
     {
@@ -285,7 +283,7 @@
       "cli": "manul pages migrate",
       "description": "One-shot migration of a legacy pages.json (pre-0.0.9.30 monolithic file) into per-site fragments under pages/. Renames the original to pages.json.bak. The legacy flat file is no longer read by the engine."
     },
-    "breakingChange": "0.0.9.30 — the monolithic pages.json file is no longer read or written by ManulEngine. Run `manul pages migrate` once to convert."
+    "breakingChange": "The monolithic pages.json file is no longer read or written. Run `manul pages migrate` once to convert."
   },
 
   "scopedVariables": {

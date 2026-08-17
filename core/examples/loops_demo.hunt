@@ -9,7 +9,7 @@
 # as a present one. The loop is capped at 100 iterations, so a headed run spends
 # roughly three minutes before giving up.
 
-@context: Demonstration of loops and page objects in ManulEngine (Go)
+@context: Demonstration of loops and page objects in Manul Browser
 @title: loops-and-pages-demo
 @var: {products} = Laptop, Headphones, Mouse
 

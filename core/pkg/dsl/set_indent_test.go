@@ -3,8 +3,6 @@ package dsl
 // ─────────────────────────────────────────────────────────────────────────────
 // SET AND INDENT TEST SUITE
 //
-// Port of ManulEngine test_38_set_and_indent.py
-//
 // Validates:
 // A. Indentation robustness — indented lines parse identically to flush ones
 // B. SET {var} = value command parsing

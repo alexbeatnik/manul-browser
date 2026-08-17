@@ -1,7 +1,7 @@
-# ManulEngine (Go) — DSL Contract
+# Manul Browser — DSL Contract
 
 > **Machine-readable contract for every `.hunt` DSL command recognised by the engine parser.**
-> Generated from the Go source code of ManulEngine (Go).
+> Generated from the Go source code of Manul Browser.
 > Consumed by Manul Studio and other downstream tooling.
 >
 > **Host calls.** `CALL GO`, `CALL PYTHON` and `CALL HOST` are three spellings
@@ -18,7 +18,7 @@
 
 ```json
 {
-  "version": "0.1.0",
+  "version": "0.1.1",
   "generatedFrom": "pkg/dsl :: classify_step(), detect_mode(), parse_contextual_hint(); pkg/runtime :: run_mission(); cmd/manul :: parse_hunt_file(); pkg/runtime :: _ActionsMixin; pkg/scorer :: DOMScorer contextual proximity rules; pkg/dom :: SNAPSHOT_JS geometry export; pkg/dsl :: parse_import_directive(), resolve_imports(), expand_use_directives()",
   "casePolicy": {
     "canonical": "ALL_UPPERCASE",
@@ -322,7 +322,7 @@
       "uiText": "PRINT \"message {variable}\"",
       "snippet": "PRINT \"${1:message}\"",
       "regex": "^\\s*(?:\\d+\\.\\s*)?PRINT\\b",
-      "description": "Logs a message to the run output, with {placeholder} variables substituted and a single layer of surrounding quotes stripped. No element resolution. Mirrors ManulEngine (Go)'s PRINT (CmdPrint).",
+      "description": "Logs a message to the run output, with {placeholder} variables substituted and a single layer of surrounding quotes stripped. No element resolution. (CmdPrint).",
       "category": "utility"
     },
     {
@@ -367,7 +367,7 @@
       "uiText": "DEBUG",
       "snippet": "DEBUG",
       "regex": "\\b(?:DEBUG|PAUSE)\\b",
-      "description": "Pauses execution at this step. In interactive terminal mode (--debug), prompts the user; in VS Code extension mode (--break-lines), emits the debug pause protocol marker. PAUSE is accepted as an alias.",
+      "description": "Pauses execution at this step. In interactive terminal mode (--debug), prompts the user; in pipe mode (--break-lines), emits the debug pause protocol marker. PAUSE is accepted as an alias.",
       "category": "utility"
     },
     {

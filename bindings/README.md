@@ -83,11 +83,10 @@ today starts nothing at all. Inside it, the `publish` and `github-release` jobs
 are commented a second time, because publishing is the step to re-enable last
 and separately. Both headers say what to switch on and in what order.
 
-## Note on pure-Python
+## Note on shipping a binary
 
-The previous Python engine ran with one dependency and no binary. That property
-is lost here by construction — a binding is a wrapper around a compiled engine.
-It was dropped deliberately: no user requirement for it was known at the time of
-the merge. If one appears, the old implementation is recoverable from history
-(see [`../spec/README.md`](../spec/README.md)), and it would have to be held to
+A binding is a wrapper around a compiled engine, so a wheel carries a platform
+binary rather than pure Python. That is the deliberate trade for having one
+implementation. If a pure-language client is ever wanted, it would have to be
+held to
 `conformance/` like anything else.

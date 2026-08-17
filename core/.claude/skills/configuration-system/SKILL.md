@@ -1,14 +1,14 @@
 ---
 name: configuration-system
-description: Add or modify runtime configuration fields in ManulEngine (Go). Use when introducing a new tunable engine parameter, wiring CLI flags, or env-var overrides. Covers the 3-layer priority chain and pointer-based JSON overlay.
+description: Add or modify runtime configuration fields in Manul Browser. Use when introducing a new tunable engine parameter, wiring CLI flags, or env-var overrides. Covers the 3-layer priority chain and pointer-based JSON overlay.
 ---
 
 # Configuration System
 
-ManulEngine (Go)'s configuration is resolved from four sources in **strict priority order**:
+Manul Browser's configuration is resolved from four sources in **strict priority order**:
 
 ```
-CLI Flags  >  MANUL_* env vars  >  manul_engine_configuration.json  >  config.Default()
+CLI Flags  >  MANUL_* env vars  >  manul.config.json  >  config.Default()
 ```
 
 All code that needs config receives a `config.Config` struct. Never construct a `Config` literal from scratch — always start from `config.Default()` and apply layers.
@@ -19,7 +19,7 @@ All code that needs config receives a `config.Config` struct. Never construct a 
 config.Default()
       │
       ▼
-applyJSONFile()  ← manul_engine_configuration.json (if present in CWD)
+applyJSONFile()  ← manul.config.json (if present in CWD)
       │
       ▼
 overrideFromEnv()  ← MANUL_* environment variables

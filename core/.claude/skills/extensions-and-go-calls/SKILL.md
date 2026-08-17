@@ -5,7 +5,7 @@ description: Add or debug Go-level extensions — RegisterCustomControl and Regi
 
 # Extensions and Go Calls
 
-ManulEngine (Go) has two escape hatches from pure DSL: **custom controls** and **Go call handlers**.
+Manul Browser has two escape hatches from pure DSL: **custom controls** and **Go call handlers**.
 Both are package-global registries defined in `pkg/runtime/extensions.go`.
 
 ## When to use each

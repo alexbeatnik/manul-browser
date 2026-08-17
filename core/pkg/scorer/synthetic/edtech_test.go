@@ -3,7 +3,7 @@ package synthetic
 // ─────────────────────────────────────────────────────────────────────────────
 // EDTECH & E-LEARNING DOM SCORING TEST SUITE
 //
-// Port of ManulEngine test_09_edtech.py — 100-element EdTech/e-learning page.
+// 100-element EdTech/e-learning page.
 // Validates: course browsing, lecture player, quizzes, code editor,
 // discussion forum, assignments, grades, peer review, instructor tools,
 // gamification.

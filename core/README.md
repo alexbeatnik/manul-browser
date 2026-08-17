@@ -1,15 +1,14 @@
 <p align="center">
-    <img src="images/manul.png" alt="ManulEngine (Go) mascot" width="180" />
+    <img src="images/manul.png" alt="Manul Browser mascot" width="180" />
 </p>
 
-# ManulEngine (Go)
+# Manul Browser — Engine
 
 [![Status: Alpha](https://img.shields.io/badge/status-alpha-d97706)](#project-status)
 [![Go](https://img.shields.io/badge/go-%3E%3D1.26-blue)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green)](LICENSE)
-[![Manul Engine Extension](https://img.shields.io/visual-studio-marketplace/v/manul-engine.manul-engine?label=VS%20Code%20Extension&logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=manul-engine.manul-engine)
 
-**A deterministic automation runtime for both humans and LLM agents — the Go implementation of ManulEngine.** Write (or generate) `.hunt` files in plain English; ManulEngine resolves every element with deterministic DOM heuristics and drives Chrome directly over the Chrome DevTools Protocol (CDP) — no Playwright, no selectors, no cloud APIs, no AI required.
+**A deterministic automation runtime for both humans and LLM agents — the Go engine behind Manul Browser, and its only implementation.** Write (or generate) `.hunt` files in plain English; the engine resolves every element with deterministic DOM heuristics and drives the browser directly — Chrome over the Chrome DevTools Protocol (CDP), Firefox over WebDriver BiDi — with no Playwright, no selectors, no cloud APIs and no AI required.
 
 The same runtime serves two drivers from one artifact:
 
@@ -20,7 +19,7 @@ This is the engine itself, and the only implementation of it: the `.hunt` DSL, t
 
 ### Built for agents — and it's measurably cheaper on tokens
 
-An agent has to *see* a page before it can act. A browser driver like Playwright or Selenium doesn't help here — it gives *code* access to the page, not the model. An LLM agent built on one still has to serialize the page into the prompt, and the usual ways are raw HTML or the accessibility snapshot — both expensive. `manul map` instead emits a compact, landmark-grouped view of just the labelled, interactive elements. Measured with the GPT-4 tokenizer (`cl100k_base`) on representative pages — the same compact `manul map` JSON both runtimes emit:
+An agent has to *see* a page before it can act. A browser driver like Playwright or Selenium doesn't help here — it gives *code* access to the page, not the model. An LLM agent built on one still has to serialize the page into the prompt, and the usual ways are raw HTML or the accessibility snapshot — both expensive. `manul map` instead emits a compact, landmark-grouped view of just the labelled, interactive elements. Measured with the GPT-4 tokenizer (`cl100k_base`) on representative pages:
 
 | What an agent feeds the model to perceive a page | Tokens | vs `manul map` |
 | --- | --- | --- |
@@ -40,7 +39,7 @@ Authoring is also leaner and far more durable: the same flow written as a `.hunt
 
 ## Syntax First
 
-ManulEngine runs `.hunt` files — plain-English automation scripts that read like manual QA steps. Here is the DSL in action.
+Manul Browser runs `.hunt` files — plain-English automation scripts that read like manual QA steps. Here is the DSL in action.
 
 ### A complete flow
 
@@ -195,7 +194,7 @@ Designed for LLM-driven authoring — the grouped output is easy for a model (or
 
 ### Agent commands — drive the engine from an external LLM
 
-For agentic use, ManulEngine exposes a small set of **JSON-emitting CLI commands** (the CLI face of the embeddable [`pkg/agent`](#embedding-go-api) API). They attach to an **already-running Chrome over CDP**, so an external model keeps one browser open and issues stateless calls against it. The JSON payload goes to **stdout**; all engine logs go to **stderr**, so a driver can pipe the output straight into a prompt.
+For agentic use, Manul Browser exposes a small set of **JSON-emitting CLI commands** (the CLI face of the embeddable [`pkg/agent`](#embedding-go-api) API). They attach to an **already-running Chrome over CDP**, so an external model keeps one browser open and issues stateless calls against it. The JSON payload goes to **stdout**; all engine logs go to **stderr**, so a driver can pipe the output straight into a prompt.
 
 ```bash
 # 1. start Chrome once with remote debugging
@@ -259,18 +258,18 @@ When `--explain` is enabled, every resolved step prints the top-5 candidates wit
 
 ### Native CDP, no Playwright
 
-ManulEngine talks to the browser through its **own** Chrome DevTools Protocol client — a thin WebSocket transport in [`pkg/cdp`](pkg/cdp) with a single external dependency (`gorilla/websocket`). There is no Playwright, no Selenium, no Node.js, and no bundled browser download: the engine launches the Chrome/Chromium you already have on `PATH` (or attaches to a running one) and drives it directly.
+Manul Browser talks to the browser through its **own** Chrome DevTools Protocol client — a thin WebSocket transport in [`pkg/cdp`](pkg/cdp) with a single external dependency (`gorilla/websocket`). There is no Playwright, no Selenium, no Node.js, and no bundled browser download: the engine launches the Chrome/Chromium you already have on `PATH` (or attaches to a running one) and drives it directly.
 
 Why own the protocol layer:
 
 - **One small dependency, fully inspectable.** The whole browser driver is a handful of readable Go packages (`pkg/cdp` transport, `pkg/browser` launcher, `pkg/dom` element model) rather than a large vendored toolchain. What the engine sends to Chrome is exactly what you can read.
 - **Trusted input by default.** Clicks and keystrokes are dispatched via CDP `Input.*` events at real coordinates, and form values go through the native value setter so React/Vue/Angular state updates fire — no `force` hacks needed. `PRESS Enter` sends a real character event (`text:"\r"`) so forms actually submit.
 - **Per-frame execution contexts.** A selector is resolved once inside the owning frame's execution context, then every operation runs against that handle — so same-origin iframes (and OOPIF child targets) are first-class, not an afterthought.
-- **CDP is Chromium-only by design.** Because the protocol is Chrome's, the engine drives Chrome/Chromium only. Firefox/WebKit are intentionally not supported; pick the concrete binary with `--channel` (`chrome`, `msedge`, `chromium`, …) or `--executable-path`.
+- **Two protocols, one engine.** CDP is Chrome's, so Firefox is driven over **WebDriver BiDi** instead (`--browser firefox`) — Firefox deprecated CDP in 129 and removed it, along with the `remote.active-protocols` preference, in 141. The scorer, the DSL and the in-page JavaScript (`pkg/pagejs`) are shared; only the transport differs, and `--cdp` picks it from the endpoint scheme (`http://…` CDP, `ws://…/session` BiDi). WebKit/Safari are not supported. Pick the concrete binary with `--channel` (`chrome`, `msedge`, `chromium`, `firefox-esr`, …) or `--executable-path`.
 
 ### True concurrency (goroutines)
 
-Because there is no GIL and no single-threaded driver process, ManulEngine runs dozens of hunts in parallel using native goroutines. The `pkg/worker` package provides a `WorkerPool` with per-worker Chrome isolation, a `PortAllocator` for debug-port management, and race-detector-safe CDP transport — each worker owns its own `Runtime`, `Page`, and `ChromeProcess`. Run directory suites concurrently with `--workers N`, or embed the pool directly (see [Parallel Execution](#parallel-execution-go-api)).
+Because there is no GIL and no single-threaded driver process, Manul Browser runs dozens of hunts in parallel using native goroutines. The `pkg/worker` package provides a `WorkerPool` with per-worker Chrome isolation, a `PortAllocator` for debug-port management, and race-detector-safe CDP transport — each worker owns its own `Runtime`, `Page`, and `ChromeProcess`. Run directory suites concurrently with `--workers N`, or embed the pool directly (see [Parallel Execution](#parallel-execution-go-api)).
 
 ### Dual-persona workflow
 
@@ -278,7 +277,7 @@ Manual QA writes plain-English `.hunt` steps — no code required. SDETs extend 
 
 ### No AI in the loop — fully deterministic
 
-ManulEngine has **no LLM inside it**. Element resolution is 100% the deterministic scorer — same page state + same step ⇒ same result, every run, with no model to install, no temperature to pin, and no network calls. The *intelligence* lives in the external agent that drives the engine via the [agent commands](#agent-commands--drive-the-engine-from-an-external-llm) (`map` / `run-step` / `read` / `schema`); the runtime itself stays a predictable execution layer.
+Manul Browser has **no LLM inside it**. Element resolution is 100% the deterministic scorer — same page state + same step ⇒ same result, every run, with no model to install, no temperature to pin, and no network calls. The *intelligence* lives in the external agent that drives the engine via the [agent commands](#agent-commands--drive-the-engine-from-an-external-llm) (`map` / `run-step` / `read` / `schema`); the runtime itself stays a predictable execution layer.
 
 ---
 
@@ -299,7 +298,7 @@ The same runtime and the same DSL serve four use cases:
 
 - **Conditional branching & loops** — `IF` / `ELIF` / `ELSE` for adaptive flows; `REPEAT`, `FOR EACH`, `WHILE` for iterating data, retrying actions, and polling dynamic state. Full nesting support (`WHILE` capped at 100 iterations; `REPEAT` exposes a `{i}` 0-based counter).
 - **Deterministic targeting** — 4-channel heuristic scorer ranks every candidate with explicit signal breakdowns; contextual qualifiers (`NEAR`, `ON HEADER/FOOTER`, `INSIDE`) restrict candidates spatially and structurally. Shadow DOM, 3-pass proximity resolution, and anti-phantom guards included.
-- **Explainability** — `--explain` prints top-5 candidate rankings with per-channel score breakdowns. The VS Code extension shows hover tooltips and an "Explain Current Step" action during debug pauses.
+- **Explainability** — `--explain` prints top-5 candidate rankings with per-channel score breakdowns, and `explain-next` previews the scoring of a step before it runs.
 - **Interactive debugger** — `--debug` pauses before every step with a browser modal UI; breakpoint lines (`--break-lines`); `explain-next` previews the scoring for the upcoming (or an overridden) step without executing it.
 - **Embeddable agent API (`pkg/agent`)** — `agent.Session` owns Chrome and exposes compact, agent-friendly calls: `Read` (zero-scan), `ReadText`, `Step`/`Run` (typed `Reason` + `Near` candidates), `Map` (budgeted scan). CLI `read` / `run-step --compact` are thin wrappers over it.
   ```go
@@ -326,8 +325,10 @@ The same runtime and the same DSL serve four use cases:
 cmd/manul           CLI entry point → produces `manul` binary
 pkg/agent           Embedding facade: agent.Session over runtime/cdp/scorer —
                     Launch/Attach/Connect (owns Chrome), Read/ReadText/Step/Run/Map
-pkg/cdp             Low-level CDP WebSocket transport and domain wrappers
-pkg/browser         Abstract browser/page interfaces + CDP backend + Chrome lifecycle
+pkg/cdp             Low-level CDP WebSocket transport and domain wrappers (Chromium)
+pkg/bidi            Low-level WebDriver BiDi transport and command wrappers (Firefox)
+pkg/pagejs          The in-page JavaScript both backends inject — written once
+pkg/browser         Abstract browser/page interfaces + both backends + process lifecycle
 pkg/runtime         Targeting pipeline: probe → filter → score → resolve;
                     DSL execution, control flow, variable management
 pkg/worker          Worker / WorkerPool / PortAllocator for parallel execution
@@ -370,7 +371,7 @@ go install github.com/alexbeatnik/manul-browser/core/cmd/manul@latest
 
 ### Configure
 
-Create `manul_engine_configuration.json` in the workspace root. All keys are optional:
+Create `manul.config.json` in the workspace root. All keys are optional:
 
 ```json
 {
@@ -394,7 +395,7 @@ manul --headless --html-report examples/         # CI mode with reports
 | Key | Default | Description |
 |---|---|---|
 | `headless` | `false` | Hide the browser window. |
-| `browser` | `"chromium"` | `chromium` (launch system Chrome) or `electron` (attach to a running Chrome/Electron over CDP). |
+| `browser` | `"chromium"` | `chromium` (launch system Chrome, CDP), `firefox` (launch system Firefox, WebDriver BiDi), or `electron` (deprecated spelling of `browser_mode: attach`). |
 | `browser_args` | `[]` | Extra browser launch flags. |
 | `disable_cache` | `false` | Disable the in-session DOM snapshot cache (env: `MANUL_DISABLE_CACHE`, or the inverse `MANUL_SEMANTIC_CACHE_ENABLED`). |
 | `timeout` | `5000` | Action timeout, milliseconds. |
@@ -411,7 +412,7 @@ manul --headless --html-report examples/         # CI mode with reports
 Environment variables (`MANUL_HEADLESS`, `MANUL_BROWSER`, `MANUL_CHANNEL`, `MANUL_WORKERS`, etc.) override JSON config; CLI flags override everything:
 
 ```
-CLI flags  >  MANUL_* env vars  >  manul_engine_configuration.json  >  config.Default()
+CLI flags  >  MANUL_* env vars  >  manul.config.json  >  config.Default()
 ```
 
 ### Binary distribution
@@ -427,7 +428,7 @@ go build -o manul ./cmd/manul
 
 ## Embedding (Go API)
 
-To drive a browser from a Go program — an assistant, an agent, a custom tool — embed `pkg/agent`. ManulEngine owns the entire browser lifecycle; the consumer just calls a small, compact API and never touches CDP or the runtime directly:
+To drive a browser from a Go program — an assistant, an agent, a custom tool — embed `pkg/agent`. Manul Browser owns the entire browser lifecycle; the consumer just calls a small, compact API and never touches CDP or the runtime directly:
 
 ```go
 import "github.com/alexbeatnik/manul-browser/core/pkg/agent"
@@ -493,9 +494,7 @@ func runSuite(ctx context.Context, hunts []*dsl.Hunt) error {
 | Component | Role | Links |
 |-----------|------|-------|
 | **Python binding** | Thin client over this engine — ships the binary, speaks the stdio protocol. Not a second implementation. | [`bindings/python`](../bindings/python) · `manul-browser` on PyPI, not yet published |
-| **ManulEngine (Go)** | This project — the Go runtime. Single static binary, goroutine parallelism, embeddable `pkg/agent`. | [GitHub](https://github.com/alexbeatnik/manul-browser) |
-| **Manul Engine Extension** | VS Code extension with debug panel, explain mode, and Test Explorer integration. Auto-detects the Go runtime from `go.mod`. | [Marketplace](https://marketplace.visualstudio.com/items?itemName=manul-engine.manul-engine) · [Open VSX](https://open-vsx.org/extension/manul-engine/manul-engine) · [GitHub](https://github.com/alexbeatnik/ManulEngineExtension) |
-| **ManulMcpServer** | MCP bridge that gives Copilot Chat and other agents access to the engine. | [Marketplace](https://marketplace.visualstudio.com/items?itemName=manul-engine.manul-mcp-server) · [GitHub](https://github.com/alexbeatnik/ManulMcpServer) |
+| **Manul Browser** | This project — the Go runtime. Single static binary, goroutine parallelism, embeddable `pkg/agent`. | [GitHub](https://github.com/alexbeatnik/manul-browser) |
 
 ### Contributing and running tests
 
@@ -521,7 +520,7 @@ go test -race ./pkg/worker/...                   # concurrency safety
 
 ## Get Involved
 
-ManulEngine (Go) is alpha-stage and solo-developed. If deterministic, explainable browser automation interests you:
+Manul Browser is alpha-stage and solo-developed. If deterministic, explainable browser automation interests you:
 
 - Build it: `go install github.com/alexbeatnik/manul-browser/core/cmd/manul@latest` (needs system Chrome/Chromium)
 - File issues: [github.com/alexbeatnik/manul-browser/issues](https://github.com/alexbeatnik/manul-browser/issues)
@@ -542,11 +541,7 @@ ManulEngine (Go) is alpha-stage and solo-developed. If deterministic, explainabl
 - Embeddable `pkg/agent` API (`Read`/`ReadText`/`Step`/`Run`/`Map`) with typed failure reasons and plain-language rendering for LLM drivers
 - Strongly-typed extension API (`CALL GO`, `RegisterCustomControl`); race-detector-safe CDP transport
 
-**Version:** `0.1.0` — `manul --version` and the contracts report `0.1.0` (no prefix); the git module tag carries the `v` prefix Go requires: `go get github.com/alexbeatnik/manul-browser/core@v0.1.0`. The engine is a module in a subdirectory, so that request resolves to the tag `core/v0.1.0`, not `v0.1.0` — the plain `v0.1.0` tag belongs to the binary and wheel release.
-
-> **VS Code Extension:** The [Manul Engine Extension](https://marketplace.visualstudio.com/items?itemName=manul-engine.manul-engine) supports ManulEngine (Go) out of the box. Open a workspace containing `go.mod` and the extension auto-detects the Go runtime, surfaces `CALL GO` snippets, and validates `CALL GO` steps inside hook blocks.
-
----
+**Version:** `0.1.1` — `manul --version` and the contracts report `0.1.1` (no prefix); the git module tag carries the `v` prefix Go requires: `go get github.com/alexbeatnik/manul-browser/core@v0.1.1`. The engine is a module in a subdirectory, so that request resolves to the tag `core/v0.1.1`, not `v0.1.1` — the plain `v0.1.1` tag belongs to the binary and wheel release.
 
 ## License
 

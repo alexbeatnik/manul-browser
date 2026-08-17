@@ -1,4 +1,4 @@
-// ManulEngine (Go) driver — CLI entry point.
+// Manul Browser driver — CLI entry point.
 //
 // Usage:
 //
@@ -54,10 +54,10 @@ import (
 
 // version is the single source of truth for the engine version. Reported by
 // `manul --version` and emitted in the agent schema, so it is kept WITHOUT a
-// `v` prefix to match the contracts (contracts/*.md `"version": "0.1.0"`). The
-// git module tag adds the prefix Go requires (`go get ...@v0.1.0`). Bump this
+// `v` prefix to match the contracts (contracts/*.md `"version": "0.1.1"`). The
+// git module tag adds the prefix Go requires (`go get ...@v0.1.1`). Bump this
 // together with the tag.
-const version = "0.1.0"
+const version = "0.1.1"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -175,19 +175,19 @@ func cmdRun(args []string) error {
 	jsonlOut := fs.Bool("jsonl", false, "stream per-step JSON Lines + final HuntResult to stdout (implies -json semantics)")
 	targetSelector := fs.String("target", "", "CDP tab selector, e.g. 'url=youtube.com' to pick the most recently active tab whose URL contains 'youtube.com'")
 	timeout := fs.Duration("timeout", 30*time.Second, "default command timeout")
-	userDataDir := fs.String("user-data-dir", "", "Chrome profile directory (empty = unique temp dir per run)")
-	headless := fs.Bool("headless", false, "run Chrome in headless mode")
+	userDataDir := fs.String("user-data-dir", "", "browser profile directory (empty = unique temp dir per run)")
+	headless := fs.Bool("headless", false, "run the browser in headless mode")
 	debug := fs.Bool("debug", false, "enable debug mode (pause on each step)")
 	explainMode := fs.Bool("explain", false, "enable explain mode (show targeting candidates)")
 	screenshot := fs.String("screenshot", "on-fail", "screenshot mode: none, on-fail, always")
 	htmlReport := fs.Bool("html-report", false, "generate HTML report after run (default off; opt-in)")
 	executablePath := fs.String("executable-path", "", "absolute path to a custom browser or Electron app executable")
-	channel := fs.String("channel", "", "system Chrome/Chromium channel to launch (chrome, chrome-beta, chromium, msedge)")
+	channel := fs.String("channel", "", "browser channel to launch (chrome, chrome-beta, chromium, msedge, firefox, firefox-esr, firefox-dev, firefox-nightly)")
 	tags := fs.String("tags", "", "comma-separated tags to filter hunt files")
 	retries := fs.Int("retries", 0, "number of retries for failed steps")
 	disableCache := fs.Bool("disable-cache", false, "disable DOM snapshot caching")
 	workers := fs.Int("workers", 1, "number of parallel hunt workers (pool mode for multi-file/dir runs)")
-	_ = fs.String("browser", "chromium", "browser type (default: chromium)")
+	browserType := fs.String("browser", "", "browser engine: chromium (CDP) or firefox (WebDriver BiDi)")
 	breakLinesStr := fs.String("break-lines", "", "comma-separated line numbers to pause on (debugging)")
 	hooksScript := fs.String("hooks", "", "path to a hook script (.py, .js, or an executable) providing custom controls, CALL HOST handlers and suite hooks")
 	showVersion := fs.Bool("version", false, "show engine version and exit")
@@ -275,7 +275,7 @@ func cmdRun(args []string) error {
 	}
 	// Only let --html-report override config/env when the user passed it
 	// explicitly; otherwise honour JSON/MANUL_HTML_REPORT (default off, opt-in,
-	// matching ManulEngine and the daemon subcommand). The flag default `true`
+	// matching the daemon subcommand). The flag default `true`
 	// previously clobbered config silently.
 	htmlReportSet := false
 	fs.Visit(func(f *flag.Flag) {
@@ -288,6 +288,15 @@ func cmdRun(args []string) error {
 	}
 	cfg.Retries = *retries
 	cfg.DisableCache = *disableCache
+	// CLI --browser wins over JSON/env (MANUL_BROWSER). Validate here so an
+	// unsupported engine is rejected before any hunt is parsed, rather than at
+	// launch time with the run half set up.
+	if *browserType != "" {
+		if _, err := browser.NormalizeEngine(*browserType); err != nil {
+			return err
+		}
+		cfg.Browser = *browserType
+	}
 	// CLI --channel wins over JSON/env (MANUL_CHANNEL).
 	if *channel != "" {
 		c := *channel
@@ -500,9 +509,9 @@ func newRuntimeWithStreaming(cfg config.Config, page browser.Page, logger *utils
 // "first available page", which matches Chrome's most-recently-active
 // tab in practice.
 func runSequential(ctx context.Context, cfg config.Config, hunts []*dsl.Hunt, opts outputOpts, cdpEndpoint, userDataDir string, headless bool, executablePath, tabURLSubstr string, logger *utils.Logger, gctx *lifecycle.GlobalContext) int {
-	var chrome *browser.ChromeProcess
 	if cdpEndpoint == "" {
-		opts := browser.DefaultChromeOptions()
+		opts := browser.DefaultLaunchOptions()
+		opts.Browser = cfg.Browser
 		opts.UserDataDir = userDataDir
 		if headless {
 			cfg.Headless = true
@@ -514,29 +523,33 @@ func runSequential(ctx context.Context, cfg config.Config, hunts []*dsl.Hunt, op
 		if cfg.Channel != nil && *cfg.Channel != "" {
 			opts.Channel = *cfg.Channel
 		}
-		logger.Info("Launching Chrome (port %d, profile %s)…", opts.Port, opts.UserDataDir)
-		var err error
-		chrome, err = browser.LaunchChrome(ctx, opts)
+		engine, err := browser.NormalizeEngine(opts.Browser)
 		if err != nil {
-			logger.Error("launch chrome: %v", err)
+			logger.Error("%v", err)
+			return len(hunts)
+		}
+		logger.Info("Launching %s (port %d, profile %s)…", engine, opts.Port, opts.UserDataDir)
+		proc, err := browser.Launch(ctx, opts)
+		if err != nil {
+			logger.Error("launch %s: %v", engine, err)
 			return len(hunts)
 		}
 		var closeOnce sync.Once
-		closeChrome := func() {
+		closeBrowser := func() {
 			closeOnce.Do(func() {
-				logger.Debug("Closing Chrome…")
-				chrome.Close()
+				logger.Debug("Closing %s…", engine)
+				proc.Close()
 			})
 		}
-		defer closeChrome()
+		defer closeBrowser()
 		sigCh := make(chan os.Signal, 1)
 		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 		go func() {
 			<-sigCh
 			logger.Debug("Signal received, cancelling…")
-			closeChrome()
+			closeBrowser()
 		}()
-		cfg.CDPEndpoint = chrome.Endpoint()
+		cfg.CDPEndpoint = proc.Endpoint()
 	}
 
 	var totalFailed int
@@ -550,7 +563,7 @@ func runSequential(ctx context.Context, cfg config.Config, hunts []*dsl.Hunt, op
 				strings.Repeat("=", 60), filename, strings.Repeat("=", 60))
 		}
 
-		logger.Info("ManulEngine (Go) — %s", hunt.SourcePath)
+		logger.Info("Manul Browser — %s", hunt.SourcePath)
 		if hunt.Title != "" {
 			logger.Info("Title: %s", hunt.Title)
 		}
@@ -568,7 +581,7 @@ func runSequential(ctx context.Context, cfg config.Config, hunts []*dsl.Hunt, op
 			}
 		}
 
-		b := browser.NewCDPBrowser(cfg.CDPEndpoint)
+		b := browser.Connect(cfg.CDPEndpoint)
 		var page browser.Page
 		var err error
 		if tabURLSubstr != "" {
@@ -756,7 +769,7 @@ func collectHuntFiles(target string) ([]string, error) {
 
 // parseInterleaved parses a flag set over args where flags may appear before
 // or after positional arguments (Go's flag package stops at the first
-// non-flag; ManulEngine (Python) accepts both orders, so the CLIs must too).
+// non-flag, so both orders have to be handled here).
 // Mirrors cmdRun's re-parse loop; returns the positionals in order.
 func parseInterleaved(fs *flag.FlagSet, args []string) ([]string, error) {
 	var positionals []string
@@ -800,9 +813,8 @@ func cmdRunStep(args []string) error {
 		return fmt.Errorf("DSL command is required")
 	}
 
-	// Default output is the compact agent StepOutcome via pkg/agent, matching
-	// ManulEngine (Python) and the agent contract; --json opts into the full
-	// ExecutionResult below.
+	// Default output is the compact agent StepOutcome via pkg/agent, as the
+	// agent contract specifies; --json opts into the full ExecutionResult below.
 	if !*jsonOut {
 		return runStepCompact(*cdpEndpoint, step)
 	}
@@ -820,7 +832,7 @@ func cmdRunStep(args []string) error {
 
 	ctx := context.Background()
 
-	b := browser.NewCDPBrowser(cfg.CDPEndpoint)
+	b := browser.Connect(cfg.CDPEndpoint)
 	page, err := b.FirstPage(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to browser at %q: %w", cfg.CDPEndpoint, err)
@@ -905,7 +917,7 @@ func cmdRead(args []string) error {
 	}
 	defer sess.Close()
 
-	// Output is always JSON, matching ManulEngine (Python) and the agent
+	// Output is always JSON, as the agent
 	// contract — a driver pipes the payload without needing --json.
 	if *selector != "" {
 		text, terr := sess.ReadText(ctx, *selector)
@@ -981,7 +993,7 @@ func cmdDaemon(args []string) error {
 	fs := flag.NewFlagSet("daemon", flag.ExitOnError)
 	headless := fs.Bool("headless", false, "run browser in headless mode")
 	verbose := fs.Bool("verbose", false, "enable verbose logging")
-	browserType := fs.String("browser", "chromium", "browser engine (chromium; CDP-only — attach to other browsers via --cdp/--executable-path)")
+	browserType := fs.String("browser", "chromium", "browser engine: chromium (CDP) or firefox (WebDriver BiDi)")
 	screenshot := fs.String("screenshot", "on-fail", "screenshot mode: none, on-fail, always")
 	htmlReport := fs.Bool("html-report", false, "generate HTML report after each run")
 	positionals, perr := parseInterleaved(fs, args)
@@ -1027,6 +1039,7 @@ func cmdRecord(args []string) error {
 	fs := flag.NewFlagSet("record", flag.ExitOnError)
 	output := fs.String("output", "tests/recorded_mission.hunt", "output file path")
 	headless := fs.Bool("headless", false, "run browser in headless mode")
+	browserType := fs.String("browser", "", "browser engine: chromium (CDP) or firefox (WebDriver BiDi)")
 	positionals, err := parseInterleaved(fs, args)
 	if err != nil {
 		return err
@@ -1039,7 +1052,7 @@ func cmdRecord(args []string) error {
 		fs.Usage()
 		return fmt.Errorf("URL is required")
 	}
-	return record.Run(context.Background(), url, *output, *headless)
+	return record.Run(context.Background(), url, *output, *headless, *browserType)
 }
 
 // cmdScan handles the `scan` subcommand.
@@ -1048,6 +1061,7 @@ func cmdScan(args []string) error {
 	output := fs.String("output", "draft.hunt", "output file for the draft (ignored in -json mode)")
 	headless := fs.Bool("headless", false, "run browser in headless mode (ignored when --cdp is set)")
 	full := fs.Bool("full", false, "full-page scan: group elements by semantic region (form, nav, main, shadow…)")
+	browserType := fs.String("browser", "", "browser engine: chromium (CDP) or firefox (WebDriver BiDi)")
 	cdpEndpoint := fs.String("cdp", "", "scan an already-loaded page via this CDP endpoint instead of launching Chrome (URL arg becomes optional)")
 	jsonOut := fs.Bool("json", false, "emit the grouped scan result as JSON on stdout instead of writing a .hunt draft")
 	positionals, perr := parseInterleaved(fs, args)
@@ -1101,7 +1115,7 @@ func cmdScan(args []string) error {
 		if !*full {
 			return fmt.Errorf("scan -json currently only supports --full mode")
 		}
-		groups, err := scan.ScanPageFull(ctx, url, *headless)
+		groups, err := scan.ScanPageFull(ctx, url, *headless, *browserType)
 		if err != nil {
 			return err
 		}
@@ -1111,9 +1125,9 @@ func cmdScan(args []string) error {
 	}
 
 	if *full {
-		return scan.RunFull(ctx, url, *output, *headless)
+		return scan.RunFull(ctx, url, *output, *headless, *browserType)
 	}
-	return scan.Run(ctx, url, *output, *headless)
+	return scan.Run(ctx, url, *output, *headless, *browserType)
 }
 
 // cmdPages handles the `pages` subcommand.
@@ -1190,9 +1204,11 @@ Usage:
   manul controls list                  List all registered @custom_control handlers
 
 Core Flags:
-  --cdp URL           Connect to existing Chrome (skip auto-launch)
-  --user-data-dir DIR Chrome profile directory (default: unique temp dir per run)
-  --headless          Run Chrome in headless mode
+  --browser ENGINE    Browser engine: chromium (CDP, default) or firefox (WebDriver BiDi)
+  --cdp URL           Connect to a running browser (skip auto-launch): http://host:port
+                      for CDP, ws://host:port/session for WebDriver BiDi
+  --user-data-dir DIR Browser profile directory (default: unique temp dir per run)
+  --headless          Run the browser in headless mode
   --verbose           Enable verbose debug logging
   --json              Output structured JSON result to stdout
   --timeout DURATION  Per-command timeout (default: 30s)
@@ -1202,22 +1218,23 @@ Core Flags:
   --html-report       Generate HTML report after the run (default: true)
   --explain           Show targeting candidates (explain mode)
   --executable-path   Absolute path to a custom browser or Electron app executable
-  --channel           System Chrome/Chromium channel to launch (chrome, chrome-beta, chromium, msedge)
+  --channel           Browser channel to launch (chrome, chrome-beta, chromium, msedge,
+                      firefox, firefox-esr, firefox-dev, firefox-nightly)
 
 Daemon Flags:
   --headless          Run browser in headless mode
-  --browser TYPE      Browser engine (default: chromium)
+  --browser ENGINE    Browser engine: chromium (default) or firefox
   --screenshot MODE   Screenshot mode for scheduled runs: on-fail, always, none
   --html-report       Generate HTML report after each scheduled run
 
 Compatibility Flags:
   --workers N         Parallel workers (default: 1)
-  --browser TYPE      Browser type (default: chromium)
   --break-lines L     Pause at specified line numbers (debugging)
 
 Examples:
   manul examples/saucedemo.hunt
   manul examples/saucedemo.hunt --headless
+  manul examples/saucedemo.hunt --browser firefox
   manul examples/
   manul .
   manul --workers 4 tests/

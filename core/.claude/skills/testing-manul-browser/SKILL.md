@@ -1,9 +1,9 @@
 ---
-name: testing-manulengine-go
-description: Run or write tests for ManulEngine (Go) the right way. Use when adding a new test, debugging a flaky test, updating CI, or when the user asks "are tests passing?". Covers race-detector expectations, mock patterns, and the synthetic scorer suite.
+name: testing-manul-browser
+description: Run or write tests for Manul Browser the right way. Use when adding a new test, debugging a flaky test, updating CI, or when the user asks "are tests passing?". Covers race-detector expectations, mock patterns, and the synthetic scorer suite.
 ---
 
-# Testing ManulEngine (Go)
+# Testing Manul Browser
 
 ## Default command
 

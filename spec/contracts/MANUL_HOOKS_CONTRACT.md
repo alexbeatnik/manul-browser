@@ -1,7 +1,7 @@
-# ManulEngine (Go) — Hooks & Lifecycle Contract
+# Manul Browser — Hooks & Lifecycle Contract
 
 > **Machine-readable contract for the hook system, Go extension registration, and variable scoping.**
-> Consumed by test framework integrations, CI/CD runners, and downstream tooling that extends ManulEngine (Go)'s execution lifecycle.
+> Consumed by test framework integrations, CI/CD runners, and downstream tooling that extends Manul Browser's execution lifecycle.
 >
 > **Host surface.** The `.hunt`-level surface is `[SETUP]`/`[TEARDOWN]` blocks
 > plus five-level variable scoping. The inline call verb is `CALL HOST` (also
@@ -26,7 +26,7 @@
 
 ```json
 {
-  "version": "0.1.0",
+  "version": "0.1.1",
   "generatedFrom": "pkg/runtime/extensions.go :: RegisterGoCall(), RegisterCustomControl(), GetGoCall(), GetCustomControl(), ResetRuntimeRegistries(), GoCallHandler, GoCallInvocation, CustomControlHandler, CustomControlInvocation; pkg/runtime :: [SETUP]/[TEARDOWN] execution; pkg/runtime/variables.go :: ScopedVariables, Level",
 
   "fileHooks": {
@@ -48,7 +48,7 @@
     },
 
     "hookResult": {
-      "description": "Outcome of executing one hook line. Language-neutral shape shared with ManulEngine.",
+      "description": "Outcome of executing one hook line. Language-neutral shape.",
       "fields": [
         { "name": "success",        "type": "bool",                "description": "True if the line executed without error." },
         { "name": "message",        "type": "string",  "default": "",   "description": "Human-readable status message." },
@@ -84,7 +84,7 @@
   },
 
   "goRegistration": {
-    "description": "ManulEngine (Go) extends the runtime through Go function registration at process init (main()/init()/TestMain), not through suite-level lifecycle decorators. This replaces ManulEngine's Python @before_all/@after_all/@before_group/@after_group hooks, which have no ManulEngine (Go) equivalent.",
+    "description": "Manul Browser extends the runtime through Go function registration at process init (main()/init()/TestMain), not through suite-level lifecycle decorators. Suite-level lifecycle decorators are a binding-side feature; the engine's own extension point is registration.",
 
     "registerGoCall": {
       "signature": "RegisterGoCall(name string, handler GoCallHandler) error",
@@ -132,7 +132,7 @@
       "handlerSafety": "Handlers MUST be safe for concurrent invocation: with --workers > 1 the same handler may run on every worker goroutine simultaneously."
     },
 
-    "notInHeart": "No @before_all/@after_all/@before_group/@after_group decorators, no GlobalContext, no load_hooks_file(), and no MANUL_GLOBAL_VARS env serialization. These are ManulEngine (Python) only."
+    "notInEngineCore": "No @before_all/@after_all/@before_group/@after_group decorators, no GlobalContext, no load_hooks_file(), and no MANUL_GLOBAL_VARS env serialization — those belong to the hook script, not to the engine's Go registration API."
   },
 
   "suiteLifecycle": {
