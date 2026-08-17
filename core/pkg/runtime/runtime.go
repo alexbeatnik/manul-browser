@@ -1,4 +1,4 @@
-// Package runtime implements the ManulEngine (Go) DSL execution engine.
+// Package runtime implements the Manul Browser DSL execution engine.
 package runtime
 
 import (
@@ -38,7 +38,7 @@ const (
 	ThresholdPass3Gap       = 0.04
 )
 
-// Runtime executes ManulEngine (Go) DSL hunts against a live browser page.
+// Runtime executes Manul Browser DSL hunts against a live browser page.
 //
 // CONCURRENCY CONTRACT: A Runtime instance is NOT safe for concurrent use.
 // Each goroutine executing hunts must own its own Runtime, Page, and
@@ -412,7 +412,7 @@ func (rt *Runtime) resolveStructuralAnchor(label string, elements []dom.ElementS
 
 // executeCommand runs a single DSL command and returns its execution result.
 // screenshotSlug turns an optional SCREENSHOT label into a filesystem-safe base
-// name (no extension). Mirrors ManulEngine's extract_screenshot_name.
+// name (no extension).
 func screenshotSlug(s string) string {
 	s = strings.TrimSpace(s)
 	s = strings.TrimSuffix(strings.TrimSuffix(s, ".png"), ".PNG")
@@ -425,7 +425,7 @@ func screenshotSlug(s string) string {
 			prevDisallowed = false
 		default:
 			// Collapse a run of disallowed chars into a single '_' (mirrors
-			// ManulEngine's [^A-Za-z0-9._-]+ → '_' substitution).
+			// the [^A-Za-z0-9._-]+ → '_' substitution).
 			if !prevDisallowed {
 				b.WriteRune('_')
 				prevDisallowed = true
@@ -480,7 +480,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 		// The desktop/Electron window is already attached at launch (the page
 		// was selected via FirstPage/PageMatching). Treat OPEN APP as a
 		// readiness checkpoint on the current window: ensure it is loaded and
-		// report it. Mirrors ManulEngine's OPEN APP for the attach flow.
+		// report it — OPEN APP is a checkpoint, not a launch.
 		if err = rt.page.WaitForLoad(ctx); err != nil {
 			err = fmt.Errorf("open app: %w", err)
 			break
@@ -550,7 +550,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 
 	case dsl.CmdScreenshot:
 		// Capture a full-page PNG on demand into screenshots/<name>.png under
-		// the CWD (auto-named when no label). Matches ManulEngine's SCREENSHOT.
+		// the CWD (auto-named when no label).
 		name := screenshotSlug(rt.resolveVariables(cmd.ScreenshotName))
 		if name == "" {
 			name = fmt.Sprintf("screenshot_%d", time.Now().UnixMilli())

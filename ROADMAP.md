@@ -46,10 +46,9 @@ multi-hunt tagged run would settle it.
 
 ### 4. `run-suite` session semantics
 
-All hunts in a suite share one browser session. The standalone Python engine
-almost certainly gave each hunt a fresh page. Nobody has decided which is
-correct here, so state leaking between hunts in a suite is currently possible
-and undocumented. Decide, then write it into the contract either way.
+All hunts in a suite share one browser session, so state can leak between them.
+Nobody has decided whether that is correct or whether each hunt should get a
+fresh page. Decide, then write it into the contract either way.
 
 ### 5. Reverse-call nesting depth
 

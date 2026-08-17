@@ -2,8 +2,8 @@ package browser
 
 import "testing"
 
-// TestChannelBinaries verifies the channel→binary map matches ManulEngine's
-// _CHANNEL_BINARIES so MANUL_CHANNEL resolves to the same Chrome across runtimes.
+// TestChannelBinaries pins the channel→binary map, so MANUL_CHANNEL keeps
+// resolving to the browser the user asked for.
 func TestChannelBinaries(t *testing.T) {
 	want := map[string][]string{
 		"chrome":      {"google-chrome-stable", "google-chrome"},

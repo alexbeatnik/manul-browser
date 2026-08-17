@@ -174,7 +174,7 @@ func TestSemanticMethods_Smoke(t *testing.T) {
 
 	out := buf.String()
 	for _, needle := range []string{
-		"ManulEngine", "Login Block", "BLOCK PASS", "BLOCK FAIL",
+		"Manul Browser", "Login Block", "BLOCK PASS", "BLOCK FAIL",
 		"ACTION START", "ACTION PASS", "ACTION FAIL", "ACTION WARN",
 		"DOM HEURISTICS", "typed",
 	} {

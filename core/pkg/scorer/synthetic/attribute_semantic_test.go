@@ -3,8 +3,6 @@ package synthetic
 // ─────────────────────────────────────────────────────────────────────────────
 // ATTRIBUTE SEMANTIC KEYWORD MATCH TEST SUITE
 //
-// Port of ManulEngine test_46_attribute_semantic.py (31 scenarios / 34 assertions)
-//
 // Validates that elements whose visible text is unrelated (e.g. a badge
 // count "2") but whose html_id, class_name, or data_qa contain semantic
 // keywords matching the search term are scored highly enough.

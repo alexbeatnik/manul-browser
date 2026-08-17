@@ -31,10 +31,10 @@ func (s *Session) Lookup(ctx context.Context, url string, settle time.Duration, 
 		return "", fmt.Errorf("agent: session closed")
 	}
 	if s.endpoint == "" {
-		return "", fmt.Errorf("agent: Lookup needs a CDP endpoint (use Launch/Attach/Connect)")
+		return "", fmt.Errorf("agent: Lookup needs a browser endpoint (use Launch/Attach/Connect)")
 	}
 
-	b := browser.NewCDPBrowser(s.endpoint)
+	b := browser.Connect(s.endpoint)
 	page, targetID, err := b.OpenTarget(ctx, url)
 	if err != nil {
 		return "", fmt.Errorf("agent: lookup open tab: %w", err)

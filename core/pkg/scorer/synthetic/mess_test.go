@@ -3,7 +3,7 @@ package synthetic
 // ─────────────────────────────────────────────────────────────────────────────
 // THE UNHOLY MESS & FINAL BOSS DOM SCORING TEST SUITE
 //
-// Port of ManulEngine test_10_mess.py — 100-element chaotic page with cookie
+// 100-element chaotic page with cookie
 // banners, CAPTCHA, dark patterns, upsells, floating ads, rich-text editors,
 // exotic inputs, tooltips, popovers, social icons, contenteditable, shadow DOM,
 // traps, and deceptive patterns.

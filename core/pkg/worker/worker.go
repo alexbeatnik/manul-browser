@@ -15,17 +15,17 @@ import (
 )
 
 // Worker owns exactly one Runtime, one Page, one Browser, and (optionally)
-// one ChromeProcess. A Worker is single-goroutine: every method on it must
+// one browser process. A Worker is single-goroutine: every method on it must
 // be called from the goroutine that constructed it.
 //
-// Use NewWorker to construct a Worker bound to its own Chrome instance.
+// Use NewWorker to construct a Worker bound to its own browser instance.
 // Use AdoptWorker to construct a Worker bound to an existing Page (e.g.
-// for unit tests or when sharing a Chrome process across multiple tabs).
+// for unit tests or when sharing a browser process across multiple tabs).
 type Worker struct {
 	id      int
 	cfg     config.Config
 	logger  *utils.Logger
-	chrome  *browser.ChromeProcess
+	proc    browser.Process
 	browser browser.Browser
 	page    browser.Page
 	runtime *runtime.Runtime
@@ -43,25 +43,25 @@ type Options struct {
 	ID int
 
 	// Config is the engine-wide configuration. CDPEndpoint is overwritten
-	// by the worker's own Chrome instance.
+	// by the worker's own browser instance.
 	Config config.Config
 
 	// Logger receives worker output. If nil, a default stdout logger is created.
 	// The Worker prefixes every log line with "[w<ID>] " automatically.
 	Logger *utils.Logger
 
-	// Allocator is required: the Worker calls Acquire() to bind a CDP port
+	// Allocator is required: the Worker calls Acquire() to bind a debug port
 	// and Release() on Close.
 	Allocator *PortAllocator
 
-	// ChromeOptions overrides launch flags. Port is always overridden by
+	// LaunchOptions overrides launch flags. Port is always overridden by
 	// Allocator.Acquire(); UserDataDir is left empty (per-worker temp dir).
-	ChromeOptions browser.ChromeOptions
+	LaunchOptions browser.LaunchOptions
 }
 
-// NewWorker launches a fresh Chrome instance, dials its first page, and
-// returns a ready-to-run Worker. Caller MUST call Close() to release Chrome
-// and the allocated port.
+// NewWorker launches a fresh browser instance, dials its first page, and
+// returns a ready-to-run Worker. Caller MUST call Close() to release the
+// browser and the allocated port.
 func NewWorker(ctx context.Context, opts Options) (*Worker, error) {
 	if opts.Allocator == nil {
 		return nil, errors.New("worker: Options.Allocator is required")
@@ -71,30 +71,33 @@ func NewWorker(ctx context.Context, opts Options) (*Worker, error) {
 		return nil, fmt.Errorf("worker: acquire port: %w", err)
 	}
 
-	chromeOpts := opts.ChromeOptions
-	chromeOpts.Port = port
+	launchOpts := opts.LaunchOptions
+	launchOpts.Port = port
 	// If the engine config requests headless, force it on every worker;
-	// callers can still set ChromeOptions.Headless directly.
+	// callers can still set LaunchOptions.Headless directly.
 	if opts.Config.Headless {
-		chromeOpts.Headless = true
+		launchOpts.Headless = true
+	}
+	if launchOpts.Browser == "" {
+		launchOpts.Browser = opts.Config.Browser
 	}
 
-	chrome, err := browser.LaunchChrome(ctx, chromeOpts)
+	proc, err := browser.Launch(ctx, launchOpts)
 	if err != nil {
 		opts.Allocator.Release(port)
-		return nil, fmt.Errorf("worker: launch chrome: %w", err)
+		return nil, fmt.Errorf("worker: launch browser: %w", err)
 	}
 
-	br := browser.NewCDPBrowser(chrome.Endpoint())
+	br := browser.Connect(proc.Endpoint())
 	page, err := br.FirstPage(ctx)
 	if err != nil {
-		_ = chrome.Close()
+		_ = proc.Close()
 		opts.Allocator.Release(port)
 		return nil, fmt.Errorf("worker: attach page: %w", err)
 	}
 
 	cfg := opts.Config
-	cfg.CDPEndpoint = chrome.Endpoint()
+	cfg.CDPEndpoint = proc.Endpoint()
 
 	logger := opts.Logger
 	if logger == nil {
@@ -114,7 +117,7 @@ func NewWorker(ctx context.Context, opts Options) (*Worker, error) {
 		id:        id,
 		cfg:       cfg,
 		logger:    logger,
-		chrome:    chrome,
+		proc:      proc,
 		browser:   br,
 		page:      page,
 		runtime:   runtime.New(cfg, page, logger),
@@ -123,7 +126,7 @@ func NewWorker(ctx context.Context, opts Options) (*Worker, error) {
 	}, nil
 }
 
-// AdoptWorker wraps an existing Page in a Worker without launching Chrome
+// AdoptWorker wraps an existing Page in a Worker without launching a browser
 // or acquiring a port. Intended for tests, embedded use, or BYO-browser
 // scenarios where lifecycle is managed externally. Close() will close the
 // Page only — no Chrome teardown, no port release.
@@ -189,8 +192,8 @@ func (w *Worker) Close() error {
 				firstErr = err
 			}
 		}
-		if w.chrome != nil {
-			if err := w.chrome.Close(); err != nil && firstErr == nil {
+		if w.proc != nil {
+			if err := w.proc.Close(); err != nil && firstErr == nil {
 				firstErr = err
 			}
 		}

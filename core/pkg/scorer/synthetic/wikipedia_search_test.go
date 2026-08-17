@@ -3,7 +3,7 @@ package synthetic
 // ─────────────────────────────────────────────────────────────────────────────
 // WIKIPEDIA SEARCH INPUT SCORING TEST SUITE
 //
-// Port of ManulEngine test_26_wikipedia_search.py — heuristic scoring of
+// heuristic scoring of
 // Wikipedia Vector 2022-style search inputs.
 //
 // Tests call Score/Rank directly with synthetic dom.ElementSnapshot arrays.

@@ -5,8 +5,7 @@ build-backend = "hatchling.build"
 
 [project]
 # The distribution is `manul-browser`; the import name stays `manul`. The bare
-# name `manul` on PyPI belongs to an unrelated project, and `manul-engine` is
-# the standalone Python engine this package supersedes — it keeps its own line.
+# name `manul` on PyPI belongs to an unrelated project.
 name = "manul-browser"
 dynamic = ["version"]
 description = "Browser automation in plain English — for humans and LLM agents."
@@ -38,9 +37,7 @@ classifiers = [
 dependencies = []
 
 [project.scripts]
-# The command is `manul`, the same word in every ecosystem. Note that the older
-# `manul-engine` package installs a `manul` script too — the two cannot share an
-# environment, which is intended for a successor.
+# The command is `manul`, the same word in every ecosystem.
 manul = "manul._cli:main"
 
 [project.urls]

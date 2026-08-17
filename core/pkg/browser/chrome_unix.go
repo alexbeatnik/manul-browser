@@ -3,7 +3,6 @@
 package browser
 
 import (
-	"os"
 	"os/exec"
 	"syscall"
 	"time"
@@ -15,17 +14,15 @@ func setProcGroup(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 }
 
-// Close terminates the Chrome process and all its children via process group kill.
-func (cp *ChromeProcess) Close() error {
-	if cp.cmd == nil || cp.cmd.Process == nil {
-		return nil
-	}
-	pid := cp.cmd.Process.Pid
+// killProcessTree terminates a launched browser and every process it spawned,
+// via process group kill, escalating to SIGKILL if it does not go quietly.
+func killProcessTree(cmd *exec.Cmd) {
+	pid := cmd.Process.Pid
 	// Kill the entire process group (negative PID).
 	_ = syscall.Kill(-pid, syscall.SIGTERM)
 	done := make(chan struct{})
 	go func() {
-		_ = cp.cmd.Wait()
+		_ = cmd.Wait()
 		close(done)
 	}()
 	select {
@@ -34,9 +31,4 @@ func (cp *ChromeProcess) Close() error {
 		_ = syscall.Kill(-pid, syscall.SIGKILL)
 		<-done
 	}
-	// Remove the temp profile directory if we created it.
-	if cp.ownsDataDir && cp.userDataDir != "" {
-		_ = os.RemoveAll(cp.userDataDir)
-	}
-	return nil
 }

@@ -1,4 +1,4 @@
-// Package heuristics provides the in-page JavaScript probes that ManulEngine (Go)
+// Package heuristics provides the in-page JavaScript probes that Manul Browser
 // injects into the browser to collect normalized candidate data.
 //
 // Probes are first-class components of the engine targeting pipeline.

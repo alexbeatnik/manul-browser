@@ -1,4 +1,4 @@
-// Package report generates HTML execution reports for ManulEngine (Go) test runs.
+// Package report generates HTML execution reports for Manul Browser test runs.
 package report
 
 import (
@@ -36,7 +36,7 @@ func GenerateHTML(result *explain.HuntResult, outDir string) (string, error) {
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>ManulEngine (Go) Report</title>
+<title>Manul Browser Report</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -73,7 +73,7 @@ func GenerateHTML(result *explain.HuntResult, outDir string) (string, error) {
 	if !result.Success {
 		badge = "fail"
 	}
-	b.WriteString(fmt.Sprintf("<h1>ManulEngine (Go) Report <span class=\"badge %s\">%s</span></h1>\n",
+	b.WriteString(fmt.Sprintf("<h1>Manul Browser Report <span class=\"badge %s\">%s</span></h1>\n",
 		badge, strings.ToUpper(badge)))
 
 	if result.Title != "" {

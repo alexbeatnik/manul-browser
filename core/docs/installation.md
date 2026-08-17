@@ -1,6 +1,6 @@
 # Installation
 
-> **ManulEngine (Go) 0.1.0**
+> **Manul Browser 0.1.1**
 
 ## Requirements
 
@@ -16,7 +16,6 @@ No Playwright, no Node.js, no Python, no bundled browser download — the only e
 
 | Tool | Purpose |
 |------|---------|
-| **VS Code** | For the companion Manul Engine Extension (Test Explorer, debug runner) |
 | **make** | Convenience build/install targets |
 
 ## Build & Install
@@ -52,7 +51,7 @@ go test ./...        # full unit + synthetic suite (no network needed)
 
 ## Configuration File
 
-Create `manul_engine_configuration.json` in your project root (read from the CWD). All keys are optional:
+Create `manul.config.json` in your project root (read from the CWD). All keys are optional:
 
 ```json
 {
@@ -61,24 +60,14 @@ Create `manul_engine_configuration.json` in your project root (read from the CWD
 }
 ```
 
-Layering: **CLI flags → `MANUL_*` env vars → JSON file → defaults**. See [README_DEV.md → Configuration](../README_DEV.md#%EF%B8%8F-configuration-manul_engine_configurationjson) for the full key table.
-
-## VS Code Extension
-
-Install the companion Manul Engine Extension for VS Code from the Marketplace:
-
-```bash
-code --install-extension manul-engine.manul-engine
-```
-
-Open a workspace containing `go.mod` and the extension auto-detects the Go runtime: `CALL GO` snippets, hook-block scaffolds, gutter breakpoints, the debug overlay, and Test Explorer all work against the `manul` binary.
+Layering: **CLI flags → `MANUL_*` env vars → JSON file → defaults**. See [README_DEV.md → Configuration](../README_DEV.md#%EF%B8%8F-configuration-manulconfigjson) for the full key table.
 
 ## Verifying the Installation
 
 ```bash
 # Check the CLI is available
 manul --help
-manul --version      # → manul 0.1.0
+manul --version      # → manul 0.1.1
 
 # Run a quick smoke test
 echo '@context: Quick test

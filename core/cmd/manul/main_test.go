@@ -44,8 +44,8 @@ func TestCustomControlAndCallGo(t *testing.T) {
 
 	// ── 2. Register CALL GO helper ──────────────────────────────────────────
 	// A helper that simulates a DB setup call and returns a map.
-	// Python manul-engine flattens dict returns into shared variables;
-	// ManulEngine (Go) does the same for map[string]string / map[string]any.
+	// A dict return is flattened into shared variables;
+	// Manul Browser does the same for map[string]string / map[string]any.
 	err = runtime.RegisterGoCall("db.setup",
 		func(ctx context.Context, inv runtime.GoCallInvocation) (any, error) {
 			return map[string]string{

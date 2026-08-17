@@ -3,7 +3,7 @@ package runtime
 import "testing"
 
 // TestScreenshotSlug verifies the SCREENSHOT label → filesystem-safe base name
-// (mirrors ManulEngine's extract_screenshot_name).
+// (extract_screenshot_name).
 func TestScreenshotSlug(t *testing.T) {
 	cases := []struct{ in, want string }{
 		{"", ""},

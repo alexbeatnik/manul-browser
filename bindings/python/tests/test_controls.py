@@ -1,6 +1,6 @@
 """Custom controls and CALL handlers.
 
-Ported from the standalone Python engine's test_17_custom_controls.py and
+Covers custom-control registration and dispatch, and
 test_31_call_python_args.py. Those tested a registry that lived in the same
 process as the engine; the engine is now a separate process, so the same
 guarantees are re-tested across the wire — registration, lookup, dispatch,

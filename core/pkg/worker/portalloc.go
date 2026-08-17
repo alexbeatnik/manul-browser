@@ -1,4 +1,4 @@
-// Package worker provides goroutine-safe primitives for executing ManulEngine (Go)
+// Package worker provides goroutine-safe primitives for executing Manul Browser
 // hunts in parallel: per-worker Runtime/Page/Chrome ownership, a bounded
 // worker pool, and CDP debug-port allocation.
 package worker

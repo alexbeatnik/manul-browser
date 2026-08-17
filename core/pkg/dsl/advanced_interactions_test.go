@@ -3,12 +3,8 @@ package dsl
 // ─────────────────────────────────────────────────────────────────────────────
 // ADVANCED INTERACTIONS TEST SUITE
 //
-// Port of ManulEngine test_23_advanced_interactions.py — command classification
+// command classification
 // for PRESS, RIGHT CLICK, UPLOAD, WAIT FOR, and related patterns.
-//
-// The Python version has two parts:
-// 1. Pure classifications (classify_step / parseCommand) — ported here
-// 2. Mocked Playwright handler tests — NOT portable (browser-specific)
 //
 // Validates:
 // A. PRESS ENTER still maps to CmdPress

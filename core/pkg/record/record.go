@@ -1,4 +1,4 @@
-// Package record implements the `manul record <URL>` subcommand for ManulEngine (Go).
+// Package record implements the `manul record <URL>` subcommand for Manul Browser.
 //
 // It opens a URL in Chrome, injects a JS recorder, waits for the user to
 // finish interacting, then writes a .hunt file from the captured events.
@@ -100,20 +100,25 @@ func buildHunt(url string, events []Event) string {
 }
 
 // Run is the entry point for `manul record <URL>`.
-func Run(ctx context.Context, url, outputFile string, headless bool) error {
+func Run(ctx context.Context, url, outputFile string, headless bool, browserName string) error {
 	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
 		url = "https://" + url
 	}
 
-	opts := browser.DefaultChromeOptions()
+	opts := browser.DefaultLaunchOptions()
+	opts.Browser = browserName
 	opts.Headless = headless
-	chrome, err := browser.LaunchChrome(ctx, opts)
+	engine, err := browser.NormalizeEngine(browserName)
 	if err != nil {
-		return fmt.Errorf("launch chrome: %w", err)
+		return err
 	}
-	defer chrome.Close()
+	proc, err := browser.Launch(ctx, opts)
+	if err != nil {
+		return fmt.Errorf("launch browser: %w", err)
+	}
+	defer proc.Close()
 
-	b := browser.NewCDPBrowser(chrome.Endpoint())
+	b := browser.Connect(proc.Endpoint())
 	page, err := b.FirstPage(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to page: %w", err)
@@ -121,7 +126,7 @@ func Run(ctx context.Context, url, outputFile string, headless bool) error {
 	defer page.Close()
 
 	fmt.Printf("\n🎬 Manul Recorder — recording %s\n", url)
-	fmt.Println("   Browser: chromium | Headless:", headless)
+	fmt.Println("   Browser:", engine, "| Headless:", headless)
 	fmt.Println("   Interact with the page, then press Enter in the terminal to stop.")
 
 	if err := page.Navigate(ctx, url); err != nil {

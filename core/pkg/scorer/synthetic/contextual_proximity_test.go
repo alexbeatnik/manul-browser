@@ -3,8 +3,6 @@ package synthetic
 // ─────────────────────────────────────────────────────────────────────────────
 // CONTEXTUAL PROXIMITY TEST SUITE
 //
-// Port of ManulEngine test_47_contextual_proximity.py
-//
 // Validates:
 // 1. NEAR: Euclidean distance boosting (closest candidate wins)
 // 2. NEAR: DOM ancestry affinity (same-card beats closer neighbor)

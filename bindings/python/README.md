@@ -12,10 +12,7 @@ pip install manul-browser
 
 The distribution is `manul-browser`; the import stays `manul`. The wheel carries
 the engine binary and installs the `manul` command, so there is nothing else to
-install except a system Chrome/Chromium.
-
-It supersedes `manul-engine`, the standalone pure-Python engine, and installs the
-same `manul` command — so the two do not belong in one environment.
+install except a system Chrome/Chromium or Firefox.
 
 ## Use
 
@@ -55,7 +52,7 @@ export MANUL_BROWSER_MODE=attach
 export MANUL_CDP_ENDPOINT=http://127.0.0.1:9222
 ```
 
-Precedence is `Session(...)` arguments › environment › `manul_engine_configuration.json` › defaults.
+Precedence is `Session(...)` arguments › environment › `manul.config.json` › defaults.
 
 ### Variables persist across steps
 
@@ -113,7 +110,7 @@ A handler that raises fails that step. The session stays open.
 ## CALL
 
 `CALL HOST` reaches ordinary Python functions from a `.hunt` script. `CALL
-PYTHON` is the same command, so scripts written for the standalone Python engine
+PYTHON` is the same command, so either spelling
 keep working.
 
 ```python

@@ -1,4 +1,4 @@
-// Package agent is the batteries-included facade for embedding ManulEngine (Go) in
+// Package agent is the batteries-included facade for embedding Manul Browser in
 // agent and assistant applications.
 //
 // It owns the entire browser lifecycle so a consumer never has to spawn
@@ -42,7 +42,7 @@ import (
 
 // Options configures a Session.
 type Options struct {
-	// Headless runs Chrome without a visible window. Default: false.
+	// Headless runs the browser without a visible window. Default: false.
 	Headless bool
 	// Port is the CDP debug port for a Launch-managed Chrome. 0 → 9222.
 	// Ignored by Attach. Connect uses it to both probe for an existing Chrome
@@ -52,11 +52,15 @@ type Options struct {
 	// Used by Connect: when set it takes precedence over Port for the
 	// attach probe. Ignored by Launch.
 	CDPURL string
-	// ExecutablePath overrides the Chrome binary location (Launch only).
+	// ExecutablePath overrides the browser binary location (Launch only).
 	ExecutablePath string
-	// UserDataDir overrides the Chrome profile directory (Launch only).
+	// UserDataDir overrides the browser profile directory (Launch only).
 	// Empty → a unique temp profile is created and removed on Close.
 	UserDataDir string
+	// Browser selects the engine to launch: "chromium" (default) or
+	// "firefox". Empty falls back to Config.Browser, then to Chromium.
+	// Ignored by Attach, which infers the protocol from the endpoint.
+	Browser string
 	// Config is the engine configuration. Zero value → config.Default().
 	Config *config.Config
 	// Logger sinks engine logs. Nil → a logger that discards output, so an
@@ -65,63 +69,81 @@ type Options struct {
 }
 
 // Session is a live, owned browser connection plus the targeting runtime.
-// Create one with Launch (ManulEngine (Go) spawns Chrome) or Attach (connect to an
+// Create one with Launch (Manul Browser spawns Chrome) or Attach (connect to an
 // already-running Chrome). Always Close it.
 type Session struct {
 	mu       sync.Mutex
 	rt       *runtime.Runtime
 	page     browser.Page
-	chrome   *browser.ChromeProcess // non-nil only when we launched Chrome
-	endpoint string                 // CDP HTTP endpoint, for opening background tabs
+	proc     browser.Process // non-nil only when this Session launched the browser
+	endpoint string          // protocol endpoint, for opening background tabs
 	closed   bool
 }
 
-// Launch spawns a Chrome process owned by ManulEngine (Go), attaches to its first
-// page, and returns a ready Session. The Chrome process (and its temp profile,
+// Launch spawns a browser process owned by Manul Browser, attaches to its
+// first page, and returns a ready Session. The process (and its temp profile,
 // when one was created) is torn down by Close.
+//
+// Which browser it is comes from Options.Browser, or Config.Browser when that
+// is empty: Chromium is driven over CDP, Firefox over WebDriver BiDi.
 func Launch(ctx context.Context, opts Options) (*Session, error) {
-	chromeOpts := browser.DefaultChromeOptions()
-	chromeOpts.Headless = opts.Headless
+	launchOpts := browser.DefaultLaunchOptions()
+	launchOpts.Browser = opts.browserName()
+	launchOpts.Headless = opts.Headless
 	if opts.Port != 0 {
-		chromeOpts.Port = opts.Port
+		launchOpts.Port = opts.Port
 	}
 	if opts.ExecutablePath != "" {
-		chromeOpts.ExecutablePath = opts.ExecutablePath
+		launchOpts.ExecutablePath = opts.ExecutablePath
 	}
 	if opts.UserDataDir != "" {
-		chromeOpts.UserDataDir = opts.UserDataDir
+		launchOpts.UserDataDir = opts.UserDataDir
 	}
 
-	cp, err := browser.LaunchChrome(ctx, chromeOpts)
+	proc, err := browser.Launch(ctx, launchOpts)
 	if err != nil {
-		return nil, fmt.Errorf("agent: launch chrome: %w", err)
+		return nil, fmt.Errorf("agent: launch browser: %w", err)
 	}
 
-	page, err := browser.NewCDPBrowser(cp.Endpoint()).FirstPage(ctx)
+	page, err := browser.Connect(proc.Endpoint()).FirstPage(ctx)
 	if err != nil {
-		_ = cp.Close()
-		return nil, fmt.Errorf("agent: attach to launched chrome: %w", err)
+		_ = proc.Close()
+		return nil, fmt.Errorf("agent: attach to launched browser: %w", err)
 	}
 
-	return newSession(opts, page, cp, cp.Endpoint()), nil
+	return newSession(opts, page, proc, proc.Endpoint()), nil
 }
 
-// Attach connects to an already-running Chrome at the given CDP HTTP endpoint
-// (e.g. "http://127.0.0.1:9222"). ManulEngine (Go) does NOT own that Chrome process,
-// so Close leaves it running. When urlSubstr is non-empty, the most recently
-// active page whose URL contains it is selected; otherwise the first page.
+// browserName resolves the engine to launch: the explicit option first, then
+// the engine configuration, then the Chromium default.
+func (o Options) browserName() string {
+	if o.Browser != "" {
+		return o.Browser
+	}
+	if o.Config != nil {
+		return o.Config.Browser
+	}
+	return ""
+}
+
+// Attach connects to an already-running browser at the given endpoint — a CDP
+// HTTP endpoint for Chromium ("http://127.0.0.1:9222"), or a WebDriver BiDi
+// WebSocket URL for Firefox ("ws://127.0.0.1:9222/session"). Manul Browser
+// does NOT own that process, so Close leaves it running. When urlSubstr is
+// non-empty, the most recently active page whose URL contains it is selected;
+// otherwise the first page.
 func Attach(ctx context.Context, cdpURL, urlSubstr string, opts Options) (*Session, error) {
 	if cdpURL == "" {
 		return nil, fmt.Errorf("agent: Attach requires a CDP endpoint URL")
 	}
-	page, err := browser.NewCDPBrowser(cdpURL).PageMatching(ctx, urlSubstr)
+	page, err := browser.Connect(cdpURL).PageMatching(ctx, urlSubstr)
 	if err != nil {
 		return nil, fmt.Errorf("agent: attach: %w", err)
 	}
 	return newSession(opts, page, nil, cdpURL), nil
 }
 
-func newSession(opts Options, page browser.Page, cp *browser.ChromeProcess, endpoint string) *Session {
+func newSession(opts Options, page browser.Page, proc browser.Process, endpoint string) *Session {
 	cfg := config.Default()
 	if opts.Config != nil {
 		cfg = *opts.Config
@@ -136,13 +158,13 @@ func newSession(opts Options, page browser.Page, cp *browser.ChromeProcess, endp
 	return &Session{
 		rt:       runtime.New(cfg, page, logger),
 		page:     page,
-		chrome:   cp,
+		proc:     proc,
 		endpoint: endpoint,
 	}
 }
 
-// Close releases the page connection and, when this Session launched Chrome,
-// terminates that Chrome process and removes any temp profile it created.
+// Close releases the page connection and, when this Session launched the
+// browser, terminates that process and removes any temp profile it created.
 // Safe to call multiple times.
 func (s *Session) Close() error {
 	s.mu.Lock()
@@ -158,8 +180,8 @@ func (s *Session) Close() error {
 			firstErr = err
 		}
 	}
-	if s.chrome != nil {
-		if err := s.chrome.Close(); err != nil && firstErr == nil {
+	if s.proc != nil {
+		if err := s.proc.Close(); err != nil && firstErr == nil {
 			firstErr = err
 		}
 	}
@@ -548,8 +570,7 @@ const DefaultMaxPerGroup = 8
 type MapElement struct {
 	Label string `json:"label"`
 	Role  string `json:"role"`
-	// Editable marks inputs an agent can FILL (omitted when false), matching
-	// ManulEngine (Python)'s map output shape.
+	// Editable marks inputs an agent can FILL (omitted when false).
 	Editable bool `json:"editable,omitempty"`
 }
 

@@ -3,12 +3,8 @@ package dsl
 // ─────────────────────────────────────────────────────────────────────────────
 // LOGICAL STEPS TEST SUITE
 //
-// Port of ManulEngine test_28_logical_steps.py — STEP N: marker parsing,
+// STEP N: marker parsing,
 // block grouping, and StepBlock assignment.
-//
-// The Python version also tests reporting features (_group_steps, _render_lstep_group,
-// generate_report). Those are NOT portable since Go reporting doesn't have
-// those features yet. We port only the parser / structural tests.
 //
 // Validates:
 // 1. STEP N: recognized as a block marker (not a command)

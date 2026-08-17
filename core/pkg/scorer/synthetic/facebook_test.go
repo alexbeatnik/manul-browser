@@ -3,7 +3,7 @@ package synthetic
 // ─────────────────────────────────────────────────────────────────────────────
 // FACEBOOK COMET UI DOM SCORING TEST SUITE
 //
-// Port of ManulEngine test_15_facebook_final_boss.py — 12-element Facebook
+// 12-element Facebook
 // login & registration page with comet-style dynamic IDs.
 // Validates: email/password login, registration form with first/last name,
 // birthday comboboxes, gender selector, mobile/email + password fields, submit.

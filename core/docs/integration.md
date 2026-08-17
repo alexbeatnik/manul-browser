@@ -1,6 +1,6 @@
 # Integration
 
-> **ManulEngine (Go) 0.1.0** — embedding the engine in Go programs, CI/CD pipelines, and agent stacks.
+> **Manul Browser 0.1.1** — embedding the engine in Go programs, CI/CD pipelines, and agent stacks.
 
 ## Go Embedding API (`pkg/agent`)
 
@@ -52,7 +52,7 @@ manul run-step "Click the 'Login' button" --cdp http://127.0.0.1:9222
 manul read 'Order total' --cdp http://127.0.0.1:9222
 ```
 
-JSON payload on **stdout**, logs on **stderr**; non-zero exit when a step fails. Shapes are identical to ManulEngine (Python) — pin `manul schema` in the driver instead of prose docs. See [dsl-for-llms.md](dsl-for-llms.md).
+JSON payload on **stdout**, logs on **stderr**; non-zero exit when a step fails. Pin `manul schema` in the driver instead of prose docs. See [dsl-for-llms.md](dsl-for-llms.md).
 
 ---
 
@@ -116,10 +116,5 @@ ENTRYPOINT ["manul"]
 manul daemon hunts/ --headless
 ```
 
-The daemon watches the directory for `@schedule:`-tagged hunts and runs them on their cadence — the same model as the Python engine's `manul daemon`.
+The daemon watches the directory for `@schedule:`-tagged hunts and runs them on their cadence.
 
----
-
-## VS Code Extension
-
-The [Manul Engine Extension](https://marketplace.visualstudio.com/items?itemName=manul-engine.manul-engine) drives this binary directly: Test Explorer runs, gutter breakpoints (`--break-lines`), the debug QuickPick overlay, explain-next previews, and the Scheduler Dashboard (reads `run_history.json`). The wire protocol is frozen in `contracts/EXTENSION_ENGINE_CONTRACT.md`.

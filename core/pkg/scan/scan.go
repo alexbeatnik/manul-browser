@@ -1,4 +1,4 @@
-// Package scan implements the `manul scan <URL>` subcommand for ManulEngine (Go).
+// Package scan implements the `manul scan <URL>` subcommand for Manul Browser.
 //
 // It opens a URL in Chrome, runs a DOM scanner JS, and writes a draft .hunt file.
 package scan
@@ -17,7 +17,7 @@ import (
 )
 
 // SCAN_JS is the JavaScript payload executed in the browser to discover
-// interactive elements. Mirrors ManulEngine's SCAN_JS.
+// interactive elements.
 const SCAN_JS = `() => {
     function isHidden(el) {
         if (el.getAttribute('aria-hidden') === 'true') return true;
@@ -186,22 +186,23 @@ func BuildHunt(url string, elements []Element) string {
 	return strings.Join(lines, "\n") + "\n"
 }
 
-// ScanPage opens url in a headless Chrome, runs the DOM scanner, and returns
-// the scanned elements.
-func ScanPage(ctx context.Context, url string, headless bool) ([]Element, error) {
+// ScanPage opens url in a headless browser, runs the DOM scanner, and returns
+// the scanned elements. browserName selects the engine ("" = chromium).
+func ScanPage(ctx context.Context, url string, headless bool, browserName string) ([]Element, error) {
 	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
 		url = "https://" + url
 	}
 
-	opts := browser.DefaultChromeOptions()
+	opts := browser.DefaultLaunchOptions()
+	opts.Browser = browserName
 	opts.Headless = headless
-	chrome, err := browser.LaunchChrome(ctx, opts)
+	proc, err := browser.Launch(ctx, opts)
 	if err != nil {
-		return nil, fmt.Errorf("launch chrome: %w", err)
+		return nil, fmt.Errorf("launch browser: %w", err)
 	}
-	defer chrome.Close()
+	defer proc.Close()
 
-	b := browser.NewCDPBrowser(chrome.Endpoint())
+	b := browser.Connect(proc.Endpoint())
 	page, err := b.FirstPage(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("connect to page: %w", err)
@@ -231,7 +232,7 @@ func ScanPage(ctx context.Context, url string, headless bool) ([]Element, error)
 }
 
 // FULL_SCAN_JS discovers all interactive elements grouped by semantic page regions
-// (forms, navigation, main, dialog, etc.) including Shadow DOM. Mirrors ManulEngine's FULL_SCAN_JS.
+// (forms, navigation, main, dialog, etc.) including Shadow DOM.
 const FULL_SCAN_JS = `() => {
     function isHidden(el) {
         if (el.getAttribute('aria-hidden') === 'true') return true;
@@ -451,22 +452,24 @@ func BuildHuntFull(url string, groups map[string][]FullElement) string {
 	return strings.Join(lines, "\n") + "\n"
 }
 
-// ScanPageFull opens url in Chrome, runs the full-page grouped DOM scanner
+// ScanPageFull opens url in a browser, runs the full-page grouped DOM scanner
 // (including Shadow DOM), and returns elements grouped by semantic region.
-func ScanPageFull(ctx context.Context, url string, headless bool) (map[string][]FullElement, error) {
+// browserName selects the engine ("" = chromium).
+func ScanPageFull(ctx context.Context, url string, headless bool, browserName string) (map[string][]FullElement, error) {
 	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
 		url = "https://" + url
 	}
 
-	opts := browser.DefaultChromeOptions()
+	opts := browser.DefaultLaunchOptions()
+	opts.Browser = browserName
 	opts.Headless = headless
-	chrome, err := browser.LaunchChrome(ctx, opts)
+	proc, err := browser.Launch(ctx, opts)
 	if err != nil {
-		return nil, fmt.Errorf("launch chrome: %w", err)
+		return nil, fmt.Errorf("launch browser: %w", err)
 	}
-	defer chrome.Close()
+	defer proc.Close()
 
-	b := browser.NewCDPBrowser(chrome.Endpoint())
+	b := browser.Connect(proc.Endpoint())
 	page, err := b.FirstPage(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("connect to page: %w", err)
@@ -506,18 +509,19 @@ func ScanCurrentPageFull(ctx context.Context, page browser.Page) (map[string][]F
 	return groups, nil
 }
 
-// ScanPageFullCDP runs the full-page scan against an external Chrome via
-// its CDP endpoint, without launching or navigating. Attaches to the first
-// available page target and probes whatever's currently loaded.
+// ScanPageFullCDP runs the full-page scan against an external browser via its
+// endpoint — a CDP HTTP endpoint for Chromium, a BiDi WebSocket URL for
+// Firefox — without launching or navigating. Attaches to the first available
+// page and probes whatever's currently loaded.
 //
 // This is the integration entry point for callers (OS-Manul, IDE
-// extensions, …) that own the Chrome lifecycle themselves and want the
+// extensions, …) that own the browser lifecycle themselves and want the
 // landmark map of the page their user is looking at right now.
 func ScanPageFullCDP(ctx context.Context, cdpEndpoint string) (map[string][]FullElement, error) {
 	if cdpEndpoint == "" {
 		return nil, fmt.Errorf("scan: cdp endpoint required")
 	}
-	b := browser.NewCDPBrowser(cdpEndpoint)
+	b := browser.Connect(cdpEndpoint)
 	page, err := b.FirstPage(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("scan: connect to page at %q: %w", cdpEndpoint, err)
@@ -527,11 +531,11 @@ func ScanPageFullCDP(ctx context.Context, cdpEndpoint string) (map[string][]Full
 }
 
 // RunFull is the entry point for `manul scan --full <URL>`.
-func RunFull(ctx context.Context, url, outputFile string, headless bool) error {
+func RunFull(ctx context.Context, url, outputFile string, headless bool, browserName string) error {
 	fmt.Printf("\n🔍 Manul Full Scanner — scanning %s\n", url)
 	fmt.Printf("   Headless: %v\n", headless)
 
-	groups, err := ScanPageFull(ctx, url, headless)
+	groups, err := ScanPageFull(ctx, url, headless, browserName)
 	if err != nil {
 		return err
 	}
@@ -557,11 +561,11 @@ func RunFull(ctx context.Context, url, outputFile string, headless bool) error {
 }
 
 // Run is the entry point for `manul scan <URL>`.
-func Run(ctx context.Context, url, outputFile string, headless bool) error {
+func Run(ctx context.Context, url, outputFile string, headless bool, browserName string) error {
 	fmt.Printf("\n🔍 Manul Scanner — scanning %s\n", url)
 	fmt.Printf("   Headless: %v\n", headless)
 
-	elements, err := ScanPage(ctx, url, headless)
+	elements, err := ScanPage(ctx, url, headless, browserName)
 	if err != nil {
 		return err
 	}

@@ -1,14 +1,13 @@
 # Manul — Debug, Explain & What-If Contract
 
 > **Machine-readable contract for interactive debugging, the pause/explain wire protocol, explain-next scoring previews, and the What-If dry-run REPL.**
-> Consumed by the VS Code extension debug driver, CI/CD diagnostics, and downstream tooling.
+> Consumed by pipe-mode debug drivers, CI/CD diagnostics, and downstream tooling.
 >
-> **Wire protocol stability.** The stdin/stdout debug protocol (pause marker,
-> explain-next marker, command tokens, 1-based step index) is byte-compatible
-> with what the VS Code extension already speaks; `EXTENSION_ENGINE_CONTRACT.md`
-> remains the authoritative byte-level spec. The What-If REPL added below is
-> **terminal-only** and introduces no new markers, so no extension client needs
-> to change.
+> **Wire protocol stability.** This file is the authoritative byte-level spec
+> for the stdin/stdout debug protocol: pause marker, explain-next marker,
+> command tokens, 1-based step index. The What-If REPL added below is
+> **terminal-only** and introduces no new markers, so no pipe-mode driver
+> needs to change.
 
 ```json
 {
@@ -62,15 +61,14 @@
       "ui": "Readline prompt ('  > '). Injects the in-browser modal and prints the command list.",
       "commands": ["next", "continue", "debug-stop", "highlight <xpath>", "explain", "e | explain-next", "w | what-if", "abort"]
     },
-    "extension": {
-      "function": "debugPromptExtension()",
+    "pipe": {
+      "function": "debugPromptPipe()",
       "transport": "Reads command tokens as stdin lines (1 MB line cap). Emits NUL-delimited markers on stdout.",
       "commands": ["next", "continue", "debug-stop", "abort", "highlight", "highlight <xpath>", "explain-next", "explain", "explain-next <json-override>", "what-if (rejected)"]
     }
   },
 
   "wireProtocol": {
-    "note": "Authoritative spec lives in EXTENSION_ENGINE_CONTRACT.md.",
     "pauseMarker": {
       "format": "\\x00MANUL_DEBUG_PAUSE\\x00<json>\\n",
       "payload": { "step": "string — the raw step line", "idx": "int — 1-based step index" },
@@ -87,13 +85,13 @@
       "abort":        "Stop the mission (ErrDebugStop).",
       "highlight":    "Scroll the current highlight into view (no arg) or highlight the given xpath.",
       "explain-next": "Emit an explain marker for the current step, or for a step override via 'explain-next {\"step\":\"...\"}'. Read-only.",
-      "what-if":      "Rejected in extension mode: stdin is reserved for control tokens, so an interactive REPL cannot read from it. The engine logs a notice, re-emits the pause marker, and stays paused. Use explain-next instead."
+      "what-if":      "Rejected in pipe mode: stdin is reserved for control tokens, so an interactive REPL cannot read from it. The engine logs a notice, re-emits the pause marker, and stays paused. Use explain-next instead."
     }
   },
 
   "explainNext": {
     "function": "buildExplainNextResult(stepText, cmd) explainNextPayload",
-    "description": "Read-only scoring preview for the current (or overridden) step. Ranks the live snapshot via scorer.Rank and projects the top candidate. Highlights the best candidate in the page. This is the extension-facing surface and its wire shape is unchanged from v0.1.0.",
+    "description": "Read-only scoring preview for the current (or overridden) step. Ranks the live snapshot via scorer.Rank and projects the top candidate. Highlights the best candidate in the page. This is the pipe-mode surface and its wire shape is unchanged from v0.1.0.",
     "fields": [
       { "name": "step",             "json": "step",             "type": "string" },
       { "name": "score",            "json": "score",            "type": "float64", "description": "Top candidate total score (raw, not the 0-10 confidence)." },
@@ -111,7 +109,7 @@
   },
 
   "whatIf": {
-    "availability": "Terminal (TTY) mode only. Entered with 'w' or 'what-if' at a debug pause. In extension mode the token is rejected; see wireProtocol.commandSemantics.what-if.",
+    "availability": "Terminal (TTY) mode only. Entered with 'w' or 'what-if' at a debug pause. In pipe mode the token is rejected; see wireProtocol.commandSemantics.what-if.",
     "entryPoints": {
       "oneShot": "'e' or 'explain-next' at the TTY prompt evaluates the step currently paused on, prints WhatIfResult.FormatReport(), and stays paused.",
       "repl": "'w' or 'what-if' opens the interactive dry-run loop (runWhatIfREPL)."
@@ -155,7 +153,7 @@
       "function": "isWhatIfSystemStep(cmd) bool",
       "description": "Steps that complete without resolving an element are forced to Score 8 / TargetFound true, so they are not reported IMPOSSIBLE merely because nothing on the page matched.",
       "types": ["NAVIGATE", "WAIT", "WAIT_FOR", "WAIT_FOR_RESPONSE", "SCROLL", "PRESS", "PRINT", "SCREENSHOT", "SET (only when it assigns a variable)"],
-      "divergenceFromPython": "The Python engine scored first and boosted afterwards, so it reported heuristic fields even for NAVIGATE. The Go implementation decides before taking a snapshot — a system step needs no DOM — so heuristic fields are absent for these steps."
+      "systemStepFields": "A system step is decided before any snapshot is taken — it needs no DOM — so the heuristic fields are absent for these steps rather than reported as scores nothing produced."
     },
 
     "stepReplacement": {

@@ -3,9 +3,8 @@ package synthetic
 // ─────────────────────────────────────────────────────────────────────────────
 // VERIFY CHECKED / NOT CHECKED — Checkbox & Radio State Test Suite
 //
-// Port of ManulEngine test_34_verify_checked.py — 20 state assertions.
+// 20 state assertions.
 //
-// The Python version uses browser + ManulEngine._handle_verify().
 // The Go version tests element resolution via scorer.Rank(): given a set of
 // checkboxes and radios with their labels, the scorer must rank the correct
 // element first. The "checked" state itself is a Playwright runtime check,

@@ -1,18 +1,15 @@
-# ManulEngine (Go) — Scoring & Heuristics Contract
+# Manul Browser — Scoring & Heuristics Contract
 
 > **Machine-readable contract for the DOMScorer heuristic pipeline and element snapshot shape.**
 > Consumed by explain-mode UIs, custom scoring extensions, benchmark tooling, and downstream analytics.
 >
-> **Shared surface.** This is the ManulEngine (Go) copy of a contract shared with
-> ManulEngine (Python). The *behavioral* surface — scoring channels, `WEIGHTS`,
-> `SCALE`, thresholds, and the element-snapshot field shape — is **identical**
-> across both runtimes (verified: same weights `cache 2.0 · semantics 0.60 ·
-> text 0.45 · attributes 0.25 · proximity 0.10`). Only the implementation paths
-> differ (`pkg/...` here vs `manul_engine/...` in Engine).
+> **Scope.** Scoring channels, `WEIGHTS`, `SCALE`, thresholds and the
+> element-snapshot field shape (`cache 2.0 · semantics 0.60 · text 0.45 ·
+> attributes 0.25 · proximity 0.10`), as implemented under `pkg/...`.
 
 ```json
 {
-  "version": "0.1.0",
+  "version": "0.1.1",
   "generatedFrom": "pkg/scorer/scorer.go :: DOMScorer, WEIGHTS, SCALE, score_elements(); pkg/dom (snapshot JS) :: SNAPSHOT_JS",
 
   "constants": {
@@ -243,7 +240,7 @@
   "explainMode": {
     "trigger": "explain=True on DOMScorer or --explain CLI flag",
     "output": "Each scored element gets '_explain' dict with per-channel raw scores, weighted contributions, and final normalised confidence [0.0, 1.0]",
-    "stderrFormat": "┌─ 🔍 EXPLAIN ... └─ ✅ Decision block printed to stderr for VS Code hover parsing"
+    "stderrFormat": "┌─ 🔍 EXPLAIN ... └─ ✅ Decision block printed to stderr"
   }
 }
 ```
