@@ -115,7 +115,7 @@
       "uiText": "SELECT '' from the '' dropdown",
       "snippet": "SELECT '${1:option}' from the '${2:target}' dropdown",
       "regex": null,
-      "description": "Selects an option from a native <select> or custom dropdown. Detected by the 'select' or 'choose' verbs (case-insensitive). Element type hint (dropdown) is optional but recommended. Interaction mode: select.",
+      "description": "Selects an option from a native <select> or custom dropdown. Detected by the 'select' or 'choose' verbs (case-insensitive). Element type hint (dropdown) is optional but recommended. On a native <select> the option is matched against both its label and its value, whitespace-normalised and case-insensitively; the option is set through the native value setter and followed by input and change events. An option that matches nothing fails the step with failure_reason not_found, and the error lists the options the page does have. Interaction mode: select.",
       "category": "interaction",
       "interactionMode": "select"
     },

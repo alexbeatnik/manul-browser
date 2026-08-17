@@ -106,6 +106,39 @@ func TestCoordinateProbesReturnJSONStrings(t *testing.T) {
 	}
 }
 
+// SelectOption is the one builder whose completion value the engine acts on:
+// a select that matched nothing has to be distinguishable from one that did.
+func TestSelectOptionReportsWhatItDid(t *testing.T) {
+	js := SelectOption("//select[@id='sort']", "Від дешевих до дорогих")
+
+	for _, want := range []string{
+		"matched: false", // the miss path exists at all
+		"matched: true",
+		"options:",             // and carries the labels that do exist
+		"toLowerCase",          // compared case-folded
+		`replace(/\s+/g, " ")`, // and whitespace-normalised
+		"getOwnPropertyDescriptor",
+		`new Event("input"`,
+		`new Event("change"`,
+	} {
+		if !strings.Contains(js, want) {
+			t.Errorf("select script is missing %q:\n%s", want, js)
+		}
+	}
+}
+
+// Both the locator and the label are embedded as literals, so neither a quote
+// in an XPath nor a backslash in a label can end the string early.
+func TestSelectOptionQuotesItsArguments(t *testing.T) {
+	js := SelectOption(`//select[@aria-label="Сортування"]`, `a" \ b`)
+	if !strings.Contains(js, `\"Сортування\"`) {
+		t.Errorf("xpath quotes not escaped:\n%s", js)
+	}
+	if !strings.Contains(js, `"a\" \\ b"`) {
+		t.Errorf("label not escaped as a literal:\n%s", js)
+	}
+}
+
 func TestHighlightCarriesItsDuration(t *testing.T) {
 	if !strings.Contains(Highlight(1, "//div", 750), "}, 750);") {
 		t.Fatal("highlight duration lost")

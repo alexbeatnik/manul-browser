@@ -291,6 +291,48 @@ func ScrollPage(direction, container string) string {
 	`, locatorExpression(container), amount)
 }
 
+// SelectOption picks an option of a native <select> by its label or its value,
+// and reports what it did.
+//
+// Two things it does that a plain `option.text === want` does not.
+//
+// It compares normalised — whitespace collapsed, case folded. The label a
+// caller writes is read off the page by a human or a model, not copied out of
+// the DOM, so "від дешевих до дорогих" and "Від дешевих до дорогих" are the
+// same option to everyone except `===`.
+//
+// And its completion value says whether an option actually matched, listing
+// the ones that exist when none did. A select that quietly changes nothing is
+// indistinguishable from success at the protocol level, which is how a wrong
+// label reaches the user as a green step over an unsorted page.
+func SelectOption(xpath, value string) string {
+	return fmt.Sprintf(`(() => {
+		const norm = s => (s || "").replace(/\s+/g, " ").trim();
+		const fold = s => norm(s).toLowerCase();
+		const el = document.evaluate(%[1]q, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+		if (!el || !el.options) {
+			return JSON.stringify({ matched: false, options: [] });
+		}
+		const options = [...el.options].map(o => norm(o.text));
+		const want = fold(%[2]q);
+		let hit = null;
+		for (const o of el.options) {
+			if (fold(o.text) === want || fold(o.value) === want) { hit = o; break; }
+		}
+		if (!hit) {
+			return JSON.stringify({ matched: false, options: options });
+		}
+		// Through the native setter: frameworks keep their own record of the
+		// last value they wrote, and a direct assignment leaves it untouched,
+		// so the change event that follows is discarded as a no-op.
+		const desc = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), "value");
+		if (desc && desc.set) { desc.set.call(el, hit.value); } else { el.value = hit.value; }
+		el.dispatchEvent(new Event("input", { bubbles: true }));
+		el.dispatchEvent(new Event("change", { bubbles: true }));
+		return JSON.stringify({ matched: true, value: hit.value, options: options });
+	})()`, xpath, value)
+}
+
 // FileInput resolves the file input associated with the element at ID or XPath
 // and returns it as the completion value (null when there is none). Backends
 // hand the resulting node to their own file-setting command.
