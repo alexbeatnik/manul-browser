@@ -24,6 +24,14 @@ type MockPage struct {
 	FileInputs   map[string][]string
 	LastNavigate string
 	ProbeCalls   int
+	EvalCalls    []string
+
+	// EvalResult lets a test answer an injected script the way a real page
+	// would. Returning handled=false falls through to the default behaviour.
+	// A command that acts through JS — SELECT is the one that does — can only
+	// be tested for what it does with the page's answer if the test can give
+	// it one.
+	EvalResult func(expr string) (raw []byte, handled bool)
 }
 
 type Point struct {
@@ -37,8 +45,20 @@ func (m *MockPage) Navigate(ctx context.Context, url string) error {
 }
 
 func (m *MockPage) EvalJS(ctx context.Context, expr string) ([]byte, error) {
+	m.EvalCalls = append(m.EvalCalls, expr)
+	if m.EvalResult != nil {
+		if raw, handled := m.EvalResult(expr); handled {
+			return raw, nil
+		}
+	}
 	if strings.Contains(expr, "document.title") {
 		return json.Marshal(m.Title)
+	}
+	if strings.Contains(expr, "matched:") {
+		// The SELECT script, which reports whether an option matched. The
+		// mock page is one that has the option asked for; a test that needs
+		// a miss says so through EvalResult.
+		return []byte(`{"matched":true}`), nil
 	}
 	return nil, nil
 }
