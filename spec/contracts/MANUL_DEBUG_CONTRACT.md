@@ -12,7 +12,7 @@
 ```json
 {
   "version": "0.2.0",
-  "generatedFrom": "pkg/runtime/debug.go :: shouldPause(), debugPrompt(), debugPromptTTY(), debugPromptExtension(), injectDebugModal(), debugHighlight(), explainStep(), buildExplainNextResult(), explainNextPayload; pkg/runtime/whatif.go :: WhatIfResult, evaluateWhatIf(), runWhatIfREPL(), pickWhatIfStep(), takeWhatIfReplacement(), isWhatIfSystemStep(); pkg/runtime/runtime.go :: runCommands() replacement loop; pkg/config/config.go :: DebugMode, BreakLines, ExplainMode",
+  "generatedFrom": "pkg/runtime/debug.go :: shouldPause(), debugPrompt(), debugPromptTTY(), debugPromptPipe(), injectDebugModal(), debugHighlight(), explainStep(), buildExplainNextResult(), explainNextPayload; pkg/runtime/whatif.go :: WhatIfResult, evaluateWhatIf(), runWhatIfREPL(), pickWhatIfStep(), takeWhatIfReplacement(), isWhatIfSystemStep(); pkg/runtime/runtime.go :: runCommands() replacement loop; pkg/config/config.go :: DebugMode, BreakLines, ExplainMode",
 
   "config": {
     "DebugMode": {
