@@ -1,4 +1,4 @@
-// Package scorer implements ManulEngine (Go)'s deterministic multi-signal element scoring.
+// Package scorer implements Manul Browser's deterministic multi-signal element scoring.
 //
 // The primary entry points are:
 //   - Score(query, typeHint, mode, el, anchor) → explain.ScoreBreakdown
@@ -118,7 +118,7 @@ func Score(query, typeHint, mode string, el *dom.ElementSnapshot, anchor *Anchor
 		anchorAttr = scoreAnchorAttrAffinity(anchor, el)
 	}
 
-	// ── Category scores (aligned with Python ManulEngine) ─────────────────────
+	// ── Category scores ──────────────────────────────────────────────────────
 	// Text category: exactText, normText, label, placeholder, aria, dataQA
 	textCat := exactText + normText + labelMatch + placeholder + aria + dataQA
 
@@ -582,7 +582,7 @@ func scoreNear(el *dom.ElementSnapshot, anchor *AnchorContext) float64 {
 
 // scoreAnchorAttrAffinity rewards candidates whose dev-facing attributes
 // (id, class, data-qa) contain words from the NEAR anchor text.
-// Matches ManulEngine: product cards encode the item label in button IDs
+// Product cards encode the item label in button IDs
 // like add-to-cart-sauce-labs-fleece-jacket.
 func scoreAnchorAttrAffinity(anchor *AnchorContext, el *dom.ElementSnapshot) float64 {
 	if len(anchor.Words) == 0 {

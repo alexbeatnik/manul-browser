@@ -205,15 +205,16 @@ func runJob(ctx context.Context, sh ScheduledHunt, cfg config.Config, logger *ut
 }
 
 func executeHunt(ctx context.Context, hunt *dsl.Hunt, cfg config.Config, logger *utils.Logger) error {
-	opts := browser.DefaultChromeOptions()
+	opts := browser.DefaultLaunchOptions()
+	opts.Browser = cfg.Browser
 	opts.Headless = cfg.Headless
-	chrome, err := browser.LaunchChrome(ctx, opts)
+	proc, err := browser.Launch(ctx, opts)
 	if err != nil {
-		return fmt.Errorf("launch chrome: %w", err)
+		return fmt.Errorf("launch browser: %w", err)
 	}
-	defer chrome.Close()
+	defer proc.Close()
 
-	b := browser.NewCDPBrowser(chrome.Endpoint())
+	b := browser.Connect(proc.Endpoint())
 	page, err := b.FirstPage(ctx)
 	if err != nil {
 		return fmt.Errorf("connect to page: %w", err)

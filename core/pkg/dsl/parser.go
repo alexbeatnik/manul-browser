@@ -1,4 +1,4 @@
-// Package dsl implements the ManulEngine (Go) .hunt DSL parser.
+// Package dsl implements the Manul Browser .hunt DSL parser.
 //
 // A .hunt file is a sequence of natural-language-style automation commands
 // with optional @header directives, STEP blocks, and control-flow constructs.
@@ -682,9 +682,9 @@ func parseCommandLine(line string) Command {
 		cmd.URL = unquote(raw)
 
 	// ── OPEN APP ──────────────────────────────────────────────────────────────
-	// Desktop/Electron entry point. ManulEngine launches+attaches; in ManulEngine (Go)
-	// the app window is already attached at launch (--executable-path / --cdp),
-	// so OPEN APP is a readiness checkpoint on the current window.
+	// Desktop/Electron entry point. The app window is already attached at
+	// launch (--executable-path / --cdp), so OPEN APP is a readiness
+	// checkpoint on the current window rather than a launch step.
 	case upper == "OPEN APP" || strings.HasPrefix(upper, "OPEN APP "):
 		cmd.Type = CmdOpenApp
 
@@ -1045,10 +1045,9 @@ func parseCommandLine(line string) Command {
 	//
 	// One command with three spellings. The handler does not live in the
 	// engine — it lives in whatever host registered it, which is Go when the
-	// engine is embedded and Python when it is driven through the binding. A
-	// .hunt file written for the Python engine says CALL PYTHON, so that
-	// spelling keeps working unchanged; CALL HOST is the language-neutral name
-	// for new scripts.
+	// engine is embedded and Python when it is driven through the binding.
+	// CALL PYTHON and CALL GO are kept as spellings of it; CALL HOST is the
+	// language-neutral name, and what new scripts should say.
 	case strings.HasPrefix(upper, "CALL GO "),
 		strings.HasPrefix(upper, "CALL PYTHON "),
 		strings.HasPrefix(upper, "CALL HOST "):

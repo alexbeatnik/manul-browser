@@ -19,11 +19,10 @@ type FrameInfo struct {
 
 // FrameTracker maintains the live frameId → execution-context-id mapping for a
 // page session by listening to Runtime/Page CDP events. It is what lets
-// ManulEngine (Go) evaluate JavaScript inside iframes (per-frame execution contexts)
+// Manul Browser evaluate JavaScript inside iframes (per-frame execution contexts)
 // instead of only the default/main context.
 //
-// Mirrors the per-frame routing in the Python manul-engine CDP backend
-// (manul_engine/cdp/page.py).
+// Per-frame routing for the CDP backend.
 type FrameTracker struct {
 	conn *Conn
 

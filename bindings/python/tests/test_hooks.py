@@ -1,6 +1,6 @@
 """Suite-level lifecycle hooks.
 
-Ported from the standalone Python engine's `@before_all` / `@after_all` /
+Covers the `@before_all` / `@after_all` /
 `@before_group` / `@after_group`. The suite now lives in the engine — it is what
 knows which files a run contains and what `@tags:` each carries — so the hooks
 are declared here and called back over the protocol.

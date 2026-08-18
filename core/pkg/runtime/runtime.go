@@ -1,12 +1,15 @@
-// Package runtime implements the ManulEngine (Go) DSL execution engine.
+// Package runtime implements the Manul Browser DSL execution engine.
 package runtime
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,6 +20,7 @@ import (
 	"github.com/alexbeatnik/manul-browser/core/pkg/dsl"
 	"github.com/alexbeatnik/manul-browser/core/pkg/explain"
 	"github.com/alexbeatnik/manul-browser/core/pkg/heuristics"
+	"github.com/alexbeatnik/manul-browser/core/pkg/pagejs"
 	"github.com/alexbeatnik/manul-browser/core/pkg/pages"
 	"github.com/alexbeatnik/manul-browser/core/pkg/scorer"
 	"github.com/alexbeatnik/manul-browser/core/pkg/utils"
@@ -38,7 +42,7 @@ const (
 	ThresholdPass3Gap       = 0.04
 )
 
-// Runtime executes ManulEngine (Go) DSL hunts against a live browser page.
+// Runtime executes Manul Browser DSL hunts against a live browser page.
 //
 // CONCURRENCY CONTRACT: A Runtime instance is NOT safe for concurrent use.
 // Each goroutine executing hunts must own its own Runtime, Page, and
@@ -412,7 +416,7 @@ func (rt *Runtime) resolveStructuralAnchor(label string, elements []dom.ElementS
 
 // executeCommand runs a single DSL command and returns its execution result.
 // screenshotSlug turns an optional SCREENSHOT label into a filesystem-safe base
-// name (no extension). Mirrors ManulEngine's extract_screenshot_name.
+// name (no extension).
 func screenshotSlug(s string) string {
 	s = strings.TrimSpace(s)
 	s = strings.TrimSuffix(strings.TrimSuffix(s, ".png"), ".PNG")
@@ -425,7 +429,7 @@ func screenshotSlug(s string) string {
 			prevDisallowed = false
 		default:
 			// Collapse a run of disallowed chars into a single '_' (mirrors
-			// ManulEngine's [^A-Za-z0-9._-]+ → '_' substitution).
+			// the [^A-Za-z0-9._-]+ → '_' substitution).
 			if !prevDisallowed {
 				b.WriteRune('_')
 				prevDisallowed = true
@@ -480,7 +484,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 		// The desktop/Electron window is already attached at launch (the page
 		// was selected via FirstPage/PageMatching). Treat OPEN APP as a
 		// readiness checkpoint on the current window: ensure it is loaded and
-		// report it. Mirrors ManulEngine's OPEN APP for the attach flow.
+		// report it — OPEN APP is a checkpoint, not a launch.
 		if err = rt.page.WaitForLoad(ctx); err != nil {
 			err = fmt.Errorf("open app: %w", err)
 			break
@@ -550,7 +554,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 
 	case dsl.CmdScreenshot:
 		// Capture a full-page PNG on demand into screenshots/<name>.png under
-		// the CWD (auto-named when no label). Matches ManulEngine's SCREENSHOT.
+		// the CWD (auto-named when no label).
 		name := screenshotSlug(rt.resolveVariables(cmd.ScreenshotName))
 		if name == "" {
 			name = fmt.Sprintf("screenshot_%d", time.Now().UnixMilli())
@@ -922,21 +926,22 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 
 			// Detect if it's a native select or custom dropdown
 			if winner.Tag == "select" {
-				js := fmt.Sprintf(`(() => {
-					const el = document.evaluate("%s", document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-					if (!el) return;
-					for (let opt of el.options) {
-						if (opt.text.trim() === "%s" || opt.value === "%s") {
-							el.value = opt.value;
-							el.dispatchEvent(new Event('change', {bubbles: true}));
-							return;
-						}
-					}
-				})()`, strings.ReplaceAll(winner.XPath, `"`, `\"`),
-					strings.ReplaceAll(val, `"`, `\"`),
-					strings.ReplaceAll(val, `"`, `\"`))
-				_, err = rt.page.EvalJS(ctx, js)
-				if err == nil {
+				raw, evalErr := rt.page.EvalJS(ctx, pagejs.SelectOption(winner.XPath, val))
+				if evalErr != nil {
+					err = evalErr
+					break
+				}
+				outcome, decodeErr := decodeSelectResult(raw)
+				switch {
+				case decodeErr != nil:
+					err = fmt.Errorf("select %q: %w", val, decodeErr)
+				case !outcome.Matched:
+					// The page is the only place that knows which options
+					// exist, so it sends them back: a driver that guessed the
+					// label wrong can correct itself from this message instead
+					// of believing it succeeded.
+					err = fmt.Errorf("option %q not found in the dropdown%s", val, formatOptions(outcome.Options))
+				default:
 					rt.invalidateSnapshot()
 				}
 			} else {
@@ -1393,6 +1398,55 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 // command's error and context, for callers that branch on failure kind
 // without parsing error strings. Used only as a fallback — the targeting
 // pipeline sets the precise not_found/ambiguous reasons at their source.
+// selectOutcome is what pagejs.SelectOption reports back from the page.
+type selectOutcome struct {
+	Matched bool     `json:"matched"`
+	Value   string   `json:"value,omitempty"`
+	Options []string `json:"options,omitempty"`
+}
+
+// decodeSelectResult reads that report. The script stringifies it, and a JS
+// string comes back from EvalJS as bare, unquoted bytes — so the JSON arrives
+// ready to unmarshal. A bare `true`/`false` is accepted as the same answer in
+// its shortest form.
+func decodeSelectResult(raw []byte) (selectOutcome, error) {
+	body := strings.TrimSpace(string(raw))
+	if body == "" || body == "null" || body == "undefined" {
+		return selectOutcome{}, errors.New("the page reported no result")
+	}
+	var matched bool
+	if err := json.Unmarshal([]byte(body), &matched); err == nil {
+		return selectOutcome{Matched: matched}, nil
+	}
+	var out selectOutcome
+	if err := json.Unmarshal([]byte(body), &out); err == nil {
+		return out, nil
+	}
+	// Double-encoded: a backend that quoted the string result for us.
+	var inner string
+	if err := json.Unmarshal([]byte(body), &inner); err == nil {
+		if err := json.Unmarshal([]byte(inner), &out); err == nil {
+			return out, nil
+		}
+	}
+	return selectOutcome{}, fmt.Errorf("unreadable result from the page: %s", body)
+}
+
+// formatOptions renders the option list for an error message, empty when the
+// page sent none.
+func formatOptions(options []string) string {
+	var kept []string
+	for _, o := range options {
+		if strings.TrimSpace(o) != "" {
+			kept = append(kept, strconv.Quote(o))
+		}
+	}
+	if len(kept) == 0 {
+		return ""
+	}
+	return " (available: " + strings.Join(kept, ", ") + ")"
+}
+
 func classifyFailure(ctx context.Context, cmd dsl.Command, err error) explain.FailureReason {
 	if ctx.Err() != nil {
 		return explain.ReasonTimeout

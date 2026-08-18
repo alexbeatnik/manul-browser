@@ -1,4 +1,4 @@
-# Copilot Instructions — ManulEngine (Go)
+# Copilot Instructions — Manul Browser
 
 ## GLOBAL DOC SYNC RULE
 
@@ -13,14 +13,14 @@
 ## SOLO DEV ALPHA POSITIONING
 
 > **CRITICAL — Read this first.**
-> ManulEngine (Go) is a Go-based high-performance port of the ManulEngine interaction logic. It is currently in **active alpha**. 
+> Manul Browser is a Go automation runtime driven by plain-English `.hunt` files. It is currently in **active alpha**. 
 > Never imply guarantees of stability, maturity, or production-readiness.
 > Bugs are expected, APIs may change, and the project is meant for technical exploration.
 
 ## CLI INSTALL + VERSION
 
 > **CRITICAL — Read this first.**
-> Current documented ManulEngine (Go) version is **v0.0.8** (one semver everywhere: the git tag, `manul --version` in `cmd/manul/main.go`, and the README all agree — bump them together).
+> Current documented Manul Browser version is **v0.0.8** (one semver everywhere: the git tag, `manul --version` in `cmd/manul/main.go`, and the README all agree — bump them together).
 > When documenting install or usage, prefer the Go binary as a PATH-visible system command named `manul`
 > (for example `~/.local/bin/manul` or `/usr/local/bin/manul`) so editor extensions can invoke it directly.
 > Do not document the repo-local binary as the only intended integration path when the request is about running from tools or extensions.
@@ -28,10 +28,10 @@
 ## AI Identity Directive
 
 **CRITICAL — Read this first.**
-ManulEngine (Go) is a **deterministic, DSL-first Web Automation Runtime** written in Go. It is NOT an AI-first tool.
+Manul Browser is a **deterministic, DSL-first Web Automation Runtime** written in Go. It is NOT an AI-first tool.
 
 1. **Prioritise deterministic actions.** Always default to the plain-English DSL (`CLICK`, `FILL`, `VERIFY`, `NAVIGATE`, `EXTRACT`, `SELECT`, `CHECK`, etc.) and the built-in `Scorer` heuristics.
-2. **Three-Pass Targeting Strategy.** ManulEngine (Go) uses a robust multi-pass resolution for restrictive interaction modes (checkboxes, radios, selects):
+2. **Three-Pass Targeting Strategy.** Manul Browser uses a robust multi-pass resolution for restrictive interaction modes (checkboxes, radios, selects):
    - **Pass 1 (Strict Match):** Finds elements of the requested type (e.g., input[type=checkbox]) matching the text directly.
    - **Pass 2 (Anchor Anchor):** Finds a non-interactive element (e.g., a <td> containing "7") to use as a proximity anchor.
    - **Pass 3 (Refined Target):** Searches for the desired interactive element near the identified anchor. If found within proximity limits, it targets that; otherwise, it targets the anchor and lets the action handler perform local refinement.
@@ -40,7 +40,7 @@ ManulEngine (Go) is a **deterministic, DSL-first Web Automation Runtime** writte
 
 ## What is this project?
 
-ManulEngine (Go) is a high-performance Go port of the Manul interaction engine.
+Manul Browser is a high-performance Go port of the Manul interaction engine.
 It acts as a standalone interpreter for the `.hunt` DSL, driving Chromium via CDP.
 It resolves DOM elements using a weighted heuristic `Scorer` and a JavaScript `TreeWalker` snapshot probe that handles Shadow DOM boundaries.
 It is specifically designed to handle "Frontend Hell": zero-size inputs, hidden labels, custom div-based dropdowns, and paginated dynamic tables.
@@ -72,7 +72,7 @@ pkg/
                            forms, longest-prefix site match, auto-populate on first hit
   scan/                    `manul scan <URL>` — DOM scanner that generates a draft .hunt file;
                            `ScanPage` (basic, flat) and `ScanPageFull` (grouped by semantic region,
-                           Shadow DOM aware) — mirrors ManulEngine's SCAN_JS / FULL_SCAN_JS
+                           Shadow DOM aware)
   agent/                   Batteries-included embedding facade: agent.Session over
                            runtime/cdp/scorer. Launch/Attach own Chrome; Read (zero-scan),
                            ReadText (region text), Step/Run (compact StepOutcome + typed
@@ -83,12 +83,12 @@ examples/                  Reference .hunt files (mega.hunt, sampler.hunt, loops
 
 ## Agent API (`pkg/agent`)
 
-For embedding ManulEngine (Go) in agent/LLM applications, `pkg/agent` is the stable,
+For embedding Manul Browser in agent/LLM applications, `pkg/agent` is the stable,
 compact facade — consumers get browser control "out of the box" without
 spawning Chrome, speaking CDP, or assembling the runtime themselves:
 
 - `agent.Connect(ctx, Options)` — one-call lifecycle: attaches if a Chrome is reachable at `Options.CDPURL`/`Port` (probes `/json/version`), else Launches & owns one. A consumer never probes the port, spawns Chrome, or waits for CDP itself.
-- `agent.Launch(ctx, Options)` — ManulEngine (Go) spawns and owns Chrome; `Close` reaps it.
+- `agent.Launch(ctx, Options)` — Manul Browser spawns and owns Chrome; `Close` reaps it.
 - `agent.Attach(ctx, cdpURL, urlSubstr, Options)` — connect to an existing Chrome (Close leaves it running).
 - `Session.PageState(ctx) → {Title, URL}` — lightweight snapshot (title via `EvalJS("document.title")`, URL via `CurrentURL`); errors per-field are soft (empty, not fatal).
 - `Session.Lookup(ctx, url, settle, extractJS)` — opens url in a background tab (via `CDPBrowser.OpenTarget` → `Target.createTarget`), waits `settle`, runs `extractJS` (or `BuildPageTextProbe` when empty), sanitizes, then reaps the tab (`CloseTarget`). The whole background-tab lifecycle lives in the engine; a consumer passes only its domain extractor. Needs a CDP endpoint (set by Launch/Attach/Connect).
@@ -200,8 +200,7 @@ STEP 2: Enter credentials
 
 ## Heuristic Scoring (Normalised 0.0–1.0)
 
-The `Scorer` ranks candidates using weighted categories (unified with Python
-ManulEngine as of v0.0.1.0):
+The `Scorer` ranks candidates using weighted categories:
 
 1. **Cache (2.00):** Semantic cache and blind context reuse (placeholder in Go).
 2. **Text (0.45):** Direct innerText, aria-label, placeholder, label, and data-qa matches.
@@ -244,7 +243,7 @@ When generating automation logic:
 - `scan.BuildHunt(url, elements)` → `.hunt` string
 - `scan.BuildHuntFull(url, groups)` → annotated `.hunt` string with `# ── GroupName ──` section headers
 
-This mirrors ManulEngine's `SCAN_JS` / `FULL_SCAN_JS` behaviour — same JS logic ported to Go-embedded JS strings.
+The scanner JS is embedded in Go string constants and evaluated in the page.
 
 ## Stdin Hunt Input (`0.0.1.4`+)
 
@@ -283,17 +282,17 @@ results, firstErr := pool.Run(ctx, hunts)
 `pkg/config` resolves a 20-field `Config` struct from four sources in strict priority order:
 
 ```
-CLI Flags  >  MANUL_* env vars  >  manul_engine_configuration.json  >  config.Default()
+CLI Flags  >  MANUL_* env vars  >  manul.config.json  >  config.Default()
 ```
 
 - `config.Default()` always returns a safe zero-configuration baseline — no file required.
-- If `manul_engine_configuration.json` exists in the working directory it is merged next.
+- If `manul.config.json` exists in the working directory it is merged next.
 - `MANUL_HEADLESS`, `MANUL_TIMEOUT`, `MANUL_EXPLAIN`, `MANUL_SCREENSHOT` override the JSON.
 - CLI flag parsing applies last and wins unconditionally.
 
 When generating code that reads configuration, always start from `config.Default()` and apply layers on top — never construct a `Config` literal from scratch.
 
-## VS Code Debug Protocol (`0.0.1.0`+)
+## Pipe-mode Debug Protocol
 
 `pkg/runtime/debug.go` exposes an interactive step debugger driven over stdin/stdout pipes.
 
@@ -375,7 +374,7 @@ Fields: `file` (absolute path), `name` (`filepath.Base`), `timestamp` (RFC3339 U
 
 ## Loop constructs (`0.0.1.1`+)
 
-ManulEngine (Go)'s parser/runtime supports the same loop forms as Python ManulEngine. All bodies follow the standard 4-space indentation rule.
+All loop bodies follow the standard 4-space indentation rule.
 
 | Form | Syntax | Notes |
 |------|--------|-------|

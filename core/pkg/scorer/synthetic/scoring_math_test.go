@@ -3,8 +3,6 @@ package synthetic
 // ─────────────────────────────────────────────────────────────────────────────
 // SCORING MATH LAB — Exact Numerical Validation
 //
-// Port of ManulEngine test_36_scoring_math.py
-//
 // Validates:
 // 1. Individual scoring functions return expected values for known inputs
 // 2. scorer.Score() combines channels correctly via scorer.Weights

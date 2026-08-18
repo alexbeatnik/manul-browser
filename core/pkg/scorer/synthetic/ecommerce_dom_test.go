@@ -3,7 +3,7 @@ package synthetic
 // ─────────────────────────────────────────────────────────────────────────────
 // ECOMMERCE DOM SCORING TEST SUITE
 //
-// Port of ManulEngine test_01_ecommerce.py — 100-element e-commerce page.
+// 100-element e-commerce page.
 // Tests call scorer.Rank() on synthetic []dom.ElementSnapshot arrays.
 // Validates element resolution for carts, sizes, quantities, shipping,
 // promo codes, forms, payment, modals, and reviews.

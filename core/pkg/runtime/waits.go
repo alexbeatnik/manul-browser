@@ -18,7 +18,7 @@ import (
 // must clear before the next step means anything, or a widget that renders after
 // an XHR the DSL has no other handle on.
 const (
-	// defaultWaitTimeout matches the Python engine's 15 seconds.
+	// defaultWaitTimeout is the ceiling for an explicit wait.
 	defaultWaitTimeout = 15 * time.Second
 	// waitPollInterval is a compromise: tight enough that a wait rarely costs
 	// more than it must, loose enough not to hammer CDP with snapshots.

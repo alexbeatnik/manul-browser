@@ -1,13 +1,13 @@
 ---
 name: concurrency-rules
-description: Enforce ManulEngine (Go)'s concurrency contract when editing runtime/, cdp/, worker/, or anything that spawns goroutines. Use when adding shared state, introducing a goroutine, modifying the Worker/Pool API, or touching CDP transport internals.
+description: Enforce Manul Browser's concurrency contract when editing runtime/, cdp/, worker/, or anything that spawns goroutines. Use when adding shared state, introducing a goroutine, modifying the Worker/Pool API, or touching CDP transport internals.
 ---
 
-# ManulEngine (Go) concurrency contract
+# Manul Browser concurrency contract
 
 Established in `0.0.0.2`, extended in `0.0.0.3` with `RunHuntsInParallel`
 and per-worker log prefixes, extended in `0.0.0.5` with the configuration
-system (`pkg/config`) and VS Code debug protocol (`pkg/runtime/debug.go`),
+system (`pkg/config`) and the pipe-mode debug protocol (`pkg/runtime/debug.go`),
 refined in `0.0.0.6` (20-field `Config`, 37-field `ElementSnapshot`, `pkg/core` enums),
 hardened in `0.0.0.7` (removed internal goroutine from `Runtime`, bounded cleanup contexts,
 connection-leak fix in CLI).
@@ -29,7 +29,7 @@ Every rule here has a test under `-race`; violations trip CI.
    - `worker.RunHuntsInParallel(ctx, cfg, hunts, n, logger)` — zero-config
      convenience wrapper that creates a pool, runs hunts, and returns results
      in input order. Use this for quick fan-out; use `NewPool` directly when
-     you need `FailFast` or custom `ChromeOptions`.
+     you need `FailFast` or custom `LaunchOptions`.
 
 3. **Ports go through `worker.PortAllocator`.** No hardcoded 9222, no
    parallel-safe assumption without `Acquire()` / `Release()`.

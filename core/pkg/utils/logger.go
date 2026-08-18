@@ -88,8 +88,8 @@ func WithPrefix(parent *Logger, prefix string) *Logger {
 
 // write is the single choke-point for all output: acquires the lock, appends a
 // newline, writes to the console writer, flushes stdout, then writes to the
-// file writer if set. The Sync() call is required by the VS Code extension
-// contract so every line is visible on the pipe immediately.
+// file writer if set. The Sync() call is what makes each line visible on the
+// pipe immediately, which any non-TTY driver depends on.
 func (l *Logger) write(format string, args ...any) {
 	msg := fmt.Sprintf(format, args...) + "\n"
 	l.mu.Lock()
@@ -134,9 +134,9 @@ func (l *Logger) Error(format string, args ...any) {
 //	Action (2 spaces): ActionStart / ActionPass / ActionFail / ActionWarn
 //	Detail (4 spaces): HeuristicDetail / ActionDetail
 
-// Startup prints the 🐾 ManulEngine header line at mission start.
+// Startup prints the 🐾 Manul Browser header line at mission start.
 func (l *Logger) Startup(model, browser string) {
-	l.write("\n🐾 ManulEngine [%s] | browser: %s", model, browser)
+	l.write("\n🐾 Manul Browser [%s] | browser: %s", model, browser)
 }
 
 // BlockStart logs the 📦 BLOCK START banner (no indent).

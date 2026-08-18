@@ -1,4 +1,4 @@
-# ManulEngine (Go) DSL — LLM Cheat-Sheet
+# Manul Browser DSL — LLM Cheat-Sheet
 
 A compact, copy-pasteable contract for an LLM that **authors `.hunt` files** or
 **drives the engine over the agent API**. This is the human mirror of

@@ -3,7 +3,7 @@ package synthetic
 // ─────────────────────────────────────────────────────────────────────────────
 // QA CLASSICS DOM SCORING TEST SUITE
 //
-// Port of ManulEngine test_14_qa_classics.py — 30-element Rahul Shetty QA
+// 30-element Rahul Shetty QA
 // practice page + blogspot controls.
 // Validates: radio buttons, autocomplete, dropdowns, checkboxes, alert/confirm
 // buttons, hide/show, tables, hover menu, Wikipedia search, date picker,

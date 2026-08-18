@@ -1,8 +1,8 @@
 # Extensions — `CALL GO` & Custom Controls
 
-> *How to extend ManulEngine (Go) with native Go code.*
+> *How to extend Manul Browser with native Go code.*
 
-ManulEngine (Go) does not use Python decorators, JavaScript plugins, or dynamic module loading. Extensions are **compiled Go functions** registered at process startup via a strongly-typed API. Because they are native Go, they are:
+Manul Browser does not use Python decorators, JavaScript plugins, or dynamic module loading. Extensions are **compiled Go functions** registered at process startup via a strongly-typed API. Because they are native Go, they are:
 
 - **Type-safe** — the compiler checks your handler signatures
 - **Zero-overhead** — no interpreter, no serialization across language boundaries
@@ -320,16 +320,4 @@ STEP 1:
 
 ---
 
-## Comparison with Python ManulEngine
-
-| Capability | Python (`CALL PYTHON`) | Go (`CALL GO`) |
-|------------|----------------------|----------------|
-| Language | Python modules | Go functions |
-| Registration | `@custom_control` decorator | `RegisterCustomControl()` / `RegisterGoCall()` |
-| Type safety | Runtime duck typing | Compile-time checked |
-| Concurrency | GIL-limited | Goroutine-safe by design |
-| Arguments | `shlex.split` + placeholder resolution | Shell-tokenized + `ScopedVariables.Interpolate()` |
-| Return handling | Dict flattened into variables | `map[string]string` / `map[string]any` → `LevelRow` |
-| Aliases | `@script:` | `@script:` (same syntax, Go paths) |
-
-ManulEngine (Go)'s extension model trades dynamic reloading for safety, speed, and parallelism. You compile your extensions into the binary once; they run at native speed forever.
+Manul Browser's extension model trades dynamic reloading for safety, speed, and parallelism. You compile your extensions into the binary once; they run at native speed forever.

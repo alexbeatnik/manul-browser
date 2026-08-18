@@ -62,7 +62,7 @@ usable. Protocol-level faults (unparseable line, unknown `cmd`) answer with
 **Event** — unsolicited, no `id`:
 
 ```json
-{"event":"ready","protocol":"1.0","engine":"0.1.0"}
+{"event":"ready","protocol":"1.0","engine":"0.1.1"}
 {"event":"log","level":"warn","message":"tab navigated mid-step"}
 ```
 
@@ -111,7 +111,7 @@ element is something an agent reacts to; the session stays healthy.
 A leading UTF-8 BOM on a request line is ignored — shell pipelines and Windows
 editors add one, and rejecting it would only ever look like a client bug.
 
-### Launch a new Chrome, or attach to a running one
+### Launch a new browser, or attach to a running one
 
 This is **configuration, not a command**. `open` takes no mode argument of its
 own; it reads the resolved config, so a caller that has set the config correctly
@@ -127,10 +127,10 @@ This protocol requires one explicit key instead:
 |----------------|----------------------|------------------------|--------|
 | `browser_mode` | `MANUL_BROWSER_MODE` | `--attach` / `--launch`| `launch` (default) · `attach` |
 
-- **`launch`** — the engine starts a fresh Chrome and owns its lifetime; it is
+- **`launch`** — the engine starts a fresh browser and owns its lifetime; it is
   closed when the session closes. `browser`, `channel`, `executable_path`,
   `browser_args`, `headless` apply.
-- **`attach`** — the engine connects to an already-running Chrome at
+- **`attach`** — the engine connects to an already-running browser at
   `cdp_endpoint` (default `http://127.0.0.1:9222`) and drives the first existing
   page, or the first tab whose URL contains `tab` if given. The browser is **not**
   closed when the session closes — the engine did not open it. Launch-only keys
@@ -143,6 +143,20 @@ existing configs do not break, but it is deprecated and the engine emits a
 `open` may override any of these for one session — `{"cmd":"open","args":{"mode":"attach","cdp":"http://127.0.0.1:9333"}}` — which is
 what a binding exposes as constructor arguments. Precedence is the existing
 config chain: `open` args › env › JSON config › defaults.
+
+### Which browser, and therefore which protocol
+
+`browser` names the engine: `chromium` (the default) or `firefox`. It is an
+`open` argument as well as a config key — `{"cmd":"open","args":{"browser":"firefox","headless":true}}` — and an
+unsupported value is answered with `bad_request` rather than a browser the
+caller did not ask for.
+
+The engine chooses the wire protocol from the browser, not the other way
+round: Chromium is driven over CDP, Firefox over WebDriver BiDi, which is the
+only protocol Firefox has spoken since it removed CDP in version 141. In
+`attach` mode the endpoint decides instead, by scheme: `http://…` is CDP,
+`ws://…` is BiDi. Everything above this layer — every command, every result
+shape in this document — is identical either way.
 
 ### Sessions and `vars`
 

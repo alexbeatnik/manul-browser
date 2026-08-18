@@ -198,7 +198,7 @@ func (rt *Runtime) debugPrompt(ctx context.Context, cmd dsl.Command, idx int) er
 	if isTTY() {
 		return rt.debugPromptTTY(ctx, cmd, idx)
 	}
-	return rt.debugPromptExtension(ctx, cmd, idx)
+	return rt.debugPromptPipe(ctx, cmd, idx)
 }
 
 // debugPromptTTY drives the interactive readline prompt when stdin is a TTY.
@@ -307,8 +307,8 @@ func confidenceLabel(score float64) string {
 	}
 }
 
-// explainNextPayload implements the VS Code extension's ExplainNextResult
-// TypeScript interface (contracts/EXTENSION_ENGINE_CONTRACT.md §3.5).
+// explainNextPayload is the explain-next marker's JSON body
+// (spec/contracts/MANUL_DEBUG_CONTRACT.md, explainNext.fields).
 // All 10 fields are serialized on every emission; null-typed fields use
 // pointer types so `encoding/json` can write JSON null.
 type explainNextPayload struct {
@@ -406,7 +406,7 @@ func (rt *Runtime) buildExplainNextResult(ctx context.Context, stepText string, 
 	}
 }
 
-func (rt *Runtime) debugPromptExtension(ctx context.Context, cmd dsl.Command, idx int) error {
+func (rt *Runtime) debugPromptPipe(ctx context.Context, cmd dsl.Command, idx int) error {
 	// Contract §3.4: payload idx is 1-based.
 	pausePayload := fmt.Sprintf(`{"step":%q,"idx":%d}`, cmd.Raw, idx+1)
 

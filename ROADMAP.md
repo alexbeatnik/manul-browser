@@ -46,10 +46,9 @@ multi-hunt tagged run would settle it.
 
 ### 4. `run-suite` session semantics
 
-All hunts in a suite share one browser session. The standalone Python engine
-almost certainly gave each hunt a fresh page. Nobody has decided which is
-correct here, so state leaking between hunts in a suite is currently possible
-and undocumented. Decide, then write it into the contract either way.
+All hunts in a suite share one browser session, so state can leak between them.
+Nobody has decided whether that is correct or whether each hunt should get a
+fresh page. Decide, then write it into the contract either way.
 
 ### 5. Reverse-call nesting depth
 
@@ -143,9 +142,21 @@ What is left is the packaging half:
 - **The release workflow does not know about npm.** It builds six wheels; it
   builds no tarballs, and `bindings/node` is not in it at all.
 
-### 4. Release pipeline — written, switched off, never fired
+### 4. Release pipeline — binaries ship, packages do not
 
-`.github/workflows/release.yml.disabled` takes a `vX.Y.Z` tag, cross-compiles the
+`.github/workflows/release.yml` is live. It reads the version from
+`core/cmd/manul/main.go`, refuses to build when the bindings or the contracts
+disagree with it, cross-compiles the six targets, and publishes the archives plus
+`SHA256SUMS.txt` as a GitHub Release — then tags `core/vX.Y.Z`, which is what a
+`go get` of the module resolves. It needs no secrets: `GITHUB_TOKEN` with
+`contents: write` is the whole permission set, and `workflow_dispatch` has a
+`dry_run` input that builds and uploads to the run without releasing anything.
+
+Everything it does is reversible: a release can be deleted, a tag re-pushed.
+That is the line it does not cross — no package index is touched.
+
+The wheel half is still off. `.github/workflows/release.yml.disabled` takes a
+`vX.Y.Z` tag, cross-compiles the
 engine for six targets, wraps each in a platform-tagged wheel, and installs every
 wheel on a matching runner to drive a real Chrome through it. Locally verified as
 far as a Windows machine allows: the wheel builds, installs, and `manul
@@ -166,17 +177,18 @@ above them: repository renamed first, then the PyPI trusted publisher and the
 
 What is still open:
 
-- **It has never run**, and cannot until it is re-enabled. Everything below is
-  therefore theory, including whether `pypi` as a trusted publisher is
-  configured at all — which is a setting on PyPI, not in this repository.
+- **The wheel pipeline has never run**, and cannot until it is re-enabled.
+  Everything about it is therefore theory, including whether `pypi` as a trusted
+  publisher is configured at all — which is a setting on PyPI, not in this
+  repository.
 - **npm and NuGet do not exist yet.** "Both packages together" is currently one
   package. The npm half is §3.
 - **`macos-15-intel` and `ubuntu-24.04-arm` smoke jobs are best-effort.** They
   are marked `continue-on-error` so a retired runner label cannot hold up a
   release; those two wheels ship built but unproven.
-- **Nothing publishes the Go module.** It needs its own `core/vX.Y.Z` tag,
-  because Go derives the version from the subdirectory the module lives in. The
-  release job does not create it.
+- **The binary release proves only linux/amd64.** That is the one target the
+  runner can execute, so it is the only one whose `--version` is checked before
+  upload; the other five ship compiled but unrun.
 
 ### 5. CI runs on Linux only
 

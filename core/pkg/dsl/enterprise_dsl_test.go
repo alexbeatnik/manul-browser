@@ -3,8 +3,6 @@ package dsl
 // ─────────────────────────────────────────────────────────────────────────────
 // ENTERPRISE DSL TEST SUITE
 //
-// Port of ManulEngine test_37_enterprise_dsl.py
-//
 // Validates:
 // A. Command type classification for new DSL keywords
 // B. Strict VERIFY forms (text, value, placeholder)

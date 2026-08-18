@@ -24,27 +24,8 @@ type ChromeProcess struct {
 	ownsDataDir bool // true when we created the dir and should clean it up
 }
 
-// ChromeOptions configures the Chrome process to spawn.
-type ChromeOptions struct {
-	// Port for Chrome's remote debugging protocol. Default: 9222.
-	Port int
-	// UserDataDir is the Chrome profile directory.
-	// If empty, a unique temp directory is created per run and cleaned up on Close.
-	UserDataDir string
-	// DisableGPU disables GPU acceleration. Default: true.
-	DisableGPU bool
-	// Headless runs Chrome without a visible window.
-	Headless bool
-	// ExecutablePath overrides the Chrome binary location.
-	ExecutablePath string
-	// Channel selects a system Chrome/Chromium binary by name (chrome,
-	// chrome-beta, chrome-dev, chromium, msedge). Empty = platform defaults.
-	// Mirrors ManulEngine's `channel` / MANUL_CHANNEL.
-	Channel string
-}
-
 // channelBinaries maps a channel name to the concrete binaries to probe (in
-// order). Mirrors ManulEngine's _CHANNEL_BINARIES.
+// order).
 var channelBinaries = map[string][]string{
 	"chrome":      {"google-chrome-stable", "google-chrome"},
 	"chrome-beta": {"google-chrome-beta"},
@@ -53,21 +34,13 @@ var channelBinaries = map[string][]string{
 	"msedge":      {"microsoft-edge-stable", "microsoft-edge"},
 }
 
-// DefaultChromeOptions returns sensible defaults for automation.
-// UserDataDir is left empty so LaunchChrome creates a unique temp directory.
-func DefaultChromeOptions() ChromeOptions {
-	return ChromeOptions{
-		Port:       9222,
-		DisableGPU: true,
-		Headless:   false,
-	}
-}
-
 // LaunchChrome starts a Chrome process with remote debugging enabled.
 // It blocks until Chrome's CDP endpoint is reachable (or context expires).
 // If opts.UserDataDir is empty, a unique temp directory is created and owned
 // by the returned ChromeProcess (removed when Close is called).
-func LaunchChrome(ctx context.Context, opts ChromeOptions) (*ChromeProcess, error) {
+//
+// opts.Browser is ignored here; Launch is the entry point that honours it.
+func LaunchChrome(ctx context.Context, opts LaunchOptions) (*ChromeProcess, error) {
 	chromePath := opts.ExecutablePath
 	if chromePath == "" {
 		var err error
@@ -79,7 +52,7 @@ func LaunchChrome(ctx context.Context, opts ChromeOptions) (*ChromeProcess, erro
 
 	ownsDir := false
 	if opts.UserDataDir == "" {
-		dir, err := os.MkdirTemp("", "manulengine-chrome-*")
+		dir, err := os.MkdirTemp("", "manul-chrome-*")
 		if err != nil {
 			return nil, fmt.Errorf("create chrome temp dir: %w", err)
 		}
@@ -164,6 +137,19 @@ func LaunchChrome(ctx context.Context, opts ChromeOptions) (*ChromeProcess, erro
 // Endpoint returns the HTTP CDP endpoint URL.
 func (cp *ChromeProcess) Endpoint() string {
 	return fmt.Sprintf("http://127.0.0.1:%d", cp.port)
+}
+
+// Close terminates the Chrome process and all its children, then removes the
+// temp profile directory if we created it.
+func (cp *ChromeProcess) Close() error {
+	if cp.cmd == nil || cp.cmd.Process == nil {
+		return nil
+	}
+	killProcessTree(cp.cmd)
+	if cp.ownsDataDir && cp.userDataDir != "" {
+		_ = os.RemoveAll(cp.userDataDir)
+	}
+	return nil
 }
 
 // findChrome searches for a Chrome binary in common locations.

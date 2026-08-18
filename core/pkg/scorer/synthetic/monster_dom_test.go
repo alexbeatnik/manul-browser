@@ -3,7 +3,7 @@ package synthetic
 // ─────────────────────────────────────────────────────────────────────────────
 // MONSTER DOM SCORING TEST SUITE
 //
-// Port of ManulEngine test_00_engine.py — 80+ element "Monster DOM" page.
+// 80+ element "Monster DOM" page.
 // Tests call scorer.Rank() on synthetic []dom.ElementSnapshot arrays.
 // Validates edge cases: hidden traps, shadow DOM, sr-only text, exact vs
 // partial matching, disabled vs enabled, fieldset/legend, data-qa fallback,
