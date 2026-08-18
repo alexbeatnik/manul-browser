@@ -3,11 +3,10 @@ package synthetic
 // ─────────────────────────────────────────────────────────────────────────────
 // DISAMBIGUATION EDGE CASES TEST SUITE
 //
-// Port of ManulEngine test_18_disambiguation.py — 85 element-resolution tests.
+// 85 element-resolution tests.
 //
-// The Python version uses browser + ManulEngine._resolve_element().
-// The Go version uses scorer.Rank() on crafted []dom.ElementSnapshot arrays,
-// which is the pure-unit equivalent of the targeting pipeline.
+// Driven through scorer.Rank() on crafted []dom.ElementSnapshot arrays, which
+// is the pure-unit equivalent of the targeting pipeline.
 //
 // Validates:
 // A. Antonym pairs (Yes/No, Active/Inactive, Enabled/Disabled)

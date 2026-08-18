@@ -3,7 +3,6 @@
 package browser
 
 import (
-	"os"
 	"os/exec"
 	"time"
 )
@@ -11,28 +10,19 @@ import (
 // setProcGroup is a no-op on Windows (process groups work differently).
 func setProcGroup(cmd *exec.Cmd) {
 	// Windows does not use Unix process groups.
-	// Chrome child processes will be terminated via Process.Kill().
+	// Browser child processes will be terminated via Process.Kill().
 }
 
-// Close terminates the Chrome process on Windows and cleans up the profile directory.
-func (cp *ChromeProcess) Close() error {
-	if cp.cmd == nil || cp.cmd.Process == nil {
-		return nil
-	}
-	_ = cp.cmd.Process.Kill()
+// killProcessTree terminates a launched browser on Windows.
+func killProcessTree(cmd *exec.Cmd) {
+	_ = cmd.Process.Kill()
 	done := make(chan struct{})
 	go func() {
-		_ = cp.cmd.Wait()
+		_ = cmd.Wait()
 		close(done)
 	}()
 	select {
 	case <-done:
 	case <-time.After(3 * time.Second):
 	}
-
-	// Clean up owned temp directory
-	if cp.ownsDataDir && cp.userDataDir != "" {
-		_ = os.RemoveAll(cp.userDataDir)
-	}
-	return nil
 }

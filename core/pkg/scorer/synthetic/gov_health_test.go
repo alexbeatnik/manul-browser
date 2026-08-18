@@ -3,7 +3,7 @@ package synthetic
 // ─────────────────────────────────────────────────────────────────────────────
 // GOV/HEALTHCARE DOM SCORING TEST SUITE
 //
-// Port of ManulEngine test_07_gov_health.py — 100-element healthcare/gov page.
+// 100-element healthcare/gov page.
 // Validates: authentication, demographics, address, medical history, insurance,
 // appointments, accessibility, consent/signatures, records, form navigation.
 // Skipped: extract (47,89), verify (9,10,71,96,99).

@@ -3,9 +3,6 @@ package dsl
 // ─────────────────────────────────────────────────────────────────────────────
 // VARIABLES & IMPORTS TEST SUITE
 //
-// Port of ManulEngine test_20_variables.py + test_43_scoped_variables.py +
-// test_50_imports.py
-//
 // Validates variable substitution, scoped variables, @var declarations,
 // import directives, and variable resolution in various contexts.
 // ─────────────────────────────────────────────────────────────────────────────

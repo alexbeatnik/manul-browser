@@ -428,7 +428,7 @@ STEP 5:
     Click the 'Confirm' button
 ```
 
-Enters the interactive debugger. In TTY mode, presents a terminal prompt. In pipe mode (VS Code extension), emits `\x00MANUL_DEBUG_PAUSE\x00` markers.
+Enters the interactive debugger. In TTY mode, presents a terminal prompt. In pipe mode (stdin not a TTY), emits `\x00MANUL_DEBUG_PAUSE\x00` markers.
 
 ### DEBUG VARS
 

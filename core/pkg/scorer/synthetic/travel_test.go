@@ -3,7 +3,7 @@ package synthetic
 // ─────────────────────────────────────────────────────────────────────────────
 // TRAVEL DOM SCORING TEST SUITE
 //
-// Port of ManulEngine test_04_travel.py — 100-element travel booking page.
+// 100-element travel booking page.
 // Validates: flight search, calendar, passengers, sidebar filters, flight cards,
 // seat map, add-ons, passenger form, hotel search, checkout.
 // Skipped: extract (14,23,26,41,44,61,89,91,92,93), verify (18,50,52,60),

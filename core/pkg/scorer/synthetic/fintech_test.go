@@ -3,7 +3,7 @@ package synthetic
 // ─────────────────────────────────────────────────────────────────────────────
 // FINTECH DOM SCORING TEST SUITE
 //
-// Port of ManulEngine test_05_fintech.py — 100-element banking/crypto page.
+// 100-element banking/crypto page.
 // Validates: account overview, transfers, crypto trading, transactions,
 // security/PIN, card management, KYC, loans, investments, session.
 // Skipped: extract (1,3,4,21,31,32,34,35,51,74,75,89), verify (30,72,80,93,100),

@@ -3,9 +3,8 @@ package synthetic
 // ─────────────────────────────────────────────────────────────────────────────
 // VERIFY ENABLED / DISABLED — State Detection Test Suite
 //
-// Port of ManulEngine test_32_verify_enabled.py — 20 state assertions.
+// 20 state assertions.
 //
-// The Python version uses browser + ManulEngine._handle_verify().
 // The Go version tests element resolution + IsDisabled state: if the scorer
 // finds the element AND the element has the correct disabled state, the
 // VERIFY command would succeed.

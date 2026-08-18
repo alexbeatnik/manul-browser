@@ -1,6 +1,6 @@
 {
   "name": "manul-browser",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Browser automation in plain English — for humans and LLM agents.",
   "keywords": ["browser", "automation", "testing", "cdp", "chrome", "llm", "agent"],
   "license": "Apache-2.0",

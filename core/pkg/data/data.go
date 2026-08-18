@@ -1,4 +1,4 @@
-// Package data implements data-driven testing support for ManulEngine (Go).
+// Package data implements data-driven testing support for Manul Browser.
 //
 // It loads JSON arrays or CSV files referenced by @data: directives
 // and feeds each row into the runtime as scoped variables.

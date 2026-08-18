@@ -22,7 +22,7 @@ type WorkerFactory func(ctx context.Context, opts Options) (*Worker, error)
 
 // PoolOptions configures a WorkerPool.
 type PoolOptions struct {
-	// Concurrency is the maximum number of Workers (and Chrome processes)
+	// Concurrency is the maximum number of Workers (and browser processes)
 	// active at once. Required, must be >= 1.
 	Concurrency int
 
@@ -36,9 +36,9 @@ type PoolOptions struct {
 	// Allocator hands out CDP debug ports. Required.
 	Allocator *PortAllocator
 
-	// ChromeOptions are passed to each Worker's Chrome launch (Port is
+	// LaunchOptions are passed to each Worker's browser launch (Port is
 	// always overridden by the Allocator).
-	ChromeOptions browser.ChromeOptions
+	LaunchOptions browser.LaunchOptions
 
 	// FailFast cancels the shared context as soon as any hunt errors,
 	// causing other in-flight workers to abort their current step.
@@ -144,7 +144,7 @@ func (p *WorkerPool) Run(ctx context.Context, hunts []*dsl.Hunt) ([]PoolResult, 
 				Config:        p.opts.Config,
 				Logger:        p.opts.Logger,
 				Allocator:     p.opts.Allocator,
-				ChromeOptions: p.opts.ChromeOptions,
+				LaunchOptions: p.opts.LaunchOptions,
 			})
 			if err != nil {
 				// Don't drain the jobs channel — let other successfully-spawned
@@ -223,20 +223,21 @@ func (p *WorkerPool) Run(ctx context.Context, hunts []*dsl.Hunt) ([]PoolResult, 
 // gctx carries suite-level hooks; pass nil when none are registered.
 func RunHuntsInParallel(ctx context.Context, cfg config.Config, hunts []*dsl.Hunt, concurrency int, baseLogger *utils.Logger, gctx *lifecycle.GlobalContext) ([]PoolResult, error) {
 	alloc := NewPortAllocator(9222, 9222+concurrency*2)
-	chromeOpts := browser.DefaultChromeOptions()
-	chromeOpts.Headless = cfg.Headless
+	launchOpts := browser.DefaultLaunchOptions()
+	launchOpts.Browser = cfg.Browser
+	launchOpts.Headless = cfg.Headless
 	if cfg.Channel != nil && *cfg.Channel != "" {
-		chromeOpts.Channel = *cfg.Channel
+		launchOpts.Channel = *cfg.Channel
 	}
 	if cfg.ExecutablePath != nil && *cfg.ExecutablePath != "" {
-		chromeOpts.ExecutablePath = *cfg.ExecutablePath
+		launchOpts.ExecutablePath = *cfg.ExecutablePath
 	}
 	pool, err := NewPool(PoolOptions{
 		Concurrency:   concurrency,
 		Config:        cfg,
 		Logger:        baseLogger,
 		Allocator:     alloc,
-		ChromeOptions: chromeOpts,
+		LaunchOptions: launchOpts,
 		Lifecycle:     gctx,
 	})
 	if err != nil {

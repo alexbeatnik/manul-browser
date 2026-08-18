@@ -1,6 +1,6 @@
-# ManulEngine (Go) Agent Instructions
+# Manul Browser Agent Instructions
 
-You are a Principal Go Systems Engineer and QA Architect working on **ManulEngine (Go)**, a deterministic, zero-dependency browser automation engine.
+You are a Principal Go Systems Engineer and QA Architect working on **Manul Browser**, a deterministic, zero-dependency browser automation engine.
 
 ## Core Philosophy
 
@@ -117,14 +117,14 @@ results, firstErr := pool.Run(ctx, hunts)
 report.GenerateIndex(summaries, "reports")  // aggregate index.html
 ```
 
-For quick fan-out without `FailFast` or custom `ChromeOptions`, use the convenience
+For quick fan-out without `FailFast` or custom `LaunchOptions`, use the convenience
 wrapper: `results, err := worker.RunHuntsInParallel(ctx, cfg, hunts, n, logger)` —
 returns per-hunt results in input order.
 
 ### Agent API (`pkg/agent`)
 
 `pkg/agent` is the batteries-included embedding facade for agent/LLM consumers:
-ManulEngine (Go) owns the whole browser lifecycle and the caller gets a small, compact API.
+Manul Browser owns the whole browser lifecycle and the caller gets a small, compact API.
 
 ```go
 sess, _ := agent.Launch(ctx, agent.Options{Headless: true}) // spawns & owns Chrome
@@ -191,16 +191,16 @@ The matching keyUp must NOT carry text. Tests: `pkg/browser/keys_test.go`.
 `pkg/config` resolves a 20-field `Config` struct from four sources in strict priority order:
 
 ```
-CLI Flags  >  MANUL_* env vars  >  manul_engine_configuration.json  >  config.Default()
+CLI Flags  >  MANUL_* env vars  >  manul.config.json  >  config.Default()
 ```
 
 - Always start from `config.Default()` and apply layers on top — never construct a `Config` literal from scratch.
 - `MANUL_HEADLESS`, `MANUL_TIMEOUT`, `MANUL_EXPLAIN`, `MANUL_SCREENSHOT` are the primary env overrides.
-- If `manul_engine_configuration.json` exists in the working directory it is merged before env vars.
+- If `manul.config.json` exists in the working directory it is merged before env vars.
 
 ## Loops & Page Registry (`0.0.1.1`+)
 
-ManulEngine (Go) matches Python ManulEngine's loop and page-naming semantics:
+Loop and page-naming semantics:
 
 - **`REPEAT N TIMES:`** — body executes N times; `{i}` is auto-bound as a 0-based counter.
 - **`FOR EACH {var} IN {collection}:`** — iterates a comma-separated list stored in a variable.
@@ -213,8 +213,8 @@ Page labels are resolved through `pkg/pages` (`pages/<safe-netloc>.json` next to
 
 `pkg/scan` exposes two scan modes via `manul scan <URL>`:
 
-- **Basic** (`ScanPage`): flat list of interactive elements → draft `.hunt` in document order. Mirrors ManulEngine's `SCAN_JS`.
-- **Full** (`ScanPageFull`, flag `--full`): traverses the DOM with Shadow DOM recursion, groups elements by semantic landmark (`<form>`, `<nav>`, `<main>`, `<dialog>`, ARIA roles). Shadow DOM roots appear as `GroupName [shadow]`. Mirrors ManulEngine's `FULL_SCAN_JS`.
+- **Basic** (`ScanPage`): flat list of interactive elements → draft `.hunt` in document order.
+- **Full** (`ScanPageFull`, flag `--full`): traverses the DOM with Shadow DOM recursion, groups elements by semantic landmark (`<form>`, `<nav>`, `<main>`, `<dialog>`, ARIA roles). Shadow DOM roots appear as `GroupName [shadow]`.
 
 `BuildHuntFull` emits `# ── GroupName ──` comment headers; `Page` group is always first, rest are sorted alphabetically. ARIA roles (`textbox`, `combobox`, `switch`) are mapped to the correct DSL verbs (`Fill`, `Select`, `Check`).
 
@@ -231,7 +231,7 @@ Use cases: editor integrations, CI generators, ad-hoc one-liners, OS-Manul dispa
 
 ## Visual Parity for Element Highlighting (`0.0.1.0`+)
 
-ManulEngine (Go) now matches Python ManulEngine's visual feedback exactly:
+Visual feedback during a run:
 
 - **Normal action flash highlight:** Every resolved action (click, fill, hover, etc.) triggers a
   2-second red border + yellow background flash via `Page.HighlightElement()`. This mirrors
@@ -273,7 +273,7 @@ Read the relevant skill file **before** making changes to related systems.
 | Concurrency, `pkg/worker`, `pkg/runtime`, `pkg/cdp`, any `go` routine | `.claude/skills/concurrency-rules/SKILL.md` |
 | `pkg/scorer`, `pkg/dom`, JS probes (`pkg/heuristics`) | `.claude/skills/scoring-heuristics/SKILL.md` |
 | Writing or reviewing `.hunt` files | `.claude/skills/hunt-authoring/SKILL.md` |
-| Writing or debugging tests | `.claude/skills/testing-manulengine-go/SKILL.md` |
+| Writing or debugging tests | `.claude/skills/testing-manul-browser/SKILL.md` |
 | Adding/modifying DSL commands in `pkg/dsl` + `pkg/runtime` | `.claude/skills/adding-dsl-commands/SKILL.md` |
 | `RegisterCustomControl` / `RegisterGoCall` extension registries | `.claude/skills/extensions-and-go-calls/SKILL.md` |
 | `pkg/browser/`, `pkg/cdp/` — Page interface, Chrome lifecycle, CDP commands | `.claude/skills/cdp-browser-backend/SKILL.md` |

@@ -5,8 +5,8 @@ import (
 	"testing"
 )
 
-// The same command under all three spellings must parse identically: a .hunt
-// written for the Python engine keeps working, and new scripts can say HOST.
+// The same command under all three spellings must parse identically: the
+// host language is a property of the runtime, not of the script.
 func TestCallHostSpellingsAreEquivalent(t *testing.T) {
 	lines := map[string]string{
 		"go":     `CALL GO compute_total with args: "12" into {total}`,

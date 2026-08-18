@@ -19,6 +19,7 @@ import (
 	"sync"
 
 	"github.com/alexbeatnik/manul-browser/core/pkg/agent"
+	"github.com/alexbeatnik/manul-browser/core/pkg/browser"
 	"github.com/alexbeatnik/manul-browser/core/pkg/config"
 	"github.com/alexbeatnik/manul-browser/core/pkg/lifecycle"
 	"github.com/alexbeatnik/manul-browser/core/pkg/runtime"
@@ -332,6 +333,9 @@ type openArgs struct {
 	Headless       *bool  `json:"headless"`
 	Port           int    `json:"port"`
 	ExecutablePath string `json:"executablePath"`
+	// Browser picks the engine for launch: "chromium" (default) or "firefox".
+	// Attach ignores it — the endpoint says which protocol to speak.
+	Browser string `json:"browser"`
 }
 
 type openResult struct {
@@ -365,6 +369,12 @@ func (s *Server) cmdOpen(ctx context.Context, raw json.RawMessage) (any, string,
 	if a.ExecutablePath != "" {
 		cfg.ExecutablePath = &a.ExecutablePath
 	}
+	if a.Browser != "" {
+		if _, err := browser.NormalizeEngine(a.Browser); err != nil {
+			return nil, CodeBadRequest, err
+		}
+		cfg.Browser = a.Browser
+	}
 
 	mode := cfg.ResolveBrowserMode()
 	if a.Mode != "" && mode != strings.ToLower(a.Mode) {
@@ -379,6 +389,7 @@ func (s *Server) cmdOpen(ctx context.Context, raw json.RawMessage) (any, string,
 		Headless:       cfg.Headless,
 		Port:           a.Port,
 		ExecutablePath: derefOr(cfg.ExecutablePath, ""),
+		Browser:        cfg.Browser,
 		Config:         &cfg,
 		Logger:         s.opts.Logger,
 	}

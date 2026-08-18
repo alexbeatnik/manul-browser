@@ -86,7 +86,7 @@ func TestGenerateHTML_ContainsStepText(t *testing.T) {
 	content := string(data)
 
 	for _, needle := range []string{
-		"ManulEngine (Go) Report",
+		"Manul Browser Report",
 		"Smoke Test",
 		"smoke.hunt",
 		"Click Login",

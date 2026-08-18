@@ -1,6 +1,6 @@
-// Package pages implements the ManulEngine (Go) page-name registry.
+// Package pages implements the Manul Browser page-name registry.
 //
-// It mirrors Python ManulEngine's pages/ directory system:
+// The registry on disk:
 //   - Per-site JSON fragments under <project>/pages/<safe_netloc>.json
 //   - Lean shape:   { "site": "https://example.com/", "Domain": "Example", "/login": "Login Page" }
 //   - Wrapped shape:{ "https://example.com/": { "Domain": "Example", "/login": "Login Page" } }
@@ -75,7 +75,7 @@ func (r *Registry) Reload() {
 
 // LookupPageName matches *url* against the registry and returns the mapped page name.
 //
-// Matching logic (same as Python ManulEngine):
+// Matching logic:
 //  1. Reload registry from disk on every call so manual edits are picked up.
 //  2. Find best-matching site block by longest-prefix against URL scheme+host+path.
 //  3. Within site block:

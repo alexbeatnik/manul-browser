@@ -3,7 +3,7 @@ package synthetic
 // ─────────────────────────────────────────────────────────────────────────────
 // SAAS ADMIN DOM SCORING TEST SUITE
 //
-// Port of ManulEngine test_03_saas.py — 100-element SaaS admin panel.
+// 100-element SaaS admin panel.
 // Validates: sidebar nav, dashboard widgets, user table, pagination, invite modal,
 // API keys, billing, workspace settings, danger zone.
 // Skipped: extract (11,13,34,35,64), verify (20,39,41,42,55,93,95,99),

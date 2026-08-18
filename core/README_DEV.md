@@ -1,8 +1,8 @@
 <p align="center">
-    <img src="images/manul.png" alt="ManulEngine (Go) mascot" width="160" />
+    <img src="images/manul.png" alt="Manul Browser mascot" width="160" />
 </p>
 
-# 😼 ManulEngine (Go) 0.1.0 — Deterministic Web & Desktop Automation Runtime
+# 😼 Manul Browser Engine 0.1.1 — Deterministic Web & Desktop Automation Runtime
 
 > **Developer README.** The user-facing tour lives in [README.md](README.md); this file is the
 > engineering manual: project structure, runtime architecture, extension points, configuration,
@@ -78,12 +78,12 @@ One deterministic pipeline serves every consumer (CLI runs, agent commands, embe
   contextual qualifiers (`NEAR`, `ON HEADER/FOOTER`, `INSIDE`), waits, strict assertions
   (`VERIFY … has value|text|placeholder`), `MOCK`, `PRINT`, `SCREENSHOT`, `OPEN APP`.
 - Agent surface: `manul schema | map | read | run-step` emit compact JSON on stdout (logs → stderr),
-  attach to a running Chrome over `--cdp`. Identical JSON shapes with the Python engine
+  attach to a running browser over `--cdp`
   (`failure_reasons`: `ok, not_found, ambiguous, timeout, verify_failed, action_failed`).
 - Embedding API `pkg/agent`: `Connect/Launch/Attach → Session.{Step,Run,Read,ReadText,Map,Lookup,PageState}` +
   prompt-ready renderers (`RenderForLLM`, `DescribeForLLM`, `DescribePageChange`).
 - Explainability: `--explain` prints top-5 per-channel rankings; debug wire protocol
-  (`MANUL_DEBUG_PAUSE`/`MANUL_EXPLAIN_NEXT` NUL-markers) shared with the VS Code extension.
+  (`MANUL_DEBUG_PAUSE`/`MANUL_EXPLAIN_NEXT` NUL-markers) for non-TTY drivers.
 
 ### 🧹 [SETUP] / [TEARDOWN] hooks and inline `CALL GO`
 
@@ -153,7 +153,7 @@ One `Session` = one page = one goroutine; use `pkg/worker` for parallel suites.
 
 ### 🧠 Deterministic resolution — no LLM in the loop
 
-Weights are shared with the Python engine (`cache 2.0 · semantics 0.60 · text 0.45 ·
+Weights are (`cache 2.0 · semantics 0.60 · text 0.45 ·
 attributes 0.25 · proximity 0.10`) and frozen by `contracts/MANUL_SCORING_CONTRACT.md` +
 golden-number tests. Don't touch weights without bumping the contract.
 
@@ -187,7 +187,7 @@ go install github.com/alexbeatnik/manul-browser/core/cmd/manul@latest
 
 ---
 
-## ⚙️ Configuration (`manul_engine_configuration.json`)
+## ⚙️ Configuration (`manul.config.json`)
 
 Read from the CWD; layering (highest → lowest): **CLI flags → `MANUL_*` env → JSON file → `config.Default()`**.
 
@@ -255,7 +255,7 @@ go vet ./...
 Scoring golden numbers live in `pkg/scorer` tests and must stay identical to the Python
 engine's (`scoring_math`). Deep-dive guides: [.claude/skills/](.claude/skills/) —
 scoring-heuristics, concurrency-rules, adding-dsl-commands, extensions-and-go-calls,
-testing-manulengine-go, hunt-authoring.
+testing-manul-browser, hunt-authoring.
 
 **Adding a DSL command:** parser case in `pkg/dsl/parser.go` (+`CommandType`), dispatch in
 `pkg/runtime/runtime.go:executeCommand`, tests in both packages, and — if it's public surface —
@@ -263,30 +263,37 @@ the DSL contract + `manul schema` verbs list.
 
 ---
 
-## 🖱️ VS Code Extension
-
-The [Manul Engine Extension](https://marketplace.visualstudio.com/items?itemName=manul-engine.manul-engine)
-auto-detects the Go runtime via `go.mod`: `CALL GO` snippets, hook-block scaffolds, gutter
-breakpoints (`--break-lines`), the debug QuickPick overlay, and Test Explorer integration all
-work against this binary. The wire contract is `contracts/EXTENSION_ENGINE_CONTRACT.md`
-(byte-identical across the three repos).
-
----
-
 ## 🔖 Version Bump
 
 `const version` in `cmd/manul/main.go` is the single source of truth (reported by
 `manul --version` and the agent schema, **no `v` prefix**). Bump it together with:
-the git tag (`v0.1.0` — Go needs the prefix), README badges/notes, and the
+the git tag (`v0.1.1` — Go needs the prefix), README badges/notes, and the
 `"version"` field in every `contracts/MANUL_*_CONTRACT.md`. Keep it in lockstep with the
-Python engine's `pyproject.toml` version — the two runtimes release the same surface.
+binding versions in `bindings/python/manul/__init__.py` and `bindings/node/package.json`.
 
 ---
 
+## 📜 Release Notes: 0.1.1
+
+- **Firefox**, driven over **WebDriver BiDi** (`--browser firefox`, `MANUL_BROWSER=firefox`,
+  or `browser` in the `open` protocol args). Not CDP: Firefox deprecated that in 129 and
+  removed it, and `remote.active-protocols` with it, in 141. New packages `pkg/bidi`
+  (protocol client) and `pkg/browser/bidi_backend.go` (the `Page` implementation);
+  `--cdp ws://…` attaches to a Firefox somebody else started.
+- **`pkg/pagejs`** holds the in-page JavaScript both backends inject, so FILL, CHECK,
+  SCROLL, HIGHLIGHT and the coordinate probes cannot drift apart per protocol.
+- `browser.Launch`/`browser.Connect` pick engine and protocol; an unsupported `--browser`
+  value now fails loudly instead of silently launching Chrome.
+- **Breaking:** the JSON config file is `manul.config.json`. The old
+  The old `*_configuration.json` name is not read — rename yours.
+- The project is **Manul Browser** throughout; the old engine name is retired.
+  `EXTENSION_ENGINE_CONTRACT.md` went with it — the VS Code extension is a separate
+  product, and the debug protocol it used is specified in `MANUL_DEBUG_CONTRACT.md`.
+
 ## 📜 Release Notes: 0.1.0
 
-- **Rebrand:** ManulHeart → **ManulEngine (Go)**; module path now `github.com/alexbeatnik/manul-browser/core`.
-- **Cross-runtime parity** with ManulEngine (Python): shared DSL surface (`PRINT`, `SCREENSHOT`,
+- **Rebrand:** module path now `github.com/alexbeatnik/manul-browser/core`.
+- **DSL surface**: (`PRINT`, `SCREENSHOT`,
   `OPEN APP`, END-terminators), identical agent JSON (`schema`/`map`/`read`/`run-step`,
   `failure_reasons`, `step_outcome.score`, `editable` in `map`), identical CLI flags
   (`--workers`, `--channel`, `--html-report` default off, `--disable-cache`, `--target`),

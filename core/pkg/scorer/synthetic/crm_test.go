@@ -3,7 +3,7 @@ package synthetic
 // ─────────────────────────────────────────────────────────────────────────────
 // CRM / ATS / PM DOM SCORING TEST SUITE
 //
-// Port of ManulEngine test_08_crm.py — 100-element CRM/ATS/PM page.
+// 100-element CRM/ATS/PM page.
 // Validates: global nav, kanban board, lead form, activity log, tickets,
 // candidate tracking, bulk operations, advanced filters, reports,
 // workflow automation, custom fields.

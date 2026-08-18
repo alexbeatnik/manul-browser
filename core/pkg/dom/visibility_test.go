@@ -3,8 +3,6 @@ package dom
 // ─────────────────────────────────────────────────────────────────────────────
 // VISIBILITY AND TREEWALKER TEST SUITE
 //
-// Port of ManulEngine test_31_visibility_treewalker.py
-//
 // Validates:
 // A. ElementSnapshot normalization and text signals
 // B. IsInteractive mode-aware filtering

@@ -3,8 +3,6 @@ package synthetic
 // ─────────────────────────────────────────────────────────────────────────────
 // HEURISTIC WEIGHTS TEST SUITE
 //
-// Port of ManulEngine test_30_heuristic_weights.py
-//
 // Validates DOMScorer priority hierarchy:
 // - data-qa dominance over text/aria matches
 // - aria vs placeholder preference

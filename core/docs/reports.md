@@ -1,8 +1,8 @@
 # Reports & Explainability
 
-> **ManulEngine (Go) 0.1.0**
+> **Manul Browser 0.1.1**
 
-ManulEngine (Go) provides multiple layers of observability: HTML reports with screenshots, per-channel scoring breakdowns, and an interactive debugger with a read-only explain-next preview.
+Manul Browser provides multiple layers of observability: HTML reports with screenshots, per-channel scoring breakdowns, and an interactive debugger with a read-only explain-next preview.
 
 ## HTML Reports
 
@@ -34,9 +34,9 @@ Each test run appends a JSON Lines entry to `reports/run_history.json`:
 {"file": "examples/login.hunt", "name": "login.hunt", "timestamp": "2026-07-02T10:30:00+00:00", "status": "pass", "duration_ms": 3400}
 ```
 
-The shape is **identical to ManulEngine (Python)** — `{file, name, timestamp, status, duration_ms}` — and the VS Code extension's Scheduler Dashboard reads it to display sparkline history per hunt file.
+Each row is `{file, name, timestamp, status, duration_ms}`, so a dashboard can read the file to display sparkline history per hunt file.
 
-> **Difference from the Python engine:** report-session merging (`manul_report_state.json`) is an Engine (Python) feature; the Go engine writes one report per run plus the aggregate index.
+> **Note:** there is no report-session merging — the engine writes one report per run, plus the aggregate index.
 
 ---
 
@@ -50,7 +50,7 @@ Explain mode reveals exactly how the engine scored and selected each element. Th
 manul --explain examples/login.hunt
 ```
 
-Or set `"explain_mode": true` in `manul_engine_configuration.json` (env: `MANUL_EXPLAIN`).
+Or set `"explain_mode": true` in `manul.config.json` (env: `MANUL_EXPLAIN`).
 
 ### Reading the output
 
@@ -64,7 +64,7 @@ explain: top 5 for "Login"
       xpath=/html/body/footer/a[2]
 ```
 
-The channels behind the total (text · id · semantics · proximity, plus visibility/interactability penalties) are defined by `contracts/MANUL_SCORING_CONTRACT.md` and are identical to the Python engine's.
+The channels behind the total (text · id · semantics · proximity, plus visibility/interactability penalties) are defined by `contracts/MANUL_SCORING_CONTRACT.md`.
 
 ### Machine-readable outcomes
 
@@ -89,8 +89,8 @@ manul --debug --break-lines 12,20 file.hunt    # pause only at those lines
 
 At a pause (TTY): `next` · `continue` · `debug-stop` · `highlight <xpath>` · `explain` · `abort`. An in-browser modal shows the paused step with an Abort button; the resolved target is highlighted on the page.
 
-`explain-next` (used by the VS Code extension, also available as `explain` in the TTY) is a **read-only scoring preview** of the upcoming step — it ranks the live DOM without executing anything, so you can edit the step text and re-preview until the confidence is right.
+`explain-next` (emitted as a marker in pipe mode, also available as `explain` in the TTY) is a **read-only scoring preview** of the upcoming step — it ranks the live DOM without executing anything, so you can edit the step text and re-preview until the confidence is right.
 
-> **Difference from the Python engine:** Engine (Python) additionally has a What-If REPL command (`!execute`) that *replaces and runs* the current step; the Go debugger's preview is read-only by design.
+> **Note:** the preview is read-only by design — it ranks the step without executing it, so previewing can never change page state.
 
-The pause/explain wire protocol (`MANUL_DEBUG_PAUSE` / `MANUL_EXPLAIN_NEXT` NUL-markers on stdout) is shared byte-for-byte with the Python engine — see `contracts/EXTENSION_ENGINE_CONTRACT.md`.
+The pause/explain wire protocol (`MANUL_DEBUG_PAUSE` / `MANUL_EXPLAIN_NEXT` NUL-markers on stdout) is specified in [`spec/contracts/MANUL_DEBUG_CONTRACT.md`](../../spec/contracts/MANUL_DEBUG_CONTRACT.md).

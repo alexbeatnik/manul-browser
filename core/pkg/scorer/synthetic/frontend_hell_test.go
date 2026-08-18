@@ -3,7 +3,7 @@ package synthetic
 // ─────────────────────────────────────────────────────────────────────────────
 // FRONTEND HELL & ANTI-PATTERN GAUNTLET DOM SCORING TEST SUITE
 //
-// Port of ManulEngine test_17_frontend_hell.py — ~39-element page with split
+// ~39-element page with split
 // text, hidden/fake duplicates, CSS uppercase, deeply nested text,
 // contenteditable, whitespace-padded placeholders, web components, aria tricks.
 // All 30 tests are clickable/input mode (no select).

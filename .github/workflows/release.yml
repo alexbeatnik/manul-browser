@@ -1,0 +1,228 @@
+name: Release
+
+# Cross-compiles the engine for every target and publishes the binaries as a
+# GitHub Release whenever the engine version changes on main. Safe to run on
+# every push: it no-ops when a release for the current version already exists,
+# and can be started by hand to (re)build the current one.
+#
+# The version check is a separate job so the build — six compiles, a test suite
+# and a smoke run — never starts for a version that is already out, and never
+# ships artifacts whose copies of the version disagree with the engine's.
+#
+# Wheels and npm packages are NOT built here. That pipeline is
+# release.yml.disabled and it stays off on purpose: the first upload to PyPI is
+# the one irreversible step in this repository — the version number is spent
+# whether or not the artifact was any good — so it waits for a decision, not a
+# push. Everything this workflow does can be deleted and done again.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'core/**'
+      # Deliberately not '.github/workflows/release.yml': editing the
+      # pipeline is not a reason to publish. Use workflow_dispatch to try
+      # it — with dry_run first.
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Build everything, publish nothing (artifacts land on the run)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+env:
+  # Go cross-compiles these in seconds from one Linux runner: the engine is pure
+  # Go with a single dependency, so CGO is off and no target needs its own host.
+  # Same list as the cross-build gate in ci.yml — if one moves, move the other.
+  TARGETS: 'linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64'
+
+jobs:
+  check:
+    name: Check version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      skip: ${{ steps.check.outputs.skip }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # core/cmd/manul/main.go is the single source of truth; the bindings and
+      # the contracts carry copies. A release built from disagreeing copies is
+      # worse than no release: `manul --version` and the wheel would name
+      # different things and both would be published.
+      - name: Read the engine version, and check every copy agrees
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          engine=$(sed -n 's/^const version = "\(.*\)"$/\1/p' core/cmd/manul/main.go)
+          if [ -z "$engine" ]; then
+            echo "::error file=core/cmd/manul/main.go::could not read 'const version'"
+            exit 1
+          fi
+          echo "engine   $engine"
+
+          fail=0
+          compare() { # <label> <found> <file>
+            if [ "$2" != "$engine" ]; then
+              echo "::error file=$3::version is '${2:-<none>}', engine is '$engine'"
+              fail=1
+            else
+              printf '  %-32s %s\n' "$(basename "$3")" "$2"
+            fi
+          }
+
+          compare python \
+            "$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' bindings/python/manul/__init__.py)" \
+            bindings/python/manul/__init__.py
+          compare node \
+            "$(node -p "require('./bindings/node/package.json').version")" \
+            bindings/node/package.json
+
+          # Contracts describe shipped behaviour, so they name the version that
+          # ships. MANUL_DEBUG_CONTRACT is the exception: it carries its own
+          # revision (the one other contracts cite as "since"), not the
+          # engine's, so it is not a copy and is not compared.
+          for f in spec/contracts/MANUL_*_CONTRACT.md; do
+            case "$f" in *MANUL_DEBUG_CONTRACT.md) continue ;; esac
+            found=$(sed -n 's/^\s*"version": "\(.*\)",\?$/\1/p' "$f" | head -1)
+            [ -n "$found" ] || continue
+            compare contract "$found" "$f"
+          done
+
+          [ "$fail" -eq 0 ] || exit 1
+          echo "version=$engine" >> "$GITHUB_OUTPUT"
+          echo "tag=v$engine" >> "$GITHUB_OUTPUT"
+
+      - name: Skip if this version was already released
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "Release ${{ steps.version.outputs.tag }} already exists, skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No release yet for ${{ steps.version.outputs.tag }} - will create one."
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  release:
+    name: Build and publish
+    needs: check
+    if: needs.check.outputs.skip == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.sum
+
+      # The gates from ci.yml, repeated here rather than assumed: a release is
+      # the one place where "someone else already checked" is not good enough.
+      - name: Format and vet
+        working-directory: core
+        run: |
+          set -euo pipefail
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::gofmt would rewrite:"; echo "$unformatted"; exit 1
+          fi
+          go vet ./...
+
+      - name: Test
+        working-directory: core
+        run: go test -short ./...
+
+      - name: Build every target
+        working-directory: core
+        # -trimpath so the binary carries no build-machine paths, -s -w to drop
+        # the symbol table: nothing here reads a Go stack trace out of a release
+        # build, and it is a third off the download.
+        run: |
+          set -euo pipefail
+          mkdir -p ../dist
+          for target in $TARGETS; do
+            goos="${target%/*}"; goarch="${target#*/}"
+            name="manul"
+            if [ "$goos" = "windows" ]; then name="manul.exe"; fi
+            echo "::group::$target"
+            CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" \
+              go build -trimpath -ldflags "-s -w" -o "../dist/$name" ./cmd/manul
+
+            stage="../dist/stage"
+            mkdir -p "$stage"
+            mv "../dist/$name" "$stage/"
+            cp ../LICENSE ../README.md "$stage/"
+
+            base="manul_${{ needs.check.outputs.version }}_${goos}_${goarch}"
+            if [ "$goos" = "windows" ]; then
+              ( cd "$stage" && zip -q -r "../$base.zip" . )
+            else
+              tar -czf "../dist/$base.tar.gz" -C "$stage" .
+            fi
+            rm -rf "$stage"
+            echo "::endgroup::"
+          done
+          ls -lh ../dist
+
+      # The version constant is compiled in, so this is the only check that the
+      # thing being uploaded reports what the release claims. It runs on the
+      # linux/amd64 build because that is the one this runner can execute.
+      - name: The binary must report the released version
+        run: |
+          set -euo pipefail
+          mkdir -p smoke && tar -xzf "dist/manul_${{ needs.check.outputs.version }}_linux_amd64.tar.gz" -C smoke
+          got=$(./smoke/manul --version)
+          want="manul ${{ needs.check.outputs.version }}"
+          echo "$got"
+          [ "$got" = "$want" ] || { echo "::error::binary says '$got', release is '$want'"; exit 1; }
+
+      - name: Checksums
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          sha256sum manul_* > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Upload artifacts to the run
+        uses: actions/upload-artifact@v4
+        with:
+          name: manul-${{ needs.check.outputs.version }}
+          path: dist/*
+          if-no-files-found: error
+
+      - name: Create tag and GitHub Release
+        if: inputs.dry_run != true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create "${{ needs.check.outputs.tag }}" dist/manul_* dist/SHA256SUMS.txt \
+            --title "${{ needs.check.outputs.tag }}" \
+            --generate-notes
+
+      # Go derives a module's version from the tag path, and this module lives
+      # in core/ — so `go get .../core@vX.Y.Z` resolves the tag core/vX.Y.Z, not
+      # the release tag. Without this, the binaries ship and the module does not
+      # move, which is exactly what happened for every version so far.
+      - name: Tag the Go module
+        if: inputs.dry_run != true
+        run: |
+          set -euo pipefail
+          module_tag="core/${{ needs.check.outputs.tag }}"
+          if git ls-remote --exit-code --tags origin "$module_tag" >/dev/null 2>&1; then
+            echo "$module_tag already exists, leaving it alone."
+            exit 0
+          fi
+          git tag "$module_tag"
+          git push origin "$module_tag"
+          echo "Tagged $module_tag — go get github.com/alexbeatnik/manul-browser/core@${{ needs.check.outputs.tag }}"

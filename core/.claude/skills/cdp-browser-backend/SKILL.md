@@ -1,14 +1,17 @@
 ---
 name: cdp-browser-backend
-description: Add or modify low-level browser capabilities in ManulEngine (Go). Use when implementing a new Page interface method, touching Chrome lifecycle, CDP commands, input dispatch, or JS evaluation. Covers the interface-to-backend wiring pattern.
+description: Add or modify low-level browser capabilities in Manul Browser. Use when implementing a new Page interface method, touching browser lifecycle, CDP or WebDriver BiDi commands, input dispatch, or JS evaluation. Covers the interface-to-backend wiring pattern for both backends.
 ---
 
 # CDP Browser Backend
 
-ManulEngine (Go)'s browser abstraction has two layers:
+Manul Browser's browser abstraction has two layers:
 
 1. **`pkg/browser/browser.go`** — Abstract `Page` / `Browser` interfaces. Runtime targets these.
-2. **`pkg/browser/cdp_backend.go`** + **`pkg/cdp/cdp.go`** — CDP implementation. CDP is the only backend today.
+2. **`pkg/browser/cdp_backend.go`** + **`pkg/cdp/cdp.go`** — CDP implementation (Chromium).
+3. **`pkg/browser/bidi_backend.go`** + **`pkg/bidi/`** — WebDriver BiDi implementation (Firefox, which removed CDP in 141).
+
+A new `Page` method has to be implemented in **both**, or `pkg/browser` stops compiling — the compile-time `_ Page = (*BiDiPage)(nil)` assertion is there for that. When the behaviour is JavaScript rather than protocol, put the source in **`pkg/pagejs`** and have both backends evaluate it; that is what keeps FILL, CHECK, SCROLL and the coordinate probes identical across browsers.
 
 The `concurrency-rules` skill covers goroutine safety of `cdp.Conn`; this skill covers the **API contract and wiring pattern**.
 
@@ -66,10 +69,12 @@ func (m *MockPage) GetCookies(ctx context.Context) ([]browser.Cookie, error) {
 }
 ```
 
-## Chrome process lifecycle (`pkg/browser/chrome.go`)
+## Browser process lifecycle (`pkg/browser/chrome.go`, `firefox.go`)
 
+- **`Launch(ctx, opts)`** — the entry point: dispatches on `opts.Browser` and returns a `Process` (endpoint + teardown). `Connect(endpoint)` then picks the protocol from the endpoint's scheme.
 - **`LaunchChrome(ctx, opts)`** — spawns Chrome with automation flags, temp profile, and preference JSON. Blocks until CDP `/json` responds.
-- **`ChromeOptions`** — `Port`, `UserDataDir`, `DisableGPU`, `Headless`.
+- **`LaunchFirefox(ctx, opts)`** — spawns Firefox with `--remote-debugging-port` (which starts the BiDi agent, not CDP), a temp profile and a `user.js`. Blocks until the BiDi endpoint is announced on **stderr** — there is no `/json` to poll.
+- **`LaunchOptions`** (formerly `ChromeOptions`) — `Browser`, `Port`, `UserDataDir`, `DisableGPU`, `Headless`, `ExecutablePath`, `Channel`.
 - **`findChrome()`** — platform-specific binary discovery (Linux PATH → macOS .app → Windows Program Files).
 - **Temp profile cleanup** — if `UserDataDir` is empty, `LaunchChrome` creates a temp dir and `ChromeProcess.Close()` removes it.
 - **Automation prefs** — `writeAutomationPrefs()` disables password manager, autofill, notifications, and credential dialogs at the profile level. CLI flags alone cannot suppress all modals.

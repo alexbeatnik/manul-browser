@@ -20,6 +20,11 @@ they were merged. **Do not reintroduce a second implementation.** If a binding
 needs behaviour the engine lacks, add a protocol command in `core/` — never a
 local implementation in the binding.
 
+Neither predecessor is in the working tree, and nothing outside this paragraph
+refers to them. Their history is still an ancestor of `main`, so a file can be
+read back without a network round-trip: `git show 9249843:legacy/python/...`
+(`9249843` grafted it in; `b5d85d7` is the final upstream Python commit).
+
 ## Commands
 
 ```bash
@@ -43,6 +48,13 @@ commit. Each file embeds a JSON block that must stay parseable — check it.
 
 **Bindings own process lifecycle and typing, nothing else.** No scoring, no DSL
 parsing, no CDP framing, no probe JavaScript.
+
+**Two protocols, one engine.** Chromium is driven over CDP (`pkg/cdp`), Firefox
+over WebDriver BiDi (`pkg/bidi`) — Firefox removed CDP in version 141, so this
+is not a preference. Everything above the transport is shared, and the in-page
+JavaScript lives in `pkg/pagejs` precisely so the two backends cannot grow
+their own dialects of FILL or CHECK. A behaviour that belongs to the page goes
+there; only framing belongs in `pkg/cdp` or `pkg/bidi`.
 
 **A declared verb must be executable.** `pkg/runtime` carries a guard test that
 walks every `CommandType` and fails on "not yet implemented". `WAIT FOR` and
@@ -69,6 +81,27 @@ handler must not call `session.map()`.
 **Snapshot caching hides change.** The cache makes resolution cheap within a
 step. Any polling loop must call `invalidateSnapshot()` each iteration or it
 will never see what it is waiting for.
+
+**Firefox is not a CDP browser, whatever `--remote-debugging-port` suggests.**
+The flag survives; it starts the BiDi agent. `/json/version` and `/json/list`
+are gone with the rest of CDP, so endpoint discovery reads the startup banner
+on **stderr** instead — and that banner names a bare origin
+(`ws://127.0.0.1:9222`) while the WebSocket upgrade only succeeds at
+`/session`. `bidi.NormalizeWebSocketURL` is what closes that gap; without it
+the handshake fails with nothing but `bad handshake` to go on.
+
+**One BiDi session per Firefox.** `session.new` on a second socket fails
+rather than opening a second view, so every page of one endpoint shares a
+single connection (`sharedConn` in `pkg/browser/bidi_backend.go`) and
+identifies itself by browsing-context id. Consequently `BiDiPage.Close` does
+**not** close the socket — doing so would cut off every sibling page,
+including the caller's own tab during a background `Lookup`.
+
+**BiDi sends no events until asked.** `Conn.Subscribe` only opens a local
+channel; without `session.subscribe` for the event name, nothing arrives.
+Subscribe locally *first*, then ask the browser — the other order drops
+anything that happens in between, which for `WAIT FOR RESPONSE` means waiting
+out the timeout for a response that already came.
 
 ## Local environment
 
@@ -98,6 +131,10 @@ compare against the index with `git show :path/to/file.go | gofmt -d`.
 ## Conventions
 
 - Go ≥ 1.26, single dependency (`gorilla/websocket`). Keep it that way.
+- Firefox work can be checked against a real browser: `manul run x.hunt
+  --browser firefox --headless`. There is no fake for either protocol — the
+  unit tests drive a mock WebSocket server, which proves framing, not
+  behaviour.
 - The engine version lives in `cmd/manul/main.go` as `version`, without a `v`
   prefix, and must match the contracts.
 - `.hunt` verbs are matched by keyword, not strict grammar. New verbs go in the

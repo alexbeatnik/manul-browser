@@ -3,7 +3,7 @@ package synthetic
 // ─────────────────────────────────────────────────────────────────────────────
 // CYBERSECURITY & DEVSECOPS DOM SCORING TEST SUITE
 //
-// Port of ManulEngine test_11_cyber.py — 100-element cybersecurity dashboard.
+// 100-element cybersecurity dashboard.
 // Validates: authentication, VPN, terminal, firewall, threat map, key manager,
 // malware sandbox, system config, self-destruct, incident response.
 // Skipped: extract (12,15,19,28,49,56,64,68,80,87), verify (6,13,22,24,37,44,

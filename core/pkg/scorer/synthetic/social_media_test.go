@@ -3,7 +3,7 @@ package synthetic
 // ─────────────────────────────────────────────────────────────────────────────
 // SOCIAL MEDIA DOM SCORING TEST SUITE
 //
-// Port of ManulEngine test_02_social_media.py — 100-element social/messenger page.
+// 100-element social/messenger page.
 // Validates: feed interactions, commenting, DMs, network, profile editing,
 // privacy settings, notifications, search, groups/events, stories.
 // Skipped: tests 38,39,62 (extract).

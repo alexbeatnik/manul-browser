@@ -44,7 +44,7 @@ func TestScorer_Visibility(t *testing.T) {
 
 func TestScorer_AriaHidden(t *testing.T) {
 	// aria-hidden="true" should be penalized (mapped to IsHidden/IsVisible=false in crawler?)
-	// In ManulEngine (Go) dom, aria-hidden should likely set IsHidden=true.
+	// In Manul Browser dom, aria-hidden should likely set IsHidden=true.
 	elements := []dom.ElementSnapshot{
 		{HTMLId: "vis_btn", Tag: "button", VisibleText: "Connect Wallet", IsVisible: true},
 		{HTMLId: "hid_btn", Tag: "button", VisibleText: "Connect Wallet", IsVisible: false, IsHidden: true},

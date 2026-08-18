@@ -86,10 +86,10 @@ func (r WhatIfResult) FormatReport() string {
 // element, and so must not be scored IMPOSSIBLE merely because nothing on the
 // page matched it.
 //
-// The set mirrors the Python engine's list (navigate, wait, wait_for_element,
-// scroll, press_enter, done, logical_step, set_var, scan_page) mapped onto Go
-// command types. SET is only a system step when it assigns a variable; used as
-// a synonym for FILL it resolves an element like any other action.
+// The set is navigate, wait, wait-for, scroll, press, done, logical step,
+// variable assignment and scan. SET is only a system step when it assigns a
+// variable; used as a synonym for FILL it resolves an element like any other
+// action.
 func isWhatIfSystemStep(cmd dsl.Command) bool {
 	switch cmd.Type {
 	case dsl.CmdNavigate, dsl.CmdWait, dsl.CmdWaitFor, dsl.CmdWaitForResponse,
@@ -125,9 +125,8 @@ func (rt *Runtime) evaluateWhatIf(ctx context.Context, stepText string) WhatIfRe
 	cmd := hunt.Commands[0]
 
 	// Decided before the snapshot: a system step needs no DOM, so taking one
-	// would be wasted work. This differs from the Python engine, which scored
-	// first and boosted afterwards, and so reported heuristic fields even for
-	// NAVIGATE. Those fields are now absent for system steps.
+	// would be wasted work. Heuristic fields are therefore absent for system
+	// steps rather than being reported as scores nothing produced.
 	if isWhatIfSystemStep(cmd) {
 		res.Score = 8
 		res.TargetFound = true

@@ -1,11 +1,11 @@
 ---
 name: dsl-imports-variables
-description: Debug or extend the ManulEngine (Go) DSL preprocessor. Use when working with @import resolution, USE/CALL block expansion, variable interpolation, or scoped variable behavior. Covers the 5-level precedence hierarchy and circular-import detection.
+description: Debug or extend the Manul Browser DSL preprocessor. Use when working with @import resolution, USE/CALL block expansion, variable interpolation, or scoped variable behavior. Covers the 5-level precedence hierarchy and circular-import detection.
 ---
 
 # DSL Imports and Variables
 
-The ManulEngine (Go) DSL has a two-phase preprocessor:
+The Manul Browser DSL has a two-phase preprocessor:
 
 1. **`Parse()`** — tokenizes the raw `.hunt` text into `Hunt{Commands[], Imports[], Vars{}}`
 2. **`Expand()`** — resolves `USE` / `CALL` blocks by inlining blueprints, then applies variable substitution

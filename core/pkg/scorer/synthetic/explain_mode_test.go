@@ -3,8 +3,6 @@ package synthetic
 // ─────────────────────────────────────────────────────────────────────────────
 // EXPLAIN MODE TEST SUITE
 //
-// Port of ManulEngine test_44_explain_mode.py
-//
 // In Go the scorer.ScoreBreakdown is always populated (no explain flag).
 // Tests validate:
 // 1. All breakdown fields are populated for a matching element
