@@ -49,7 +49,7 @@ existed — it just needed a session that outlives a single command.
 | `bindings/python` | Working — packaged as `manul-browser`, not yet published |
 | `bindings/node` | Working — packaged as `manul-browser` (npm), not yet published |
 | `conformance/` | Not started |
-| Release pipeline | Written, then switched off — `.github/workflows/release.yml.disabled`. Nothing fires on a tag |
+| Release pipeline | Binaries: `.github/workflows/release.yml` — six targets, checksums, GitHub Release, `core/vX.Y.Z` module tag. Wheels and npm: still off, see `release.yml.disabled` |
 | What-If REPL | Ported to Go — terminal-only, see the debug contract |
 | Custom controls, `CALL HOST` | Go handlers, client handlers via reverse call, or a `--hooks` script |
 | Suite hooks | `pkg/lifecycle` — `before_all`/`after_all`/`before_group`/`after_group` |
