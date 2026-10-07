@@ -1,6 +1,6 @@
 # Integration
 
-> **Manul Browser 0.1.1** — embedding the engine in Go programs, CI/CD pipelines, and agent stacks.
+> **Manul Browser 0.1.2** — embedding the engine in Go programs, CI/CD pipelines, and agent stacks.
 
 ## Go Embedding API (`pkg/agent`)
 

@@ -1,7 +1,10 @@
 package serve
 
 import (
+	"fmt"
+	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 // EvalJS is not uniform about its output, and parsing it strictly turned every
@@ -89,5 +92,26 @@ func TestRegisterWithNothingIsHarmless(t *testing.T) {
 	last := got[len(got)-1]
 	if last["ok"] != true {
 		t.Errorf("an empty registration should succeed: %v", last)
+	}
+}
+
+// What a handler returns arrives as JSON and ends up as a DSL variable. Its
+// numbers must survive the trip as written.
+func TestDecodeHostJSON_KeepsNumbersAsWritten(t *testing.T) {
+	var decoded map[string]any
+	if err := decodeHostJSON([]byte(`{"order_id": 1234567, "big": 9007199254740993, "ratio": 0.50}`), &decoded); err != nil {
+		t.Fatal(err)
+	}
+	for k, want := range map[string]string{"order_id": "1234567", "big": "9007199254740993", "ratio": "0.50"} {
+		if got := fmt.Sprint(decoded[k]); got != want {
+			t.Errorf("%s = %q, want %q", k, got, want)
+		}
+	}
+}
+
+func TestSummarise_CutsOnACharacterBoundary(t *testing.T) {
+	got := summarise(strings.Repeat("ї", 200))
+	if !utf8.ValidString(got) {
+		t.Errorf("summary split a character: %q", got)
 	}
 }

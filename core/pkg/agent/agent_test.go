@@ -3,6 +3,8 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -116,16 +118,19 @@ func TestStep_NotFoundCarriesReason(t *testing.T) {
 // weak fuzzy match still "succeeds" (the click lands somewhere) but Near is
 // populated so the agent can decide whether it landed on the right thing —
 // without paying for a follow-up scan.
+//
+// Weak means the label matched a little — here one word of four. A label that
+// matches nothing at all is TestStep_UnmatchedTargetIsNotFound.
 func TestStep_LowConfidenceSurfacesNear(t *testing.T) {
 	page := &runtime.MockPage{
 		URL: "https://example.com",
 		Elements: []dom.ElementSnapshot{
-			{Tag: "button", VisibleText: "Submit", IsVisible: true},
+			{Tag: "div", VisibleText: "Submit", IsVisible: true},
 		},
 	}
 	sess := newTestSession(page)
 
-	out, err := sess.Step(context.Background(), "Click the 'Nonexistent Widget' button")
+	out, err := sess.Step(context.Background(), "Click 'Submit your application today'")
 	if err != nil {
 		t.Fatalf("weak match should still succeed, got error: %v", err)
 	}
@@ -137,6 +142,35 @@ func TestStep_LowConfidenceSurfacesNear(t *testing.T) {
 	}
 	if len(out.Near) == 0 {
 		t.Errorf("low-confidence success must surface Near candidates, got none")
+	}
+}
+
+// A label nothing on the page matches is not a weak match, it is no match. The
+// only button present used to be clicked anyway — its tag and the "button"
+// hint were worth more than the confidence bar with no text in common at all.
+func TestStep_UnmatchedTargetIsNotFound(t *testing.T) {
+	page := &runtime.MockPage{
+		URL: "https://example.com",
+		Elements: []dom.ElementSnapshot{
+			{Tag: "button", VisibleText: "Pay now", IsVisible: true},
+			{Tag: "button", VisibleText: "Cancel order", IsVisible: true},
+		},
+	}
+	sess := newTestSession(page)
+
+	out, err := sess.Step(context.Background(), "Click the 'Delete account' button")
+	if err == nil {
+		t.Fatalf("a target that is not on the page was acted on: %+v", out)
+	}
+	if out.Reason != ReasonNotFound {
+		t.Errorf("reason = %q, want not_found", out.Reason)
+	}
+	if len(page.Clicks) != 0 {
+		t.Errorf("clicked %d time(s) on a page that has no such button", len(page.Clicks))
+	}
+	// The real buttons are offered so the caller can retarget without a scan.
+	if len(out.Near) == 0 {
+		t.Error("not_found should still surface the candidates that were considered")
 	}
 }
 
@@ -400,5 +434,60 @@ func TestTruncateText_BoundaryIsExact(t *testing.T) {
 	s := strings.Repeat("ї", 5)
 	if got := TruncateText(s, 5); got != s {
 		t.Errorf("text of exactly the budget was truncated: %q", got)
+	}
+}
+
+// A hunt run by path keeps its location, so `@import: … from 'auth.hunt'`
+// means the file next to it. Run on the file's text has no location to give,
+// which is how the session protocol's `run {path}` used to lose it.
+func TestRunFile_ResolvesImportsRelativeToTheHunt(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, body string) string {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	write("auth.hunt", "STEP 1: Login\n    PRINT 'in login'\n")
+	main := write("main.hunt", "@import: Login from 'auth.hunt'\nUSE Login\n")
+
+	sess := newTestSession(&runtime.MockPage{URL: "https://example.com"})
+
+	out, err := sess.RunFile(context.Background(), main)
+	if err != nil {
+		t.Fatalf("RunFile: %v", err)
+	}
+	if !out.OK || out.Passed != 1 {
+		t.Errorf("outcome = %+v", out)
+	}
+
+	if _, err := sess.RunFile(context.Background(), filepath.Join(dir, "missing.hunt")); err == nil {
+		t.Error("a file that is not there should be an error")
+	}
+}
+
+// A hunt run through a session honours @data: like `manul run` does: once per
+// row, the outcome adding the rows up.
+func TestRunFile_DataDrivenHuntRunsOncePerRow(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "users.csv"), []byte("user\nann\nbob\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	hunt := filepath.Join(dir, "greet.hunt")
+	if err := os.WriteFile(hunt, []byte("@data: users.csv\nPRINT 'hello {user}'\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	sess := newTestSession(&runtime.MockPage{URL: "https://example.com"})
+	out, err := sess.RunFile(context.Background(), hunt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !out.OK || out.TotalSteps != 2 || out.Passed != 2 {
+		t.Fatalf("outcome = %+v", out)
+	}
+	if out.Results[0].Value != "hello ann" || out.Results[1].Value != "hello bob" {
+		t.Errorf("rows printed %q, %q", out.Results[0].Value, out.Results[1].Value)
 	}
 }

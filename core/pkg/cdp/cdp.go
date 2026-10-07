@@ -449,14 +449,16 @@ func Screenshot(ctx context.Context, c *Conn) ([]byte, error) {
 
 // WaitForResponse waits for a network response whose URL matches the given pattern.
 func WaitForResponse(ctx context.Context, c *Conn, urlPattern string, timeout time.Duration) error {
-	// Enable network tracking first
+	// Open the channel before asking for events, as the BiDi backend does: a
+	// response that lands between the two has nowhere to go, and the wait then
+	// sits out its timeout for something that already happened.
+	sub := c.Subscribe()
+	defer sub.Close()
+
 	_, err := c.Call(ctx, "Network.enable", nil)
 	if err != nil {
 		return fmt.Errorf("Network.enable: %w", err)
 	}
-
-	sub := c.Subscribe()
-	defer sub.Close()
 	defer func() {
 		// Bound the cleanup call so a dead/stuck socket cannot hang the worker forever.
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

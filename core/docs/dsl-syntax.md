@@ -218,6 +218,22 @@ VERIFY SOFTLY that 'Legacy Text' is NOT present
 ```
 
 Non-fatal. Logs a warning but execution continues. Single-shot (no retry loop).
+The state forms work too — `VERIFY SOFTLY that 'Submit' is disabled` reads the
+button's state, once.
+
+### VERIFY VISUAL
+
+```hunt
+VERIFY VISUAL 'Company logo'
+VERIFY VISUAL the 'Revenue chart' element
+```
+
+Compares how the element looks with a saved baseline image. The first run has
+nothing to compare with: it saves `visual_baselines/<name>_<hash>.png` next to
+the `.hunt` file and passes. Later runs fail if the element changed size or if
+more than 1% of its pixels differ. Commit the baselines — they are the expected
+result — and delete one to accept a new look. Baselines are per browser:
+Chromium and Firefox do not render alike.
 
 ### VERIFY FIELD
 
@@ -488,6 +504,7 @@ When paused (`--debug` or `PAUSE`):
 | `WAIT FOR RESPONSE` | Network | `WAIT FOR RESPONSE "api/users"` |
 | `VERIFY` | Assertion | `VERIFY that 'Welcome' is present` |
 | `VERIFY SOFTLY` | Assertion | `VERIFY SOFTLY that 'Banner' is present` |
+| `VERIFY VISUAL` | Assertion | `VERIFY VISUAL 'Company logo'` |
 | `VERIFY FIELD` | Assertion | `Verify 'Email' has value 'user@example.com'` |
 | `EXTRACT` | Data | `EXTRACT the 'Price' into {total}` |
 | `SET` | Data | `SET {name} = Alice` |

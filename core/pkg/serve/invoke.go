@@ -1,6 +1,7 @@
 package serve
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -203,10 +204,20 @@ func decodeEvalResult(raw []byte) any {
 
 func summarise(line string) string {
 	const max = 120
-	if len(line) > max {
-		return line[:max] + "…"
+	if runes := []rune(line); len(runes) > max {
+		return string(runes[:max]) + "…"
 	}
 	return line
+}
+
+// decodeHostJSON decodes a handler's result keeping numbers as the client
+// wrote them. These values become DSL variables, i.e. text: through float64 a
+// returned 1234567 would print as "1.234567e+06", and an id past 2^53 would
+// lose its last digits before it was ever printed.
+func decodeHostJSON(raw json.RawMessage, dst any) error {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	return dec.Decode(dst)
 }
 
 // ── registration ─────────────────────────────────────────────────────────────
@@ -325,7 +336,7 @@ func (s *Server) bridgeHook(kind, tag string) lifecycle.Handler {
 			return nil
 		}
 		var published map[string]any
-		if err := json.Unmarshal(raw, &published); err != nil {
+		if err := decodeHostJSON(raw, &published); err != nil {
 			// A hook that returned something other than an object simply
 			// published nothing; that is not an error.
 			return nil
@@ -386,7 +397,7 @@ func (s *Server) bridgeCall() runtime.GoCallHandler {
 			return nil, nil
 		}
 		var decoded any
-		if err := json.Unmarshal(raw, &decoded); err != nil {
+		if err := decodeHostJSON(raw, &decoded); err != nil {
 			return nil, fmt.Errorf("CALL %s: undecodable result: %w", inv.Name, err)
 		}
 		return decoded, nil

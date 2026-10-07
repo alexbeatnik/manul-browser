@@ -8,7 +8,7 @@
 
 ```json
 {
-  "version": "0.1.1",
+  "version": "0.1.2",
   "generatedFrom": "pkg/config :: _KEY_MAP, _CFG, get_threshold(), lookup_page_name(); pkg/runtime :: ScopedVariables; pkg/config :: envBool()",
 
   "configFile": {
@@ -194,7 +194,7 @@
       "type": "string",
       "default": "on-fail",
       "allowedValues": ["on-fail", "always", "none"],
-      "description": "Screenshot capture mode. Screenshots stored as base64 PNGs in StepResult.screenshot and the HTML report.",
+      "description": "Screenshot capture mode for hunt runs: PNG files under screenshots/ in the working directory, recorded on each step result as screenshot_path and linked from the HTML report.",
       "cliFlag": "--screenshot"
     },
     {

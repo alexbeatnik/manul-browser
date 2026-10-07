@@ -162,15 +162,27 @@ func (w *Worker) Runtime() *runtime.Runtime { return w.runtime }
 // Page returns the worker's bound Page. Single-goroutine.
 func (w *Worker) Page() browser.Page { return w.page }
 
+// resetRuntime swaps in a fresh Runtime on the same page.
+//
+// A Runtime accumulates one hunt's state: the variables it SET or EXTRACTed,
+// its mocks, its sticky checkboxes. The pool calls this between hunts so the
+// next one starts as it would in a sequential run, which builds a new Runtime
+// per file — otherwise a value left behind at row scope shadows the next
+// file's own @var, and which file inherits it depends on scheduling.
+func (w *Worker) resetRuntime() {
+	w.runtime = runtime.New(w.cfg, w.page, w.logger)
+}
+
 // Run executes a parsed hunt against the worker's page.
 // Block-level logging (BlockStart/BlockPass/BlockFail) is emitted per STEP
 // group inside runtime.RunHunt, so this method only adds the mission header.
-func (w *Worker) Run(ctx context.Context, hunt *dsl.Hunt) (*explain.HuntResult, error) {
+// An optional row of @data: variables is passed through to the hunt.
+func (w *Worker) Run(ctx context.Context, hunt *dsl.Hunt, rowVars ...map[string]string) (*explain.HuntResult, error) {
 	if w == nil || w.runtime == nil {
 		return nil, errors.New("worker: zero-value Worker; use NewWorker or AdoptWorker")
 	}
 	w.logger.Startup("heuristics", w.cfg.CDPEndpoint)
-	return w.runtime.RunHunt(ctx, hunt)
+	return w.runtime.RunHunt(ctx, hunt, rowVars...)
 }
 
 // Close tears down the Worker: closes the page, closes the browser

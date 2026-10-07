@@ -183,7 +183,7 @@
 
   "inBrowserModal": {
     "inject": "injectDebugModal(step) renders a draggable overlay showing the paused step with an Abort button.",
-    "abortSignal": "The Abort button sets window.__manul_debug_action; the prompt loop polls it every 200ms ('abort' in TTY, 'ABORT' in extension mode) and returns ErrDebugStop.",
+    "abortSignal": "The Abort button sets window.__manul_debug_action; the prompt loop polls it every 200ms in both modes and returns ErrDebugStop. The value is read as bare text and compared case-insensitively: EvalJS returns a string unquoted, so decoding it as JSON never matches.",
     "highlight": "debugHighlight(xpath) marks the resolved element (data-manul-debug-highlight) and scrolls it into view; clearDebugHighlight() removes it.",
     "duringRepl": "The abort poll is suspended while the What-If REPL holds stdin. Abort remains available by leaving the REPL with !quit."
   }

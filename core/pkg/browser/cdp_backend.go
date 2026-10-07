@@ -423,7 +423,11 @@ func (p *CDPPage) DispatchKey(ctx context.Context, key string, modifiers int) er
 	// never submitted forms on sites that listen for keypress/submit (the
 	// "search stayed on the homepage" failure), and printable keys typed
 	// nothing. The matching keyUp must NOT carry text.
-	if text := keyText(key); text != "" {
+	//
+	// A chord is a command, not a character: with Control, Alt or Meta held
+	// the key carries no text, or Control+A would type an "a" as well as
+	// selecting everything. Shift alone still types.
+	if text := keyText(key); text != "" && modifiers&^8 == 0 {
 		params.Text = text
 		params.UnmodifiedText = text
 	}

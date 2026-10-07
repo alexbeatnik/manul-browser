@@ -56,6 +56,12 @@ func cmdServe(args []string) error {
 		cfg.Headless = true
 	}
 	cfg.Verbose = cfg.Verbose || *verbose
+	// The debugger prompts on stdout and reads its answers from stdin, and both
+	// belong to the protocol here. Left on by MANUL_DEBUG or a config file meant
+	// for `manul run`, it would write pause markers into the reply stream and
+	// consume the client's next request as a debugger command.
+	cfg.DebugMode = false
+	cfg.BreakLines = nil
 
 	// stdout carries the protocol and nothing else, so logs go to stderr.
 	level := utils.LogLevelInfo

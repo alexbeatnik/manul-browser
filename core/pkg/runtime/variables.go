@@ -100,7 +100,10 @@ func (sv *ScopedVariables) Interpolate(s string) string {
 		keys = append(keys, k)
 	}
 	sort.Slice(keys, func(i, j int) bool {
-		return len(keys[i]) > len(keys[j])
+		if len(keys[i]) != len(keys[j]) {
+			return len(keys[i]) > len(keys[j])
+		}
+		return keys[i] < keys[j] // map order is random; the result must not be
 	})
 
 	for _, k := range keys {
@@ -108,9 +111,40 @@ func (sv *ScopedVariables) Interpolate(s string) string {
 		// Replace braced forms first to avoid partial replacement by bare $k
 		s = strings.ReplaceAll(s, "${"+k+"}", v)
 		s = strings.ReplaceAll(s, "{"+k+"}", v)
-		s = strings.ReplaceAll(s, "$"+k, v)
+		s = replaceBareVar(s, k, v)
 	}
 	return s
+}
+
+// replaceBareVar substitutes $name where the name ends there. Longest-first
+// ordering keeps $user from eating $user_id only when both are defined; this
+// covers the other half, where the longer name is not a variable at all — a
+// REPEAT loop defines {i}, and "$items" is not "$i" followed by "tems".
+func replaceBareVar(s, name, value string) string {
+	token := "$" + name
+	if !strings.Contains(s, token) {
+		return s
+	}
+	var b strings.Builder
+	for {
+		i := strings.Index(s, token)
+		if i < 0 {
+			b.WriteString(s)
+			return b.String()
+		}
+		end := i + len(token)
+		b.WriteString(s[:i])
+		if end < len(s) && isIdentByte(s[end]) {
+			b.WriteString(token)
+		} else {
+			b.WriteString(value)
+		}
+		s = s[end:]
+	}
+}
+
+func isIdentByte(c byte) bool {
+	return c == '_' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
 }
 
 // String returns a debug representation of all variables.

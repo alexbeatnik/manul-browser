@@ -113,6 +113,9 @@ func LaunchChrome(ctx context.Context, opts LaunchOptions) (*ChromeProcess, erro
 	setProcGroup(cmd)
 
 	if err := cmd.Start(); err != nil {
+		if ownsDir {
+			_ = os.RemoveAll(opts.UserDataDir)
+		}
 		return nil, fmt.Errorf("start chrome: %w", err)
 	}
 
