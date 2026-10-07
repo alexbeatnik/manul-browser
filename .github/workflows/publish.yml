@@ -388,7 +388,9 @@ jobs:
               echo "$1@$v is already published, skipping."
               return
             fi
-            npm publish "$2" --access public --provenance
+            # With the leading ./ — npm reads a bare `dist/name.tgz` as the
+            # GitHub shorthand owner/repo and goes looking for a repository.
+            npm publish "./$2" --access public --provenance
           }
 
           # Engines first: manul-browser lists them as optional dependencies, and
