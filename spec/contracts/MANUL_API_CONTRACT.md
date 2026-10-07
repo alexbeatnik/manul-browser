@@ -12,7 +12,7 @@
 
 ```json
 {
-  "version": "0.1.1",
+  "version": "0.1.2",
   "generatedFrom": "pkg/agent/agent.go :: Options, Session, Launch(), Attach(), (*Session).Close/Read/ReadText/Step/Run/Map, Value, Reason, Cand, StepOutcome, RunOutcome, MapBudget, MapElement, MapGroup, PageMap, TruncateText(), DefaultMaxPerGroup",
   "importPath": "github.com/alexbeatnik/manul-browser/core/pkg/agent",
 
@@ -72,7 +72,12 @@
     {
       "name": "Run",
       "signature": "(*Session) Run(ctx context.Context, huntScript string) (RunOutcome, error)",
-      "description": "Executes a full .hunt script (multiple lines, STEP blocks, loops, conditionals) against the session's page and returns a compact aggregate with per-step outcomes."
+      "description": "Executes a full .hunt script (multiple lines, STEP blocks, loops, conditionals) against the session's page and returns a compact aggregate with per-step outcomes. A script with an @data: file runs once per row and the aggregate adds the rows up. Imports, mocks and data files resolve against the working directory."
+    },
+    {
+      "name": "RunFile",
+      "signature": "(*Session) RunFile(ctx context.Context, path string) (RunOutcome, error)",
+      "description": "Run for a .hunt file on disk. It keeps the file's location, so @import:, MOCK and @data: paths resolve relative to the hunt, as under `manul run <file>`. This is what the session protocol's run {path} and run-suite call."
     },
     {
       "name": "Map",

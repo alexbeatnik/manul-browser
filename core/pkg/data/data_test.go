@@ -193,3 +193,51 @@ func TestLoadFile_CSVWithEmptyFields(t *testing.T) {
 		t.Errorf("unexpected values: %v", rows[0])
 	}
 }
+
+// A number in a data file is typed into a form as text, so it has to come out
+// the way it went in. Through float64 and fmt, 1234567 became "1.234567e+06".
+func TestLoadFile_JSONNumbersKeepTheirSpelling(t *testing.T) {
+	dir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "orders.json"), []byte(`[
+		{"id": 1234567, "phone": 380501234567, "price": 19.90, "qty": 3, "big": 9007199254740993, "ok": true, "note": null}
+	]`), 0644)
+
+	rows, err := LoadFile("orders.json", dir)
+	if err != nil {
+		t.Fatalf("LoadFile failed: %v", err)
+	}
+	want := map[string]string{
+		"id": "1234567", "phone": "380501234567", "price": "19.90", "qty": "3",
+		"big": "9007199254740993", "ok": "true", "note": "",
+	}
+	for k, v := range want {
+		if rows[0][k] != v {
+			t.Errorf("%s = %q, want %q", k, rows[0][k], v)
+		}
+	}
+}
+
+// A hunt always runs at least once. An empty data file used to mean zero runs,
+// and a hunt that never ran has nothing to fail.
+func TestRowsFor(t *testing.T) {
+	dir := t.TempDir()
+	hunt := filepath.Join(dir, "login.hunt")
+	_ = os.WriteFile(filepath.Join(dir, "users.csv"), []byte("user\nann\nbob\n"), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "empty.csv"), []byte("user\n"), 0644)
+
+	rows, err := RowsFor("", hunt)
+	if err != nil || len(rows) != 1 || rows[0] != nil {
+		t.Errorf("no data file: rows=%v err=%v", rows, err)
+	}
+	rows, err = RowsFor("empty.csv", hunt)
+	if err != nil || len(rows) != 1 || rows[0] != nil {
+		t.Errorf("empty data file: rows=%v err=%v", rows, err)
+	}
+	rows, err = RowsFor("users.csv", hunt)
+	if err != nil || len(rows) != 2 || rows[1]["user"] != "bob" {
+		t.Errorf("two rows: rows=%v err=%v", rows, err)
+	}
+	if _, err := RowsFor("missing.csv", hunt); err == nil {
+		t.Error("a data file that is not there should be an error")
+	}
+}

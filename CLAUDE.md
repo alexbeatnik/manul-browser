@@ -73,6 +73,11 @@ asking *is this on the page* must compare against `ThresholdAmbiguous`, the bar
 the rest of the engine uses. Without it, a wait for a missing element passes on
 the first poll.
 
+The threshold is not enough on its own once a type hint is involved: the hint
+and the tag together score 0.30 with no text in common, so "the 'Delete' button"
+clears the bar against any button. Anything about to *act* on a winner asks
+`scorer.MatchesQuery` first — the one question a score cannot answer.
+
 **Reverse calls are strictly nested.** While the engine waits for a handler's
 reply it serves only `page.eval` and `page.url`. Anything else would re-enter
 the step currently executing, so it is refused rather than deadlocking. A
@@ -89,6 +94,14 @@ on **stderr** instead — and that banner names a bare origin
 (`ws://127.0.0.1:9222`) while the WebSocket upgrade only succeeds at
 `/session`. `bidi.NormalizeWebSocketURL` is what closes that gap; without it
 the handshake fails with nothing but `bad handshake` to go on.
+
+**Firefox starts with focus in the address bar, and BiDi cannot move it.** Until
+focus is in the page, `document.hasFocus()` is false and the page gets no
+`focus`, `blur`, `focusin` or `focusout` at all — fields still fill, but
+anything that reacts to focus does not. Activating the tab, a pointer click,
+`window.focus()` and `focusmanager.testmode` were all tried and none helps. A
+tab *created* over BiDi does start with focus in its content, which is why
+`LaunchFirefox` swaps the startup tab for one (`focusContent`).
 
 **One BiDi session per Firefox.** `session.new` on a second socket fails
 rather than opening a second view, so every page of one endpoint shares a

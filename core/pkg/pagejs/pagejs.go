@@ -69,6 +69,21 @@ func SetInputValue(id int, xpath, value string) string {
 
 			if (nativeSetter) {
 				nativeSetter.call(el, %[3]q);
+			} else if (el.isContentEditable) {
+				// A contenteditable has no value: assigning one creates a plain
+				// property and leaves the text as it was, so the step passed
+				// over an editor nothing had been typed into. Replace its
+				// contents the way typing would, so the editor's own input
+				// handling sees it; fall back to the text itself.
+				el.focus();
+				var range = document.createRange();
+				range.selectNodeContents(el);
+				var selection = window.getSelection();
+				selection.removeAllRanges();
+				selection.addRange(range);
+				if (!document.execCommand('insertText', false, %[3]q) || el.textContent !== %[3]q) {
+					el.textContent = %[3]q;
+				}
 			} else {
 				el.value = %[3]q;
 			}
@@ -81,6 +96,10 @@ func SetInputValue(id int, xpath, value string) string {
 			if (typeof el.focus === 'function') {
 				try { el.focus({ preventScroll: true }); } catch (_) { el.focus(); }
 			}
+		} else {
+			// Same rule as ElementCenter: an element that is gone is a failed
+			// step, not a fill that quietly did nothing.
+			throw new Error("Element not found");
 		}
 	`, id, xpath, value)
 }
@@ -432,6 +451,25 @@ func ElementCenter(id int, xpath string) string {
 		var rect = el.getBoundingClientRect();
 		// If it's still outside, we might need a small delay, but instant scroll usually is synchronous.
 		JSON.stringify({x: rect.x + rect.width/2, y: rect.y + rect.height/2});
+	`, id, xpath)
+}
+
+// ElementRect scrolls the element at ID or XPath into view and returns its
+// viewport box as a JSON string, with the two numbers needed to turn that box
+// into screenshot pixels: the viewport's width in CSS pixels, and the device
+// pixel ratio as a fallback.
+func ElementRect(id int, xpath string) string {
+	return fmt.Sprintf(`
+		var el = (window.__manulReg && window.__manulReg[%d]) || document.evaluate(%q, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+		if (!el) {
+			throw new Error("Element not found");
+		}
+		el.scrollIntoView({behavior: 'instant', block: 'center', inline: 'center'});
+		var rect = el.getBoundingClientRect();
+		JSON.stringify({
+			x: rect.x, y: rect.y, width: rect.width, height: rect.height,
+			viewportWidth: window.innerWidth, dpr: window.devicePixelRatio || 1
+		});
 	`, id, xpath)
 }
 

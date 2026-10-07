@@ -17,15 +17,20 @@ import (
 
 	"github.com/alexbeatnik/manul-browser/core/pkg/browser"
 	"github.com/alexbeatnik/manul-browser/core/pkg/config"
+	"github.com/alexbeatnik/manul-browser/core/pkg/data"
 	"github.com/alexbeatnik/manul-browser/core/pkg/dsl"
 	"github.com/alexbeatnik/manul-browser/core/pkg/report"
 	"github.com/alexbeatnik/manul-browser/core/pkg/runtime"
 	"github.com/alexbeatnik/manul-browser/core/pkg/utils"
 )
 
+// weekdays maps a day name to its time.Weekday number (Sunday = 0), which is
+// what NextRunDelay compares it against. Numbered from Monday instead, every
+// weekly schedule fired a day early: "every monday" ran on Sunday.
 var weekdays = map[string]int{
-	"monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3,
-	"friday": 4, "saturday": 5, "sunday": 6,
+	"sunday": int(time.Sunday), "monday": int(time.Monday), "tuesday": int(time.Tuesday),
+	"wednesday": int(time.Wednesday), "thursday": int(time.Thursday),
+	"friday": int(time.Friday), "saturday": int(time.Saturday),
 }
 
 // Schedule is a parsed @schedule expression.
@@ -145,6 +150,16 @@ func CollectScheduledHunts(dir string) ([]ScheduledHunt, error) {
 				fmt.Fprintf(os.Stderr, "⚠️  %s: invalid @schedule: %v\n", d.Name(), err)
 				return nil
 			}
+			// The same preparation `manul run` does. Without it a scheduled
+			// hunt that says USE fails on its first run, every run.
+			if err := dsl.ResolveImports(hunt); err != nil {
+				fmt.Fprintf(os.Stderr, "⚠️  %s: %v\n", d.Name(), err)
+				return nil
+			}
+			if err := hunt.Expand(); err != nil {
+				fmt.Fprintf(os.Stderr, "⚠️  %s: %v\n", d.Name(), err)
+				return nil
+			}
 			out = append(out, ScheduledHunt{Path: path, Schedule: sched, Hunt: hunt})
 		}
 		return nil
@@ -196,13 +211,22 @@ func runJob(ctx context.Context, sh ScheduledHunt, cfg config.Config, logger *ut
 		fmt.Fprintf(os.Stderr, "\n🚀 [%s] scheduled run starting — %s\n",
 			filename, time.Now().Format("15:04:05"))
 
-		if err := executeHunt(ctx, sh.Hunt, cfg, logger); err != nil {
+		// One browser at a time. Every run launches on the default debug port,
+		// so two that overlap would not get a browser each — the second would
+		// find the port answering and drive the first one's tab.
+		runMu.Lock()
+		err := executeHunt(ctx, sh.Hunt, cfg, logger)
+		runMu.Unlock()
+		if err != nil {
 			fmt.Fprintf(os.Stderr, "💥 [%s] crashed — %v\n", filename, err)
 		} else {
 			fmt.Fprintf(os.Stderr, "🏁 [%s] finished\n", filename)
 		}
 	}
 }
+
+// runMu serialises scheduled runs; see runJob.
+var runMu sync.Mutex
 
 func executeHunt(ctx context.Context, hunt *dsl.Hunt, cfg config.Config, logger *utils.Logger) error {
 	opts := browser.DefaultLaunchOptions()
@@ -221,14 +245,26 @@ func executeHunt(ctx context.Context, hunt *dsl.Hunt, cfg config.Config, logger 
 	}
 	defer page.Close()
 
-	rt := runtime.New(cfg, page, logger)
-	result, err := rt.RunHunt(ctx, hunt)
+	rows, err := data.RowsFor(hunt.DataFile, hunt.SourcePath)
 	if err != nil {
-		return err
+		return fmt.Errorf("load data file %q: %w", hunt.DataFile, err)
 	}
-	_ = report.AppendRunHistory("reports", result)
-	if cfg.HTMLReport {
-		_, _ = report.GenerateHTML(result, "reports")
+
+	var firstErr error
+	for _, row := range rows {
+		rt := runtime.New(cfg, page, logger)
+		// A failed run is the one the history most needs, and RunHunt returns
+		// the partial result alongside its error.
+		result, err := rt.RunHunt(ctx, hunt, row)
+		if result != nil {
+			_ = report.AppendRunHistory("reports", result)
+			if cfg.HTMLReport {
+				_, _ = report.GenerateHTML(result, "reports")
+			}
+		}
+		if err != nil && firstErr == nil {
+			firstErr = err
+		}
 	}
-	return nil
+	return firstErr
 }

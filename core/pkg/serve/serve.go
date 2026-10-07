@@ -342,6 +342,9 @@ type openResult struct {
 	Mode string `json:"mode"`
 	CDP  string `json:"cdp,omitempty"`
 	URL  string `json:"url,omitempty"`
+	// Browser is the engine a launch started: "chromium" or "firefox". Empty
+	// when attaching — there the endpoint decides, not this session.
+	Browser string `json:"browser,omitempty"`
 }
 
 func (s *Server) cmdOpen(ctx context.Context, raw json.RawMessage) (any, string, error) {
@@ -406,7 +409,8 @@ func (s *Server) cmdOpen(ctx context.Context, raw json.RawMessage) (any, string,
 		res = openResult{Mode: config.ModeAttach, CDP: endpoint}
 	default:
 		sess, err = agent.Launch(ctx, opts)
-		res = openResult{Mode: config.ModeLaunch}
+		engine, _ := browser.NormalizeEngine(cfg.Browser)
+		res = openResult{Mode: config.ModeLaunch, Browser: engine}
 	}
 	if err != nil {
 		return nil, CodeInternal, err
@@ -536,19 +540,23 @@ func (s *Server) cmdRun(ctx context.Context, raw json.RawMessage) (any, string, 
 		return nil, CodeNotOpen, errNoSession
 	}
 
-	source := a.Source
-	if source == "" {
-		if a.Path == "" {
-			return nil, CodeBadRequest, errors.New("run needs either path or source")
-		}
-		b, err := os.ReadFile(a.Path)
+	if a.Source != "" {
+		outcome, err := s.sess.Run(ctx, a.Source)
 		if err != nil {
-			return nil, CodeBadRequest, err
+			return nil, CodeStepFailed, err
 		}
-		source = string(b)
+		return outcome, "", nil
 	}
 
-	outcome, err := s.sess.Run(ctx, source)
+	if a.Path == "" {
+		return nil, CodeBadRequest, errors.New("run needs either path or source")
+	}
+	if _, err := os.Stat(a.Path); err != nil {
+		return nil, CodeBadRequest, err
+	}
+	// By path, not by contents: the hunt's own directory is what its imports
+	// and mock files are relative to, as under `manul run <file>`.
+	outcome, err := s.sess.RunFile(ctx, a.Path)
 	if err != nil {
 		return nil, CodeStepFailed, err
 	}

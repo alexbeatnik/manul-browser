@@ -82,6 +82,9 @@ func GenerateHTML(result *explain.HuntResult, outDir string) (string, error) {
 	if result.HuntFile != "" {
 		b.WriteString(fmt.Sprintf("<div class=\"meta\">File: %s</div>\n", html.EscapeString(result.HuntFile)))
 	}
+	if result.Flaky {
+		b.WriteString(fmt.Sprintf("<div class=\"meta\">Flaky: passed on attempt %d</div>\n", result.Attempts))
+	}
 
 	// Summary stats
 	b.WriteString("<div class=\"summary\">\n")

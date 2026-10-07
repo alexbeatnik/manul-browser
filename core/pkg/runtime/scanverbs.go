@@ -40,7 +40,9 @@ func (rt *Runtime) highlightTarget(ctx context.Context, cmd dsl.Command) error {
 		mode = string(dsl.ModeNone)
 	}
 	ranked := scorer.Rank(target, cmd.TypeHint, mode, elements, 1, nil)
-	if len(ranked) == 0 || ranked[0].Explain.Score.Total <= 0 {
+	// Every element scores above zero on tag semantics alone, so the score
+	// cannot tell a resolved target from the best of a bad lot.
+	if len(ranked) == 0 || !scorer.MatchesQuery(target, &ranked[0].Element) {
 		return fmt.Errorf("HIGHLIGHT: could not resolve %q", target)
 	}
 
@@ -129,8 +131,8 @@ func mdCell(s string) string {
 	s = strings.ReplaceAll(s, "|", "\\|")
 	s = strings.Join(strings.Fields(s), " ")
 	const max = 60
-	if len(s) > max {
-		return s[:max-1] + "…"
+	if len([]rune(s)) > max {
+		return truncateRunes(s, max-1) + "…"
 	}
 	if s == "" {
 		return "—"

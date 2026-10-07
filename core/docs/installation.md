@@ -1,6 +1,6 @@
 # Installation
 
-> **Manul Browser 0.1.1**
+> **Manul Browser 0.1.2**
 
 ## Requirements
 
@@ -67,7 +67,7 @@ Layering: **CLI flags → `MANUL_*` env vars → JSON file → defaults**. See [
 ```bash
 # Check the CLI is available
 manul --help
-manul --version      # → manul 0.1.1
+manul --version      # → manul 0.1.2
 
 # Run a quick smoke test
 echo '@context: Quick test

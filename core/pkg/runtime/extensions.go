@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -174,7 +175,7 @@ func (rt *Runtime) executeCallGo(ctx context.Context, cmd dsl.Command) (string, 
 
 	value := ""
 	if result != nil {
-		value = fmt.Sprint(result)
+		value = formatHostValue(result)
 	}
 
 	// Flatten map return values into runtime variables, mirroring Python's
@@ -189,7 +190,7 @@ func (rt *Runtime) executeCallGo(ctx context.Context, cmd dsl.Command) (string, 
 	case map[string]any:
 		for k, v := range m {
 			if strings.TrimSpace(k) != "" {
-				rt.vars.Set(k, fmt.Sprint(v), LevelRow)
+				rt.vars.Set(k, formatHostValue(v), LevelRow)
 			}
 		}
 	}
@@ -204,6 +205,21 @@ func (rt *Runtime) executeCallGo(ctx context.Context, cmd dsl.Command) (string, 
 		"go_call_args":        len(args),
 	}
 	return value, metadata, nil
+}
+
+// formatHostValue renders a handler's result as the text a variable holds.
+//
+// fmt prints a float64 in %g, which switches to an exponent at a million — so a
+// handler returning an order id of 1234567 would set the variable to
+// "1.234567e+06", and that is what the next FILL would type.
+func formatHostValue(v any) string {
+	switch n := v.(type) {
+	case float64:
+		return strconv.FormatFloat(n, 'f', -1, 64)
+	case float32:
+		return strconv.FormatFloat(float64(n), 'f', -1, 32)
+	}
+	return fmt.Sprint(v)
 }
 
 func (rt *Runtime) currentPageLabel(ctx context.Context) string {

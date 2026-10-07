@@ -2,7 +2,7 @@
     <img src="images/manul.png" alt="Manul Browser mascot" width="160" />
 </p>
 
-# 😼 Manul Browser Engine 0.1.1 — Deterministic Web & Desktop Automation Runtime
+# 😼 Manul Browser Engine 0.1.2 — Deterministic Web & Desktop Automation Runtime
 
 > **Developer README.** The user-facing tour lives in [README.md](README.md); this file is the
 > engineering manual: project structure, runtime architecture, extension points, configuration,
@@ -267,11 +267,57 @@ the DSL contract + `manul schema` verbs list.
 
 `const version` in `cmd/manul/main.go` is the single source of truth (reported by
 `manul --version` and the agent schema, **no `v` prefix**). Bump it together with:
-the git tag (`v0.1.1` — Go needs the prefix), README badges/notes, and the
+the git tag (`v0.1.2` — Go needs the prefix), README badges/notes, and the
 `"version"` field in every `contracts/MANUL_*_CONTRACT.md`. Keep it in lockstep with the
 binding versions in `bindings/python/manul/__init__.py` and `bindings/node/package.json`.
 
+Pushing the bump to `main` releases everything. `release.yml` builds the binaries,
+creates the GitHub Release and tags `core/vX.Y.Z`; `publish.yml` builds the PyPI and npm
+packages with `bindings/build-packages.sh`, smoke-tests each on its own platform, and
+uploads them. **That upload cannot be undone** — bump the version when the code on `main`
+is the code to ship. A push that leaves the version alone publishes nothing.
+
 ---
+
+## 📜 Release Notes: 0.1.2
+
+A correctness release: steps that passed over the wrong thing now fail, and
+several documented features that never ran now do.
+
+- **A target that is not on the page is `not_found`.** A type hint and a matching tag
+  outscored the confidence bar with no text in common, so `CLICK the 'Delete account'
+  button` clicked whichever button came first. Action commands now require the winner to
+  match the target somewhere (`scorer.MatchesQuery`); a partial match still resolves.
+  The same holds for a custom dropdown's option, DRAG, HIGHLIGHT and `VERIFY … has value`.
+- **Quoted labels are opaque to the parser.** `near`, `on`, `inside`, `with`, `into`,
+  `from`, `for`, `to be`, `and`, `is not`, `has text` and the type-hint words no longer
+  split a command when they appear inside the quotes (`FILL 'Pay with card' field with …`).
+- **Now working as documented:** named `@import` + `USE`; `ELSE`/`ELIF` inside `[SETUP]` /
+  `[TEARDOWN]`; state checks on a disabled element (`is disabled`, a read-only checkbox);
+  `PRESS Control+A` and `PRESS … ON '<target>'`; `IF … is NOT present`; `REPEAT N TIMES as
+  {n}`; trailing `# comments`; numbered lines; `DEBUG` and `CHOOSE`; FILL into a
+  `contenteditable`; `--tags`; `run-step --tab`.
+- **New:** `--retries` (a pass on retry is `flaky`: result fields `flaky`/`attempts`,
+  `run_history.json` status `flaky`); `--screenshot on-fail|always|none` (PNG files under
+  `screenshots/`, path in `screenshot_path` — **`on-fail` is the default**, so failed
+  steps now leave a file); `VERIFY VISUAL '<element>'` against a baseline in
+  `visual_baselines/`; `@data:` in parallel runs, sessions and the daemon;
+  `agent.Session.RunFile`; `browser` on `open`, in its result, and in both bindings.
+- **Runs:** an empty `@data:` file no longer means zero runs and a pass; parallel workers
+  start each hunt on a fresh runtime and see what `before_group` published; a CLI flag
+  overrides config and env only when it was actually passed; `--debug` forces one worker.
+- **Firefox:** focus events fire in a launched browser (the startup tab is replaced by one
+  whose content holds focus).
+- **Daemon:** weekly schedules fire on the day they name (they ran a day early); scheduled
+  hunts get their imports expanded; overlapping runs no longer share one browser.
+- **Values:** numbers from JSON data files and handler results keep their spelling
+  (`1234567`, not `1.234567e+06`); `$i` no longer rewrites `$items`.
+- **Bindings:** Python hook scripts read UTF-8 on Windows; a handler result JSON cannot
+  carry fails its own step instead of hanging the session.
+- **Packaging:** `bindings/build-packages.sh` builds the wheels, the sdist and the npm
+  packages (`manul-browser` plus one `@manul-browser/engine-<os>-<cpu>` per target);
+  `publish.yml` smoke-tests and uploads them when a new version reaches `main`. An install from the
+  sdist now works — without an engine, as documented — instead of failing to build.
 
 ## 📜 Release Notes: 0.1.1
 

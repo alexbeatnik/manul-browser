@@ -112,7 +112,9 @@ func resolveImports(hunt *Hunt, visited map[string]bool) error {
 				if alias, ok := imp.Aliases[name]; ok {
 					key = alias
 				}
-				hunt.Blueprints[key] = cmds
+				// Expand looks blocks up by lower-cased name, which is how
+				// wildcard imports already store them.
+				hunt.Blueprints[strings.ToLower(key)] = cmds
 			}
 		}
 	}

@@ -1,6 +1,9 @@
 package dsl
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // ── WAIT FOR SELECTOR ────────────────────────────────────────────────────────
 
@@ -85,5 +88,32 @@ func TestScanPage(t *testing.T) {
 				t.Errorf("output = %q, want %q", cmd.ScanOutput, tc.want)
 			}
 		})
+	}
+}
+
+// VERIFY VISUAL has to be recognised ahead of the other VERIFY forms: each of
+// them would read the element name as text to look for.
+func TestVerifyVisual_Parses(t *testing.T) {
+	h, err := Parse(strings.NewReader("VERIFY VISUAL 'Company logo'\nverify visual the 'Chart' element\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(h.Commands) != 2 {
+		t.Fatalf("got %d commands", len(h.Commands))
+	}
+	for i, want := range []string{"Company logo", "Chart"} {
+		cmd := h.Commands[i]
+		if cmd.Type != CmdVerifyVisual || cmd.Target != want {
+			t.Errorf("command %d: type=%s target=%q", i, cmd.Type, cmd.Target)
+		}
+	}
+	if h.Commands[1].TypeHint != "element" {
+		t.Errorf("hint=%q", h.Commands[1].TypeHint)
+	}
+
+	// The neighbours are still themselves.
+	h, _ = Parse(strings.NewReader("VERIFY that 'Visual' is present\nVERIFY SOFTLY that 'x' is present\n"))
+	if h.Commands[0].Type != CmdVerify || h.Commands[1].Type != CmdVerifySoft {
+		t.Errorf("got %s, %s", h.Commands[0].Type, h.Commands[1].Type)
 	}
 }

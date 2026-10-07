@@ -151,6 +151,7 @@ func engineSchema() map[string]any {
 			{Verb: "UPLOAD", Syntax: "Upload '<path>' to '<label>'"},
 			{Verb: "VERIFY", Syntax: "VERIFY '<label>' has value|text \"<expected>\"", Note: "hard assertion"},
 			{Verb: "VERIFY SOFTLY", Syntax: "VERIFY SOFTLY that '<label>' is present", Note: "non-fatal assertion"},
+			{Verb: "VERIFY VISUAL", Syntax: "VERIFY VISUAL '<label>'", Note: "compare the element with its saved baseline image; the first run saves it"},
 			{Verb: "EXTRACT", Syntax: "EXTRACT '<label>' into {var}", Note: "read text into a variable"},
 			{Verb: "WAIT", Syntax: "WAIT <seconds>"},
 			{Verb: "WAIT FOR", Syntax: "Wait for '<label>' to be visible|hidden", Note: "wait until present"},
