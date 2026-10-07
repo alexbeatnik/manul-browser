@@ -113,7 +113,7 @@ gives the same bytes through the one-shot CLI, a `serve` session, and each
 binding. Right now nothing enforces that, which is precisely the failure mode
 this repository was created to end.
 
-### 3. Node binding — written, unpublished
+### 3. Node binding — published
 
 `bindings/node/` exists: TypeScript, ESM, no runtime dependencies, Node ≥ 22.
 `Session` mirrors Go's `agent.Session` and Python's `manul.Session` method for
@@ -132,19 +132,15 @@ for free, but it also means two overlapping commands could each open a reverse
 call — and reverse calls are strictly nested. Top-level commands are therefore
 serialised through a queue, which is what Python's lock does by other means.
 
-What is left is the packaging half:
+It is on npm as `manul-browser`, since 0.1.2.
+`bindings/node/scripts/pack.mjs` wraps each engine binary in an
+`@manul-browser/engine-<platform>-<arch>` package and adds the six to the main
+package's `optionalDependencies` at pack time, which is why the committed
+`package.json` still lists none. Verified on Windows against the registry: a
+plain `npm install manul-browser` brings in the one matching engine package, and
+it drives a real Chrome.
 
-- **Nothing is published yet.** The packages can now be built:
-  `bindings/node/scripts/pack.mjs` wraps each engine binary in an
-  `@manul-browser/engine-<platform>-<arch>` package and adds the six to the main
-  package's `optionalDependencies` at pack time, which is why the committed
-  `package.json` still lists none. Verified on Windows from the tarballs: the
-  install resolves the engine out of `node_modules`, and it drives a real Chrome.
-- **The `@manul-browser` scope does not exist on npm.** It has to be created
-  before the first publish; that is a setting on npmjs.com, not in this
-  repository.
-
-### 4. Release pipeline — binaries ship, packages do not
+### 4. Release pipeline — live, one path unexercised
 
 `.github/workflows/release.yml` is live. It reads the version from
 `core/cmd/manul/main.go`, refuses to build when the bindings or the contracts
@@ -163,9 +159,9 @@ if it is. Otherwise it runs `bindings/build-packages.sh` — six engines, a whee
 and an npm package around each, an sdist and the main npm package — installs
 every package on a matching runner, drives a real Chrome through it, and then
 uploads. Started by hand with the inputs left alone it is a rehearsal that
-leaves the packages on the run. Locally verified as far as a Windows machine
-allows: both Windows wheels and npm packages build, install into a clean
-environment, and drive Chrome from the bundled engine.
+leaves the packages on the run. 0.1.2 went through it: all six targets built,
+all five smoke platforms drove Chrome from the installed package, and the PyPI
+upload was the workflow's own.
 
 This is the one irreversible step in the repository — a version number is spent
 whether or not the artifact was any good, and yanking does not give it back —
@@ -174,13 +170,14 @@ publish, and the smoke job is what stands between a push and the registries.
 
 What is still open:
 
-- **`publish.yml` has never run.** The script it calls has, on Windows and for
-  the Windows targets only; the Linux and macOS packages, the smoke matrix and
-  both upload jobs are unexercised until the first run. Dispatching it by hand
-  with the inputs left alone exercises everything except the uploads.
-- **Neither registry is set up.** The PyPI trusted publisher, the `pypi` and
-  `npm` environments, the `@manul-browser` organisation and the `NPM_TOKEN`
-  secret are settings outside this repository; the workflow's header lists them.
+- **The npm upload job has never succeeded.** 0.1.2 reached npm by hand, from
+  the tarballs the workflow built: npm cannot bind a trusted publisher to a
+  package that does not exist yet, and the token meant to cover the first
+  release was refused. The job now publishes through trusted publishing, with
+  no token at all, and the first version after 0.1.2 is its first real run. If
+  it fails, PyPI will already have that version; the job can be re-run alone.
+- **npm 0.1.2 carries no provenance statement.** That is a consequence of the
+  manual upload, and it cannot be added afterwards. Later versions get one.
 - **NuGet does not exist yet.**
 - **`macos-15-intel` and `ubuntu-24.04-arm` smoke jobs are best-effort.** They
   are marked `continue-on-error` so a retired runner label cannot hold up a
@@ -230,8 +227,9 @@ here only so nobody re-adds it thinking it was forgotten.
 3. Verify `attach` end-to-end, and on one non-Windows platform. (§verify 1)
 4. Settle `run-suite` session semantics and write it into the contract. (§verify 4)
 5. Conformance suite. (§missing 2)
-6. Set the two registries up, push a version bump, and watch `publish.yml`
-   run. (§missing 4, and the packaging half of §missing 3)
+6. ~~Set the two registries up, push a version bump, and watch `publish.yml`
+   run.~~ **Done** for 0.1.2 — see §missing 4 for the one job that has yet to
+   prove itself.
 
-Items 2–4 are cheap and each one stops a class of future surprise. Items 5–6 are
-the real remaining engineering.
+Items 2–4 are cheap and each one stops a class of future surprise. Item 5 is the
+real remaining engineering.

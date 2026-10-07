@@ -29,13 +29,18 @@ name: Publish
 #          environment in this repository's settings. No token is stored
 #          anywhere. (The same on test.pypi.org with environment `testpypi`.)
 #
-#   npm    Create the `manul-browser` organisation on npmjs.com — the platform
-#          packages are `@manul-browser/engine-<os>-<cpu>`, and a scope has to
-#          exist before anything can be published into it. Create the `npm`
-#          environment here and give it an `NPM_TOKEN` secret: a granular access
-#          token allowed to publish `manul-browser` and `@manul-browser/*`. npm
-#          cannot bind a trusted publisher to a package that does not exist yet,
-#          so the first release needs the token; later ones can drop it.
+#   npm    Each of the seven packages — `manul-browser` and the six
+#          `@manul-browser/engine-<os>-<cpu>` — names this workflow as its
+#          trusted publisher: repository `alexbeatnik/manul-browser`, workflow
+#          `publish.yml`, environment `npm`. That is a setting on the package,
+#          so no token is stored here either. From a logged-in shell:
+#
+#            npm trust github <package> --repo alexbeatnik/manul-browser \
+#              --file publish.yml --env npm --allow-publish
+#
+#          npm can only bind a publisher to a package that already exists, which
+#          is why 0.1.2 went up by hand. A package added later — a seventh
+#          platform, say — needs the same: one manual publish, then the binding.
 on:
   push:
     branches: [main]
@@ -354,7 +359,8 @@ jobs:
       name: npm
     permissions:
       contents: read
-      # For the provenance statement npm attaches to each package.
+      # The whole credential. npm exchanges this job's identity for a token
+      # good for one publish, and signs the provenance statement with it.
       id-token: write
     steps:
       - uses: actions/setup-node@v4
@@ -362,24 +368,20 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           registry-url: 'https://registry.npmjs.org'
 
+      # Trusted publishing arrived in npm 11.5.1; Node 22 still ships npm 10,
+      # which would look for a token, find none, and report a login failure.
+      - name: Use an npm that can publish without a token
+        run: npm install -g 'npm@^11.5.1' && npm --version
+
       - uses: actions/download-artifact@v4
         with:
           name: npm
           path: dist
 
       - name: Publish the engine packages, then the package that depends on them
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           set -euo pipefail
           v="${{ needs.plan.outputs.version }}"
-
-          # Said plainly here, because npm's own answer to a missing token is an
-          # authentication error that reads like a wrong password.
-          [ -n "${NODE_AUTH_TOKEN:-}" ] || {
-            echo "::error::NPM_TOKEN is not set in the 'npm' environment — see the header of publish.yml. Nothing was published; re-run this job once it is."
-            exit 1
-          }
 
           publish() { # <package name> <tarball>
             # Makes a second run after a partial failure finish the job instead
@@ -390,7 +392,10 @@ jobs:
             fi
             # With the leading ./ — npm reads a bare `dist/name.tgz` as the
             # GitHub shorthand owner/repo and goes looking for a repository.
-            npm publish "./$2" --access public --provenance
+            npm publish "./$2" --access public || {
+              echo "::error::npm refused $1@$v. If it asked for a login, the package has no trusted publisher naming this workflow and the 'npm' environment — see the header of publish.yml. Re-run this job once it does; packages already published are skipped."
+              exit 1
+            }
           }
 
           # Engines first: manul-browser lists them as optional dependencies, and
