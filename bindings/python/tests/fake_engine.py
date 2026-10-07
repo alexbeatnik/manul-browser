@@ -138,11 +138,15 @@ def main() -> int:
                 continue
             opened = True
             mode = args.get("mode") or ("attach" if args.get("cdp") else "launch")
-            out({"id": rid, "ok": True, "result": {
+            result = {
                 "mode": mode,
                 "cdp": args.get("cdp", ""),
                 "url": "https://example.com",
-            }})
+            }
+            # As the engine does: a launch reports the browser it started.
+            if mode == "launch":
+                result["browser"] = args.get("browser") or "chromium"
+            out({"id": rid, "ok": True, "result": result})
             continue
 
         if not opened:

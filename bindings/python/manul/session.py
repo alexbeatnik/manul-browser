@@ -177,6 +177,11 @@ class Session:
     In ``attach`` mode the browser is left running on close — the session did
     not open it.
 
+    A launch starts Chromium unless told otherwise::
+
+        with manul.Session(browser="firefox", headless=True) as s:
+            ...
+
     Variables survive between steps for the life of the session, which is the
     whole reason this is a session and not a series of one-shot commands::
 
@@ -193,6 +198,7 @@ class Session:
         headless: bool | None = None,
         port: int | None = None,
         executable_path: str | None = None,
+        browser: str | None = None,
         binary: str | os.PathLike[str] | Sequence[str] | None = None,
         stderr: IO[Any] | None = None,
         cwd: str | os.PathLike[str] | None = None,
@@ -204,6 +210,9 @@ class Session:
         self._opened = False
         self.mode: str = ""
         self.cdp: str = ""
+        #: The engine a launch started — "chromium" or "firefox". Empty when
+        #: attaching, where the endpoint decides.
+        self.browser: str = ""
         #: How many handlers were published to the engine on open.
         self.published: dict[str, int] = {"controls": 0, "calls": 0, "hooks": 0}
 
@@ -214,6 +223,7 @@ class Session:
             "headless": headless,
             "port": port,
             "executablePath": executable_path,
+            "browser": browser,
         }
         if open_now:
             self.open()
@@ -240,6 +250,7 @@ class Session:
         self._opened = True
         self.mode = res.get("mode", "")
         self.cdp = res.get("cdp", "")
+        self.browser = res.get("browser", "") or ""
         return self
 
     def publish_handlers(self) -> dict[str, int]:
