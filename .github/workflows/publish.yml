@@ -42,8 +42,11 @@ on:
     paths:
       - 'core/**'
       - 'bindings/**'
-      # Deliberately not '.github/workflows/publish.yml': editing the pipeline
-      # is not a reason to publish. Use workflow_dispatch to try it.
+      # This file too. A fix to the pipeline usually exists because a version
+      # failed to go out, and it should go out when the fix lands rather than
+      # wait for someone to remember to start it. It costs nothing otherwise:
+      # a version that is already published stops at the first job.
+      - '.github/workflows/publish.yml'
   workflow_dispatch:
     inputs:
       pypi:
