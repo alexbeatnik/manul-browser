@@ -46,8 +46,8 @@ existed — it just needed a session that outlives a single command.
 | `core/` engine | Shipping — builds, tests green |
 | `spec/contracts/` | Current, describes shipped behaviour |
 | `spec/protocol.md` | Implemented as `manul serve --stdio` |
-| `bindings/python` | Working — packaged as `manul-browser`, not yet published |
-| `bindings/node` | Working — packaged as `manul-browser` (npm), not yet published |
+| `bindings/python` | Working — `manul-browser` on PyPI |
+| `bindings/node` | Working — `manul-browser` on npm |
 | `conformance/` | Not started |
 | Release pipeline | Binaries: `.github/workflows/release.yml` — six targets, checksums, GitHub Release, `core/vX.Y.Z` module tag. Wheels and npm: `bindings/build-packages.sh` builds them, `.github/workflows/publish.yml` smoke-tests and uploads them on a push to `main`, when the version is not on the registries yet |
 | What-If REPL | Ported to Go — terminal-only, see the debug contract |
