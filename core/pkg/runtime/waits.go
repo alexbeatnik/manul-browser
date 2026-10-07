@@ -83,7 +83,9 @@ func (rt *Runtime) elementStateSatisfied(ctx context.Context, cmd dsl.Command, t
 	if mode == "" {
 		mode = string(dsl.ModeNone)
 	}
-	ranked := scorer.Rank(target, cmd.TypeHint, mode, elements, 1, nil)
+	// Ranked as if nothing were disabled: a wait reads state, and the scorer
+	// would otherwise hide exactly the element `to be disabled` is waiting on.
+	ranked := restoreDisabled(scorer.Rank(target, cmd.TypeHint, mode, asIfEnabled(elements), 1, nil), elements)
 
 	// The scorer always ranks something, so "the top candidate exists" is not
 	// the same as "the target is present". ThresholdAmbiguous is the same bar

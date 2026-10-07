@@ -1,6 +1,6 @@
 # Reports & Explainability
 
-> **Manul Browser 0.1.1**
+> **Manul Browser 0.1.2**
 
 Manul Browser provides multiple layers of observability: HTML reports with screenshots, per-channel scoring breakdowns, and an interactive debugger with a read-only explain-next preview.
 

@@ -122,3 +122,24 @@ func TestBuildHunt_SkipsUnknownEvents(t *testing.T) {
 		t.Fatal("unknown event type should not appear in hunt")
 	}
 }
+
+// Typing "admin" arrives as five input events. The recording has to say
+// "admin", not the "a" the first of them carried.
+func TestBuildHunt_KeepsTheLastValueTyped(t *testing.T) {
+	var events []Event
+	for _, v := range []string{"a", "ad", "adm", "admi", "admin"} {
+		events = append(events, Event{Type: "fill", Data: map[string]interface{}{"target": "Username", "value": v}})
+	}
+	events = append(events,
+		Event{Type: "click", Data: map[string]interface{}{"target": "Next", "tag": "BUTTON"}},
+		Event{Type: "fill", Data: map[string]interface{}{"target": "Username", "value": "root"}},
+	)
+
+	hunt := buildHunt("https://example.com", events)
+	want := "STEP 2:\n    Fill 'Username' field with 'admin'\n\n" +
+		"STEP 3:\n    Click the 'Next' button\n\n" +
+		"STEP 4:\n    Fill 'Username' field with 'root'\n"
+	if !strings.Contains(hunt, want) {
+		t.Fatalf("recording does not replay what was typed:\n%s", hunt)
+	}
+}

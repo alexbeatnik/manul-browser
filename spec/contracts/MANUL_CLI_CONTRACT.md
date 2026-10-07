@@ -8,7 +8,7 @@
 
 ```json
 {
-  "version": "0.1.1",
+  "version": "0.1.2",
   "generatedFrom": "cmd/manul :: main(), _run_hunt_file(), parse_hunt_file(), sync_main(); pkg/config :: _KEY_MAP, global config constants; pkg/scan :: scan_main(); pkg/record :: record_main(); pkg/daemon :: daemon_main()",
   "entryPoints": {
     "console_script": "manul",
@@ -220,7 +220,7 @@
       "minimum": 0,
       "configKey": "retries",
       "envVar": "MANUL_RETRIES",
-      "description": "Retry failed hunt files up to N times. Pass on retry marks the result as 'flaky'.",
+      "description": "Retry failed hunt files up to N times, sequentially or with --workers. Each attempt starts from a fresh runtime on the same page. A hunt that passes on a retry is marked 'flaky' (result fields flaky and attempts, run_history status 'flaky') and counts as passed; a data-driven hunt retries row by row.",
       "appliesTo": ["run"]
     },
     {
@@ -231,7 +231,7 @@
       "configKey": "screenshot",
       "envVar": "MANUL_SCREENSHOT",
       "allowedValues": ["on-fail", "always", "none"],
-      "description": "Screenshot capture mode. Screenshots are stored as base64 PNGs in step results and the HTML report.",
+      "description": "Screenshot capture mode for hunt runs. 'on-fail' saves the page as it stood after each failed step, 'always' after every step, 'none' nothing. Files are written as PNGs under screenshots/ in the working directory; each step result carries its file in screenshot_path, which the HTML report links. A block (IF, REPEAT, WHILE, FOR EACH) adds none of its own: the step that failed inside it already has one. Single agent steps (run-step) are never captured.",
       "appliesTo": ["run", "daemon"]
     },
     {

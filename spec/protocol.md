@@ -62,7 +62,7 @@ usable. Protocol-level faults (unparseable line, unknown `cmd`) answer with
 **Event** — unsolicited, no `id`:
 
 ```json
-{"event":"ready","protocol":"1.0","engine":"0.1.1"}
+{"event":"ready","protocol":"1.0","engine":"0.1.2"}
 {"event":"log","level":"warn","message":"tab navigated mid-step"}
 ```
 
@@ -83,7 +83,7 @@ Every agent command keeps the argument names and result shape it already has in
 | `cmd`       | args                                              | result |
 |-------------|---------------------------------------------------|--------|
 | `schema`    | —                                                 | engine schema (same payload as `manul schema`) |
-| `open`      | per-session config overrides (see below)          | `{mode,cdp,url}` — opens the browser session |
+| `open`      | per-session config overrides (see below)          | `{mode,cdp,url,browser}` — opens the browser session |
 | `register`  | `controls?`, `calls?`, `hooks?`                    | `{controls,calls,hooks}` — counts accepted |
 | `map`       | `maxPerGroup?`, `includeUnlabeled?`               | page map `{url, groups:[…]}` |
 | `read`      | `label?`, `selector?`, `maxChars?`                | `{value,found,reason}` or `{text,selector}` |
@@ -95,6 +95,11 @@ Every agent command keeps the argument names and result shape it already has in
 | `close`     | —                                                 | `{}`, then the server exits |
 
 Calling `open` twice in a session is `already_open`.
+
+**A hunt run by `path` keeps its location.** `run` and `run-suite` resolve a
+hunt's `@import:` and `MOCK` files relative to the `.hunt` file, as `manul run
+<file>` does. `run` with `source` has no file to be relative to, so those
+resolve against the engine's working directory.
 
 Error codes: `bad_request`, `not_open`, `already_open`, `step_failed`,
 `internal`.

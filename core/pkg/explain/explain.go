@@ -197,4 +197,10 @@ type HuntResult struct {
 	Success bool `json:"success"`
 	// SoftErrors holds accumulated VERIFY SOFTLY failure messages.
 	SoftErrors []string `json:"soft_errors,omitempty"`
+	// Attempts is how many times the hunt ran: one, plus one per retry.
+	// Zero when the caller did not run it through the retry loop.
+	Attempts int `json:"attempts,omitempty"`
+	// Flaky is true when the hunt failed first and passed on a retry. Success
+	// is true as well: a flaky hunt counts as a pass.
+	Flaky bool `json:"flaky,omitempty"`
 }

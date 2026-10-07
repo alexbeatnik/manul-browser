@@ -8,9 +8,11 @@ import (
 
 	"github.com/alexbeatnik/manul-browser/core/pkg/browser"
 	"github.com/alexbeatnik/manul-browser/core/pkg/config"
+	"github.com/alexbeatnik/manul-browser/core/pkg/data"
 	"github.com/alexbeatnik/manul-browser/core/pkg/dsl"
 	"github.com/alexbeatnik/manul-browser/core/pkg/explain"
 	"github.com/alexbeatnik/manul-browser/core/pkg/lifecycle"
+	"github.com/alexbeatnik/manul-browser/core/pkg/runtime"
 	"github.com/alexbeatnik/manul-browser/core/pkg/utils"
 )
 
@@ -63,8 +65,13 @@ type PoolOptions struct {
 type PoolResult struct {
 	WorkerID int
 	Hunt     *dsl.Hunt
-	Result   *explain.HuntResult
-	Err      error
+	// Result is the hunt's result. For a data-driven hunt it is the first row
+	// that failed, or the last row when none did.
+	Result *explain.HuntResult
+	// Rows holds one result per data row, in order, when the hunt declares
+	// @data:. Nil otherwise.
+	Rows []*explain.HuntResult
+	Err  error
 }
 
 // WorkerPool dispatches hunts to a bounded set of Workers running in parallel.
@@ -156,10 +163,6 @@ func (p *WorkerPool) Run(ctx context.Context, hunts []*dsl.Hunt) ([]PoolResult, 
 			}
 			defer worker.Close()
 
-			if p.opts.Lifecycle != nil {
-				worker.Runtime().SetGlobalVars(p.opts.Lifecycle.Vars())
-			}
-
 			for idx := range jobs {
 				if runCtx.Err() != nil {
 					results[idx] = PoolResult{
@@ -183,11 +186,13 @@ func (p *WorkerPool) Run(ctx context.Context, hunts []*dsl.Hunt) ([]PoolResult, 
 					}
 				}
 
-				res, runErr := worker.Run(runCtx, hunt)
+				res, rows, runErr := p.runHunt(runCtx, worker, hunt)
 
 				if p.opts.Lifecycle != nil {
 					for _, err := range lifecycle.RunAfterGroup(runCtx, hunt.Tags, p.opts.Lifecycle) {
-						p.opts.Logger.Warn("%v", err)
+						if p.opts.Logger != nil {
+							p.opts.Logger.Warn("%v", err)
+						}
 					}
 				}
 
@@ -195,6 +200,7 @@ func (p *WorkerPool) Run(ctx context.Context, hunts []*dsl.Hunt) ([]PoolResult, 
 					WorkerID: worker.ID(),
 					Hunt:     hunt,
 					Result:   res,
+					Rows:     rows,
 					Err:      runErr,
 				}
 				recordErr(runErr)
@@ -213,6 +219,49 @@ func (p *WorkerPool) Run(ctx context.Context, hunts []*dsl.Hunt) ([]PoolResult, 
 		}
 	}
 	return results, firstErr
+}
+
+// runHunt runs one hunt on a worker the way a sequential run would: once per
+// @data: row, each row retried as configured, every attempt on a fresh Runtime.
+//
+// The Runtime is rebuilt and reseeded per attempt rather than once per worker,
+// so an attempt neither inherits what the previous one left behind nor misses
+// what this hunt's before-group hook just published.
+func (p *WorkerPool) runHunt(ctx context.Context, w *Worker, hunt *dsl.Hunt) (*explain.HuntResult, []*explain.HuntResult, error) {
+	rows, err := data.RowsFor(hunt.DataFile, hunt.SourcePath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("load data file %q: %w", hunt.DataFile, err)
+	}
+
+	var (
+		all         []*explain.HuntResult
+		last        *explain.HuntResult
+		firstFailed *explain.HuntResult
+		firstErr    error
+		anyFailed   bool
+	)
+	for _, row := range rows {
+		res, runErr := runtime.RunWithRetries(ctx, p.opts.Config.Retries, func(int) (*explain.HuntResult, error) {
+			w.resetRuntime()
+			if p.opts.Lifecycle != nil {
+				w.Runtime().SetGlobalVars(p.opts.Lifecycle.Vars())
+			}
+			return w.Run(ctx, hunt, row)
+		})
+		all = append(all, res)
+		last = res
+		if (runErr != nil || res == nil || !res.Success) && !anyFailed {
+			anyFailed, firstFailed, firstErr = true, res, runErr
+		}
+	}
+
+	if hunt.DataFile == "" {
+		all = nil
+	}
+	if anyFailed {
+		return firstFailed, all, firstErr
+	}
+	return last, all, nil
 }
 
 // RunHuntsInParallel is a zero-config convenience wrapper around WorkerPool.Run.

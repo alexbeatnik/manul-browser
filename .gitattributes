@@ -11,4 +11,7 @@
 # the local check and the gate disagree.
 * text=auto
 *.go text eol=lf
+# Shell scripts too: bash reads a CR as part of the command, so a CRLF checkout
+# of build-packages.sh fails on its first line.
+*.sh text eol=lf
 *.png binary

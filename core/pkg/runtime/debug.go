@@ -38,8 +38,19 @@ func (rt *Runtime) shouldPause(cmd dsl.Command, idx int) bool {
 }
 
 func isTTY() bool {
-	fileInfo, _ := os.Stdin.Stat()
+	fileInfo, err := os.Stdin.Stat()
+	if err != nil {
+		return false // a closed stdin is not a terminal
+	}
 	return (fileInfo.Mode() & os.ModeCharDevice) != 0
+}
+
+// debugAbortRequested reads the flag the in-page debug modal sets when its
+// close button is clicked. EvalJS hands a string back as bare bytes, so the
+// value is compared as text — decoding it as JSON fails on every answer the
+// page can give.
+func debugAbortRequested(raw []byte) bool {
+	return strings.EqualFold(strings.Trim(strings.TrimSpace(string(raw)), `"`), "abort")
 }
 
 func (rt *Runtime) injectDebugModal(ctx context.Context, step string) error {
@@ -185,8 +196,8 @@ func (rt *Runtime) explainStep(ctx context.Context, cmd dsl.Command) string {
 	for i, c := range ranked {
 		conf := scoreToConfidence(c.Explain.Score.Total)
 		text := c.Element.VisibleText
-		if len(text) > 60 {
-			text = text[:57] + "..."
+		if len([]rune(text)) > 60 {
+			text = truncateRunes(text, 57) + "..."
 		}
 		fmt.Fprintf(&sb, "  #%d score=%.3f conf=%d/10 <%s> %q\n      xpath=%s\n",
 			i+1, c.Explain.Score.Total, conf, c.Element.Tag, text, c.Element.XPath)
@@ -242,8 +253,7 @@ func (rt *Runtime) debugPromptTTY(ctx context.Context, cmd dsl.Command, idx int)
 			if err != nil {
 				continue
 			}
-			var action string
-			if json.Unmarshal(raw, &action) == nil && action == "abort" {
+			if debugAbortRequested(raw) {
 				rt.logger.Warn("debug: abort from browser")
 				return ErrDebugStop
 			}
@@ -272,7 +282,7 @@ func (rt *Runtime) debugPromptTTY(ctx context.Context, cmd dsl.Command, idx int)
 				}
 				readNext()
 			case token == "explain":
-				rt.logger.Info(rt.explainStep(ctx, cmd))
+				rt.logger.Info("%s", rt.explainStep(ctx, cmd))
 				readNext()
 			case token == "e" || token == "explain-next":
 				// One-shot dry run of the step we are paused on; stays paused.
@@ -462,8 +472,7 @@ func (rt *Runtime) debugPromptPipe(ctx context.Context, cmd dsl.Command, idx int
 			if err != nil {
 				continue
 			}
-			var action string
-			if json.Unmarshal(raw, &action) == nil && action == "ABORT" {
+			if debugAbortRequested(raw) {
 				rt.logger.Warn("debug: abort from browser")
 				return ErrDebugStop
 			}

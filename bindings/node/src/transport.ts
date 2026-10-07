@@ -328,11 +328,17 @@ export class Transport {
       this.#write({ invoke: msg.invoke, ok: true, result: result ?? null });
     } catch (exc) {
       const e = exc as Error;
-      this.#write({
-        invoke: msg.invoke,
-        ok: false,
-        error: { code: 'handler_failed', message: `${e.name}: ${e.message}` },
-      });
+      try {
+        this.#write({
+          invoke: msg.invoke,
+          ok: false,
+          error: { code: 'handler_failed', message: `${e.name}: ${e.message}` },
+        });
+      } catch {
+        // The engine is gone, so there is nobody to tell; its exit already
+        // failed whatever was pending. Nothing awaits this promise, and a
+        // rejection here would take the caller's process down with it.
+      }
     }
   }
 

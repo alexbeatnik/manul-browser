@@ -75,6 +75,17 @@ def test_attach_mode_is_reported_back():
     with session(mode="attach", cdp="http://127.0.0.1:9222") as s:
         assert s.mode == "attach"
         assert s.cdp == "http://127.0.0.1:9222"
+        assert s.browser == "", "attaching does not choose an engine"
+
+
+# The engine has taken `browser` on open all along; the binding had no way to
+# say it, so Firefox was reachable only through MANUL_BROWSER.
+def test_browser_choice_reaches_the_engine():
+    with session() as s:
+        assert s.browser == "chromium"
+    with session(browser="firefox") as s:
+        assert s.mode == "launch"
+        assert s.browser == "firefox"
 
 
 def test_deferred_open():

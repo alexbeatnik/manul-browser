@@ -11,7 +11,7 @@
 
 ```json
 {
-  "version": "0.1.1",
+  "version": "0.1.2",
   "generatedFrom": "pkg/report :: StepResult, BlockResult, MissionResult, RunSummary, append_run_history(), load_report_state(), save_report_state(), merge_report_summaries(), recompute_summary(); pkg/report :: generate_report()",
 
   "statusValues": {
@@ -30,7 +30,7 @@
         { "name": "status",       "type": "str",            "default": "pass",                   "description": "One of: pass, fail, skip, warning." },
         { "name": "duration_ms",  "type": "float",          "default": 0.0,                      "description": "Execution time in milliseconds." },
         { "name": "error",        "type": "str | null",     "default": null,                     "description": "Error message or traceback on failure." },
-        { "name": "screenshot",   "type": "str | null",     "default": null,                     "description": "Base64-encoded PNG screenshot (controlled by screenshot_mode)." },
+        { "name": "screenshot",   "type": "str | null",     "default": null,                     "description": "Path of the PNG saved for this step under screenshots/, relative to the working directory and with forward slashes (JSON key screenshot_path; controlled by the screenshot mode)." },
         { "name": "logical_step", "type": "str | null",     "default": null,                     "description": "Active STEP label when this action ran (e.g. 'STEP 2: Login')." }
       ]
     },

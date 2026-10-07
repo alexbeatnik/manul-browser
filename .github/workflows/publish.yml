@@ -1,0 +1,369 @@
+name: Publish
+
+# Puts the version on main onto PyPI and npm.
+#
+# On a push to main it asks each registry whether this version is already there,
+# and publishes to the ones where it is not: builds every package, installs each
+# on its own platform, drives a real Chrome through it, and only then uploads.
+# A push that does not change the version therefore does nothing — the bump in
+# core/cmd/manul/main.go is what releases.
+#
+# That bump is the decision. An upload cannot be taken back: a version number on
+# PyPI or npm is spent the moment it is used, whether or not the file was any
+# good, and yanking does not return it. What stands between a push and that is
+# the smoke job below, so it is not optional and nothing uploads around it. If
+# a pause before the upload is wanted as well, add required reviewers to the
+# `pypi` and `npm` environments: the jobs then wait for a click.
+#
+# Started by hand it is a rehearsal unless told otherwise: with the inputs left
+# alone the packages are built, smoke-tested and left on the run as artifacts,
+# and nothing leaves GitHub. `pypi: testpypi` is a rehearsal that reaches a
+# registry.
+#
+# One-time setup, without which the upload jobs fail (and can simply be re-run
+# once it is done — nothing is half-published by a failure here):
+#
+#   PyPI   Add a pending trusted publisher on pypi.org for project
+#          `manul-browser`: owner `alexbeatnik`, repository `manul-browser`,
+#          workflow `publish.yml`, environment `pypi`. Create the `pypi`
+#          environment in this repository's settings. No token is stored
+#          anywhere. (The same on test.pypi.org with environment `testpypi`.)
+#
+#   npm    Create the `manul-browser` organisation on npmjs.com — the platform
+#          packages are `@manul-browser/engine-<os>-<cpu>`, and a scope has to
+#          exist before anything can be published into it. Create the `npm`
+#          environment here and give it an `NPM_TOKEN` secret: a granular access
+#          token allowed to publish `manul-browser` and `@manul-browser/*`. npm
+#          cannot bind a trusted publisher to a package that does not exist yet,
+#          so the first release needs the token; later ones can drop it.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'core/**'
+      - 'bindings/**'
+      # Deliberately not '.github/workflows/publish.yml': editing the pipeline
+      # is not a reason to publish. Use workflow_dispatch to try it.
+  workflow_dispatch:
+    inputs:
+      pypi:
+        description: 'Upload the wheels and the sdist'
+        type: choice
+        options: ['skip', 'testpypi', 'pypi']
+        default: 'skip'
+      npm:
+        description: 'Publish the npm packages'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# Two pushes in quick succession must not both decide the version is unpublished
+# and race each other to the registries. The second waits, then finds it there.
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+env:
+  PYTHON_VERSION: '3.12'
+  NODE_VERSION: '22.x'
+
+jobs:
+  plan:
+    name: What needs publishing
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.plan.outputs.version }}
+      # 'pypi', 'testpypi' or 'skip'
+      pypi: ${{ steps.plan.outputs.pypi }}
+      # 'true' or 'false'
+      npm: ${{ steps.plan.outputs.npm }}
+      build: ${{ steps.plan.outputs.build }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read the version and ask the registries
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_PYPI: ${{ inputs.pypi }}
+          INPUT_NPM: ${{ inputs.npm }}
+        run: |
+          set -euo pipefail
+          version=$(sed -n 's/^const version = "\(.*\)"$/\1/p' core/cmd/manul/main.go)
+          [ -n "$version" ] || { echo "::error::could not read 'const version'"; exit 1; }
+
+          # 200 means published, 404 means not. Anything else is the registry
+          # having a bad moment, and "probably not there" is not a basis for an
+          # upload that cannot be undone — so it stops instead of guessing.
+          published() { # <label> <url>
+            code=$(curl -sS -o /dev/null -w '%{http_code}' --retry 3 "$2")
+            case "$code" in
+              200) return 0 ;;
+              404) return 1 ;;
+              *) echo "::error::$1 answered HTTP $code for $2"; exit 1 ;;
+            esac
+          }
+
+          if [ "$EVENT" = push ]; then
+            pypi=pypi; npm=true
+            if published PyPI "https://pypi.org/pypi/manul-browser/$version/json"; then
+              echo "manul-browser $version is already on PyPI."; pypi=skip
+            fi
+            if published npm "https://registry.npmjs.org/manul-browser/$version"; then
+              echo "manul-browser@$version is already on npm."; npm=false
+            fi
+            build=false
+            if [ "$pypi" != skip ] || [ "$npm" = true ]; then build=true; fi
+          else
+            # By hand, the inputs decide, and the packages are always built:
+            # with nothing selected that is the rehearsal.
+            pypi=${INPUT_PYPI:-skip}; npm=${INPUT_NPM:-false}; build=true
+          fi
+
+          echo "version=$version pypi=$pypi npm=$npm build=$build"
+          {
+            echo "version=$version"; echo "pypi=$pypi"; echo "npm=$npm"; echo "build=$build"
+          } >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build packages
+    needs: plan
+    if: needs.plan.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.sum
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      # The gates from ci.yml, repeated rather than assumed: this is the one
+      # workflow where "someone else already checked" is not good enough.
+      - name: Engine tests
+        working-directory: core
+        run: go test -short ./...
+
+      - name: Python binding tests
+        working-directory: bindings/python
+        run: |
+          python -m pip install --upgrade pip pytest build twine
+          python -m pytest tests/ -q
+
+      - name: Node binding tests
+        working-directory: bindings/node
+        run: |
+          npm ci --no-audit --no-fund
+          npm test
+
+      # The one description of how a package is put together. It also refuses
+      # to start if the engine and the two bindings name different versions.
+      - name: Build every package
+        run: bash bindings/build-packages.sh
+
+      - name: Nothing may be missing
+        run: |
+          set -euo pipefail
+          wheels=$(ls dist/pypi/*.whl | wc -l)
+          sdists=$(ls dist/pypi/*.tar.gz | wc -l)
+          engines=$(ls dist/npm/manul-browser-engine-*.tgz | wc -l)
+          echo "wheels=$wheels sdists=$sdists npm engine packages=$engines"
+          [ "$wheels" -eq 6 ] && [ "$sdists" -eq 1 ] && [ "$engines" -eq 6 ] || {
+            echo "::error::expected 6 wheels, 1 sdist and 6 npm engine packages"; exit 1; }
+          [ -f "dist/npm/manul-browser-${{ needs.plan.outputs.version }}.tgz" ] || {
+            echo "::error::the main npm package is missing"; exit 1; }
+          python -m twine check dist/pypi/*
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pypi
+          path: dist/pypi/
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npm
+          path: dist/npm/
+          if-no-files-found: error
+
+  # A package is useless if the engine inside it will not start, and the engine
+  # has been cross-compiled: the only proof is to install it where it is meant
+  # to run and drive a browser with it. Both upload jobs wait for this.
+  smoke:
+    name: Smoke ${{ matrix.target }}
+    needs: [plan, build]
+    runs-on: ${{ matrix.os }}
+    # Intel macOS and Linux arm64 are best-effort: a runner label GitHub has
+    # retired must not hold up a release. Their packages are still built — they
+    # are just not proven on hardware here.
+    continue-on-error: ${{ matrix.optional || false }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, target: linux/amd64, npm: linux-x64 }
+          - { os: macos-latest, target: darwin/arm64, npm: darwin-arm64 }
+          - { os: windows-latest, target: windows/amd64, npm: win32-x64 }
+          - { os: macos-15-intel, target: darwin/amd64, npm: darwin-x64, optional: true }
+          - { os: ubuntu-24.04-arm, target: linux/arm64, npm: linux-arm64, optional: true }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: pypi
+          path: dist/pypi
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: npm
+          path: dist/npm
+
+      - uses: browser-actions/setup-chrome@v1
+        id: chrome
+
+      - name: Install the wheel for this platform
+        # --only-binary keeps pip from quietly falling back to the sdist, which
+        # would turn a wrong platform tag into a passing run.
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --no-index --only-binary=:all: --find-links dist/pypi manul-browser
+          python -m pip show -f manul-browser | head -20
+
+      - name: The wheel's engine answers, with the right version
+        run: |
+          set -euo pipefail
+          got=$(manul --version | awk '{print $2}')
+          [ "$got" = "${{ needs.plan.outputs.version }}" ] || {
+            echo "::error::engine reports '$got', expected ${{ needs.plan.outputs.version }}"; exit 1; }
+          manul schema > /dev/null
+          python -m manul --version > /dev/null
+
+      - name: Drive a real Chrome through the wheel
+        env:
+          MANUL_CHROME: ${{ steps.chrome.outputs.chrome-path }}
+        run: python bindings/python/tests/smoke_release.py
+
+      - name: Install the npm packages for this platform
+        # From the tarballs, as a user's project would hold them. The five
+        # engine packages for other platforms are not on the registry yet at
+        # this point; npm skips an optional dependency it cannot fetch.
+        run: |
+          set -euo pipefail
+          v="${{ needs.plan.outputs.version }}"
+          mkdir npm-smoke && cd npm-smoke
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund \
+            "../dist/npm/manul-browser-$v.tgz" \
+            "../dist/npm/manul-browser-engine-${{ matrix.npm }}-$v.tgz"
+          cp ../bindings/node/test/smoke-release.mjs .
+
+      - name: Drive a real Chrome through the npm package
+        working-directory: npm-smoke
+        env:
+          MANUL_CHROME: ${{ steps.chrome.outputs.chrome-path }}
+        run: |
+          set -euo pipefail
+          got=$(npx --no-install manul --version | awk '{print $2}')
+          [ "$got" = "${{ needs.plan.outputs.version }}" ] || {
+            echo "::error::engine reports '$got', expected ${{ needs.plan.outputs.version }}"; exit 1; }
+          node smoke-release.mjs
+
+  pypi:
+    name: Upload to ${{ needs.plan.outputs.pypi }}
+    needs: [plan, build, smoke]
+    if: needs.plan.outputs.pypi != 'skip'
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ needs.plan.outputs.pypi }}
+    permissions:
+      # Trusted publishing: no API token lives in this repository.
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: pypi
+          path: dist
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: ${{ needs.plan.outputs.pypi == 'testpypi' && 'https://test.pypi.org/legacy/' || 'https://upload.pypi.org/legacy/' }}
+          # A run that died halfway can be started again: files that already
+          # arrived are left alone instead of failing the rest.
+          skip-existing: true
+
+  npm:
+    name: Publish to npm
+    needs: [plan, build, smoke]
+    if: needs.plan.outputs.npm == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: npm
+    permissions:
+      contents: read
+      # For the provenance statement npm attaches to each package.
+      id-token: write
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: 'https://registry.npmjs.org'
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: npm
+          path: dist
+
+      - name: Publish the engine packages, then the package that depends on them
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          v="${{ needs.plan.outputs.version }}"
+
+          # Said plainly here, because npm's own answer to a missing token is an
+          # authentication error that reads like a wrong password.
+          [ -n "${NODE_AUTH_TOKEN:-}" ] || {
+            echo "::error::NPM_TOKEN is not set in the 'npm' environment — see the header of publish.yml. Nothing was published; re-run this job once it is."
+            exit 1
+          }
+
+          publish() { # <package name> <tarball>
+            # Makes a second run after a partial failure finish the job instead
+            # of stopping at the first package that is already there.
+            if npm view "$1@$v" version > /dev/null 2>&1; then
+              echo "$1@$v is already published, skipping."
+              return
+            fi
+            npm publish "$2" --access public --provenance
+          }
+
+          # Engines first: manul-browser lists them as optional dependencies, and
+          # for the minutes in between an install would find none of them.
+          for tarball in dist/manul-browser-engine-*-"$v".tgz; do
+            suffix=${tarball#dist/manul-browser-engine-}
+            publish "@manul-browser/engine-${suffix%-$v.tgz}" "$tarball"
+          done
+          publish manul-browser "dist/manul-browser-$v.tgz"

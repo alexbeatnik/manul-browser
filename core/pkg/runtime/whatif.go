@@ -283,10 +283,14 @@ func (rt *Runtime) runWhatIfREPL(ctx context.Context, sc *bufio.Scanner, current
 			}
 			fmt.Fprintf(out, "    URL:   %s\n", url)
 			if raw, err := rt.page.EvalJS(ctx, `document.title`); err == nil {
-				var title string
-				if json.Unmarshal(raw, &title) == nil {
-					fmt.Fprintf(out, "    Title: %s\n", title)
+				// A string comes back from EvalJS as bare bytes, quoted only by
+				// a backend that chose to.
+				title := strings.TrimSpace(string(raw))
+				var quoted string
+				if json.Unmarshal(raw, &quoted) == nil {
+					title = quoted
 				}
+				fmt.Fprintf(out, "    Title: %s\n", title)
 			}
 
 		case input == "!history":

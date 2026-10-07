@@ -35,6 +35,7 @@ const (
 	CmdVerify          CommandType = "VERIFY"
 	CmdVerifySoft      CommandType = "VERIFY_SOFT"
 	CmdVerifyField     CommandType = "VERIFY_FIELD"
+	CmdVerifyVisual    CommandType = "VERIFY_VISUAL"
 	CmdExtract         CommandType = "EXTRACT"
 	CmdScroll          CommandType = "SCROLL"
 	CmdPress           CommandType = "PRESS"
@@ -415,6 +416,10 @@ func parseLines(hunt *Hunt, lines []string) error {
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 			continue
 		}
+		trimmed = stripInlineComment(trimmed)
+		if trimmed == "" {
+			continue
+		}
 
 		indent := 0
 		for _, ch := range raw {
@@ -469,7 +474,18 @@ func parseLines(hunt *Hunt, lines []string) error {
 		}
 
 		// Logical steps (optionally numbered: "1. STEP 1: ..." or "STEP: Login")
-		if (strings.Contains(upper, "STEP ") || strings.HasPrefix(upper, "STEP:")) && !strings.Contains(upper, "'") && !strings.Contains(upper, "\"") {
+		// A line may be numbered ("1. STEP 1: Login", "2. CLICK 'Save'"). The
+		// number stays on a STEP label, which is shown as written, and comes
+		// off a command, which is matched by its first word.
+		if body := stripListNumber(trimmed); body != trimmed {
+			if isStepHeader(body, strings.ToUpper(body)) {
+				currentStep = strings.TrimSuffix(trimmed, ":")
+				continue
+			}
+			trimmed = body
+			upper = strings.ToUpper(body)
+		}
+		if isStepHeader(trimmed, upper) {
 			currentStep = strings.TrimSuffix(trimmed, ":")
 			continue
 		}
@@ -486,8 +502,16 @@ func parseLines(hunt *Hunt, lines []string) error {
 		if strings.HasPrefix(upper, "ELIF ") || strings.HasPrefix(upper, "ELSE IF ") || upper == "ELSE:" || upper == "ELSE" {
 			var lastCmd *Command
 			if len(stack) == 0 {
-				if len(hunt.Commands) > 0 {
-					lastCmd = &hunt.Commands[len(hunt.Commands)-1]
+				// The IF this belongs to is the last command of whichever list
+				// the parser is currently filling — not always the mission body.
+				top := &hunt.Commands
+				if inSetup {
+					top = &hunt.SetupCommands
+				} else if inTeardown {
+					top = &hunt.TeardownCommands
+				}
+				if len(*top) > 0 {
+					lastCmd = &(*top)[len(*top)-1]
 				}
 			} else {
 				top := stack[len(stack)-1]
@@ -667,6 +691,8 @@ func parseCommand(line string, _ int) (Command, error) {
 // parseCommandLine is the internal parser.
 func parseCommandLine(line string) Command {
 	upper := strings.ToUpper(line)
+	// For keyword tests that must not fire on words inside a quoted label.
+	maskedUpper := strings.ToUpper(maskQuoted(line))
 	fields := strings.Fields(strings.ToLower(line))
 	firstWord := ""
 	if len(fields) > 0 {
@@ -717,7 +743,7 @@ func parseCommandLine(line string) Command {
 		// "FILL 'Target' field with 'Value'"
 		firstQ := extractFirstQuoted(rest)
 		cmd.Target = firstQ
-		withIdx := strings.Index(strings.ToUpper(rest), " WITH ")
+		withIdx := keywordIndex(rest, " WITH ")
 		if withIdx >= 0 {
 			cmd.Value = unquote(strings.TrimSpace(rest[withIdx+6:]))
 		}
@@ -730,20 +756,21 @@ func parseCommandLine(line string) Command {
 		// "TYPE 'value' into the 'target' field"
 		firstQ := extractFirstQuoted(rest)
 		cmd.Value = firstQ
-		intoIdx := strings.Index(strings.ToUpper(rest), " INTO ")
+		intoIdx := keywordIndex(rest, " INTO ")
 		if intoIdx >= 0 {
 			cmd.Target, _, _ = parseTarget(strings.TrimSpace(rest[intoIdx+6:]))
 		}
 
 	// ── SELECT ────────────────────────────────────────────────────────────────
-	case strings.HasPrefix(upper, "SELECT "):
+	// CHOOSE is the other spelling the contract gives this verb.
+	case strings.HasPrefix(upper, "SELECT "), strings.HasPrefix(upper, "CHOOSE "):
 		cmd.Type = CmdSelect
 		cmd.InteractionMode = ModeSelect
-		rest := stripPrefix(line, "SELECT ")
+		rest := stripPrefix(line, "SELECT ", "CHOOSE ")
 		// "SELECT 'value' from the 'target' dropdown"
 		firstQ := extractFirstQuoted(rest)
 		cmd.Value = firstQ
-		fromIdx := strings.Index(strings.ToUpper(rest), " FROM ")
+		fromIdx := keywordIndex(rest, " FROM ")
 		if fromIdx >= 0 {
 			cmd.Target, cmd.TypeHint, _ = parseTarget(strings.TrimSpace(rest[fromIdx+6:]))
 		}
@@ -754,7 +781,7 @@ func parseCommandLine(line string) Command {
 		cmd.InteractionMode = ModeCheckbox
 		rest := stripPrefix(line, "CHECK ")
 		// "CHECK the checkbox for 'target'"
-		forIdx := strings.Index(strings.ToUpper(rest), " FOR ")
+		forIdx := keywordIndex(rest, " FOR ")
 		if forIdx >= 0 {
 			cmd.Target = unquote(strings.TrimSpace(rest[forIdx+5:]))
 		} else {
@@ -766,25 +793,34 @@ func parseCommandLine(line string) Command {
 		cmd.Type = CmdUncheck
 		cmd.InteractionMode = ModeCheckbox
 		rest := stripPrefix(line, "UNCHECK ")
-		forIdx := strings.Index(strings.ToUpper(rest), " FOR ")
+		forIdx := keywordIndex(rest, " FOR ")
 		if forIdx >= 0 {
 			cmd.Target = unquote(strings.TrimSpace(rest[forIdx+5:]))
 		} else {
 			cmd.Target, cmd.TypeHint, _ = parseTarget(rest)
 		}
 
+	// ── VERIFY VISUAL ─────────────────────────────────────────────────────────
+	// Ahead of every other VERIFY form: each of them would take the element
+	// name for text to look for, and pass or fail on something nobody asked.
+	case strings.HasPrefix(upper, "VERIFY VISUAL "):
+		cmd.Type = CmdVerifyVisual
+		rest := stripPrefix(line, "VERIFY VISUAL ")
+		cmd.Target, cmd.TypeHint, _ = parseTarget(rest)
+		cmd.InteractionMode = ModeNone
+
 	// ── VERIFY FIELD (has text/value/placeholder) ─────────────────────────────
 	// Must come BEFORE the general VERIFY cases.
 	case strings.HasPrefix(upper, "VERIFY ") &&
-		(strings.Contains(upper, " HAS TEXT ") ||
-			strings.Contains(upper, " HAS VALUE ") ||
-			strings.Contains(upper, " HAS PLACEHOLDER ")):
+		(strings.Contains(maskedUpper, " HAS TEXT ") ||
+			strings.Contains(maskedUpper, " HAS VALUE ") ||
+			strings.Contains(maskedUpper, " HAS PLACEHOLDER ")):
 		cmd.Type = CmdVerifyField
 		rest := stripPrefix(line, "VERIFY ")
 		// Extract target (first quoted string).
 		cmd.Target = extractFirstQuoted(rest)
 		// Detect kind and expected value.
-		restUp := strings.ToUpper(rest)
+		restUp := strings.ToUpper(maskQuoted(rest))
 		for _, kind := range []string{"PLACEHOLDER", "VALUE", "TEXT"} {
 			hasKind := " HAS " + kind + " "
 			hasIdx := strings.Index(restUp, hasKind)
@@ -819,7 +855,7 @@ func parseCommandLine(line string) Command {
 		rest := stripPrefix(line, "EXTRACT ")
 		// "EXTRACT the 'Target' into {var}"
 		rest = stripPrefix(rest, "THE ", "the ")
-		intoIdx := strings.Index(strings.ToUpper(rest), " INTO ")
+		intoIdx := keywordIndex(rest, " INTO ")
 		if intoIdx >= 0 {
 			cmd.Target = unquote(strings.TrimSpace(rest[:intoIdx]))
 			varStr := strings.TrimSpace(rest[intoIdx+6:])
@@ -838,9 +874,12 @@ func parseCommandLine(line string) Command {
 			rest = strings.TrimSpace(rest[2:])
 		} else {
 			cmd.ScrollDirection = "down"
-			rest = strings.TrimSpace(strings.TrimPrefix(rest, strings.Fields(rest)[0]))
+			// A {var} that expanded to nothing leaves no direction word at all.
+			if words := strings.Fields(rest); len(words) > 0 {
+				rest = strings.TrimSpace(strings.TrimPrefix(rest, words[0]))
+			}
 		}
-		insideIdx := strings.Index(" "+strings.ToUpper(rest), " INSIDE ")
+		insideIdx := keywordIndex(" "+rest, " INSIDE ")
 		if insideIdx >= 0 {
 			rawContainer := strings.TrimSpace(rest[insideIdx+7:])
 			container := extractFirstQuoted(rawContainer)
@@ -855,7 +894,7 @@ func parseCommandLine(line string) Command {
 		cmd.Type = CmdPress
 		rest := strings.TrimSpace(line[6:])
 		// Handle: PRESS Key ON 'Target'
-		onIdx := strings.Index(strings.ToUpper(rest), " ON ")
+		onIdx := keywordIndex(rest, " ON ")
 		if onIdx >= 0 {
 			cmd.PressKey = strings.TrimSpace(rest[:onIdx])
 			cmd.PressTarget, _, _ = parseTarget(strings.TrimSpace(rest[onIdx+4:]))
@@ -887,10 +926,10 @@ func parseCommandLine(line string) Command {
 		// "WAIT FOR 'Element' to be visible/hidden/enabled/disappear…"
 		firstQ := extractFirstQuoted(rest)
 		cmd.Target = firstQ
-		toBeIdx := strings.Index(strings.ToUpper(rest), " TO BE ")
+		toBeIdx := keywordIndex(rest, " TO BE ")
 		if toBeIdx >= 0 {
 			cmd.WaitForState = strings.ToLower(strings.TrimSpace(rest[toBeIdx+7:]))
-		} else if toDisappearIdx := strings.Index(strings.ToUpper(rest), " TO DISAPPEAR"); toDisappearIdx >= 0 {
+		} else if toDisappearIdx := keywordIndex(rest, " TO DISAPPEAR"); toDisappearIdx >= 0 {
 			cmd.WaitForState = "disappear"
 		}
 
@@ -918,11 +957,10 @@ func parseCommandLine(line string) Command {
 		cmd.Type = CmdDrag
 		rest := stripPrefix(line, "DRAG THE ELEMENT ", "DRAG THE ", "DRAG ")
 		// "DRAG '<source>' and drop it into '<target>'"
-		andIdx := strings.Index(strings.ToUpper(rest), " AND ")
+		andIdx := keywordIndex(rest, " AND ")
 		if andIdx >= 0 {
 			cmd.DragSource = unquote(strings.TrimSpace(rest[:andIdx]))
-			dropPart := strings.ToUpper(rest[andIdx:])
-			intoIdx := strings.Index(dropPart, " INTO ")
+			intoIdx := keywordIndex(rest[andIdx:], " INTO ")
 			if intoIdx >= 0 {
 				cmd.DragTarget = unquote(strings.TrimSpace(rest[andIdx+intoIdx+6:]))
 			}
@@ -973,7 +1011,7 @@ func parseCommandLine(line string) Command {
 	case strings.HasPrefix(upper, "UPLOAD ") || strings.HasPrefix(upper, "UPLOAD_FILE "):
 		cmd.Type = CmdUploadFile
 		rest := stripPrefix(line, "UPLOAD FILE ", "UPLOAD_FILE ", "UPLOAD ")
-		toIdx := strings.Index(strings.ToUpper(rest), " TO ")
+		toIdx := keywordIndex(rest, " TO ")
 		if toIdx >= 0 {
 			cmd.UploadFilePath = unquote(strings.TrimSpace(rest[:toIdx]))
 			cmd.UploadFile = cmd.UploadFilePath
@@ -1005,11 +1043,19 @@ func parseCommandLine(line string) Command {
 		cmd.Type = CmdRepeat
 		rest := stripPrefix(line, "REPEAT ")
 		cmd.RepeatVar = "i" // default
-		// "REPEAT N TIMES:" or "REPEAT N TIME:"
+		// "REPEAT N TIMES:" or "REPEAT N TIME:", optionally "... as {var}:"
 		fields := strings.Fields(rest)
 		if len(fields) >= 1 {
 			if n, err := strconv.Atoi(fields[0]); err == nil {
 				cmd.RepeatCount = n
+			}
+		}
+		for i := 1; i+1 < len(fields); i++ {
+			if strings.EqualFold(fields[i], "as") {
+				if name := strings.Trim(fields[i+1], "{}:"); name != "" {
+					cmd.RepeatVar = name
+				}
+				break
 			}
 		}
 
@@ -1074,7 +1120,8 @@ func parseCommandLine(line string) Command {
 		cmd.CallStepName = strings.TrimSpace(cmd.CallStepName)
 
 	// ── DEBUGGING ─────────────────────────────────────────────────────────────
-	case upper == "PAUSE":
+	// DEBUG is the name the contract lists; PAUSE is its alias.
+	case upper == "PAUSE" || upper == "DEBUG":
 		cmd.Type = CmdPause
 	case upper == "DEBUG VARS":
 		cmd.Type = CmdDebugVars
@@ -1140,7 +1187,7 @@ func parseMock(s string) (method, pattern, file string) {
 		return method, "", ""
 	}
 	// Find "with" keyword
-	withIdx := strings.Index(strings.ToUpper(rest), " WITH ")
+	withIdx := keywordIndex(rest, " WITH ")
 	if withIdx >= 0 {
 		file = extractFirstQuoted(rest[withIdx+6:])
 	}
@@ -1175,7 +1222,9 @@ func parseTarget(s string) (target, typeHint string, mode InteractionMode) {
 	hintsSelect := []string{"dropdown", "select", "combobox", "listbox"}
 	hintsCheckbox := []string{"checkbox", "radio", "toggle", "switch"}
 
-	sLower := strings.ToLower(s)
+	// Hints live outside the quotes: 'Radio stations' is a label that happens to
+	// contain the word, not a request for a radio button.
+	sLower := strings.ToLower(maskQuoted(s))
 	// matchHint returns true when h appears as a whole word in sLower —
 	// at the start, after a space, or at the very end.
 	matchHint := func(h string) bool {
@@ -1221,7 +1270,7 @@ func parseTarget(s string) (target, typeHint string, mode InteractionMode) {
 
 // parseQualifiers extracts NEAR / ON <region> / INSIDE qualifiers from a rest string.
 func parseQualifiers(cmd Command, rest string) Command {
-	upper := strings.ToUpper(rest)
+	upper := strings.ToUpper(maskQuoted(rest))
 	if nearIdx := strings.Index(upper, " NEAR "); nearIdx >= 0 {
 		cmd.NearAnchor = unquote(strings.TrimSpace(rest[nearIdx+6:]))
 	}
@@ -1234,12 +1283,12 @@ func parseQualifiers(cmd Command, rest string) Command {
 	if insideIdx := strings.Index(upper, " INSIDE "); insideIdx >= 0 {
 		after := strings.TrimSpace(rest[insideIdx+8:])
 		after = stripPrefix(after, "THE ")
-		withIdx := strings.Index(strings.ToUpper(after), " ROW WITH ")
+		withIdx := keywordIndex(after, " ROW WITH ")
 		if withIdx >= 0 {
 			cmd.InsideContainer = unquote(strings.TrimSpace(after[:withIdx]))
 			cmd.InsideRowText = unquote(strings.TrimSpace(after[withIdx+10:]))
 		} else {
-			withIdx = strings.Index(strings.ToUpper(after), " WITH ")
+			withIdx = keywordIndex(after, " WITH ")
 			if withIdx >= 0 {
 				cmd.InsideContainer = unquote(strings.TrimSpace(after[:withIdx]))
 				cmd.InsideRowText = unquote(strings.TrimSpace(after[withIdx+6:]))
@@ -1255,7 +1304,7 @@ func parseQualifiers(cmd Command, rest string) Command {
 func extractVerifyText(rest string, negated *bool, state *string) string {
 	rest = stripPrefix(rest, "THAT ", "that ")
 	q := extractFirstQuoted(rest)
-	upper := strings.ToUpper(rest)
+	upper := strings.ToUpper(maskQuoted(rest))
 	if strings.Contains(upper, " IS NOT ") || strings.Contains(upper, " ARE NOT ") {
 		*negated = true
 	}
@@ -1397,4 +1446,98 @@ func indexAnyFold(s string, subs ...string) int {
 		}
 	}
 	return best
+}
+
+// maskQuoted returns s with the contents of every quoted span overwritten by
+// underscores, byte for byte, so an index found in the result is valid in s.
+//
+// The grammar is keyword matching, and a label is free text: 'Pay with card',
+// 'Stores near me' and 'Sign up for news' all contain a word some verb splits
+// on. Searching the masked copy keeps those words where they belong.
+//
+// A quote opens only at the start of a word and closes only at the end of one,
+// which is what lets an apostrophe sit inside a label ('Don't show again')
+// without ending it early. A quote that never closes masks nothing.
+func maskQuoted(s string) string {
+	b := []byte(s)
+	for i := 0; i < len(b); i++ {
+		q := b[i]
+		if q != '\'' && q != '"' {
+			continue
+		}
+		if i > 0 && isWordByte(b[i-1]) {
+			continue
+		}
+		end := -1
+		for j := i + 1; j < len(b); j++ {
+			if b[j] == q && (j+1 == len(b) || !isWordByte(b[j+1])) {
+				end = j
+				break
+			}
+		}
+		if end < 0 {
+			continue
+		}
+		for j := i + 1; j < end; j++ {
+			b[j] = '_'
+		}
+		i = end
+	}
+	return string(b)
+}
+
+// isWordByte reports whether c continues a word. Bytes of a multi-byte
+// character count, so an apostrophe inside "п'ять" is inside a word too.
+func isWordByte(c byte) bool {
+	return c == '_' || c >= 0x80 ||
+		(c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+}
+
+// keywordIndex finds an upper-case keyword in s, skipping quoted text.
+func keywordIndex(s, keyword string) int {
+	return strings.Index(strings.ToUpper(maskQuoted(s)), keyword)
+}
+
+// stripInlineComment drops a trailing "# comment". Only a '#' that stands
+// alone — whitespace before it, whitespace or nothing after — and sits outside
+// quotes counts, so URL fragments, CSS ids and colours are left intact.
+func stripInlineComment(line string) string {
+	masked := maskQuoted(line)
+	for i := 1; i < len(masked); i++ {
+		if masked[i] != '#' || (masked[i-1] != ' ' && masked[i-1] != '\t') {
+			continue
+		}
+		if i+1 == len(masked) || masked[i+1] == ' ' || masked[i+1] == '\t' {
+			return strings.TrimSpace(line[:i])
+		}
+	}
+	return line
+}
+
+// stripListNumber removes the optional "1. " a line may be numbered with.
+func stripListNumber(line string) string {
+	i := 0
+	for i < len(line) && line[i] >= '0' && line[i] <= '9' {
+		i++
+	}
+	if i == 0 || i+1 >= len(line) || line[i] != '.' || (line[i+1] != ' ' && line[i+1] != '\t') {
+		return line
+	}
+	return strings.TrimSpace(line[i+1:])
+}
+
+// isStepHeader reports whether a line is a STEP label rather than a command.
+//
+// A line that begins with STEP always is. Anything else that merely mentions
+// "STEP " is one only when it is not a command in its own right — otherwise
+// `USE Checkout step two` or `PRINT next step done` would be swallowed as a
+// label and silently never run.
+func isStepHeader(line, upper string) bool {
+	if upper == "STEP" || strings.HasPrefix(upper, "STEP ") || strings.HasPrefix(upper, "STEP:") {
+		return true
+	}
+	if !strings.Contains(upper, "STEP ") || strings.ContainsAny(upper, "'\"") {
+		return false
+	}
+	return parseCommandLine(line).Type == CmdUnknown
 }

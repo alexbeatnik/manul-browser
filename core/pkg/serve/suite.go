@@ -63,9 +63,8 @@ func (s *Server) cmdRunSuite(ctx context.Context, raw json.RawMessage) (any, str
 	// Parse everything up front. A suite that cannot be read should say so
 	// before before-all does anything with side effects.
 	type parsed struct {
-		path   string
-		source string
-		tags   []string
+		path string
+		tags []string
 	}
 	hunts := make([]parsed, 0, len(a.Paths))
 	for _, p := range a.Paths {
@@ -77,7 +76,7 @@ func (s *Server) cmdRunSuite(ctx context.Context, raw json.RawMessage) (any, str
 		if err != nil {
 			return nil, CodeBadRequest, fmt.Errorf("parse %s: %w", p, err)
 		}
-		hunts = append(hunts, parsed{path: p, source: string(src), tags: hunt.Tags})
+		hunts = append(hunts, parsed{path: p, tags: hunt.Tags})
 	}
 
 	gctx := lifecycle.NewGlobalContext()
@@ -112,7 +111,7 @@ func (s *Server) cmdRunSuite(ctx context.Context, raw json.RawMessage) (any, str
 			return nil, CodeInternal, err
 		}
 
-		outcome, err := s.sess.Run(ctx, h.source)
+		outcome, err := s.sess.RunFile(ctx, h.path)
 		entry.OK = err == nil && outcome.OK
 		entry.Steps = outcome.TotalSteps
 		entry.Passed = outcome.Passed

@@ -79,19 +79,27 @@ func buildHunt(url string, events []Event) string {
 		"",
 	}
 	step := 2
-	seen := make(map[string]bool)
+	// Where the fill being typed right now sits in lines, and which field it is.
+	fillLine, fillStep, fillTarget := -1, 0, ""
 	for _, ev := range events {
 		action := eventToDSL(ev)
 		if action == "" {
 			continue
 		}
-		key := ev.Type + "|" + fmt.Sprint(ev.Data["target"])
-		if seen[key] && ev.Type == "fill" {
-			// Update previous fill instead of duplicating
+		target := fmt.Sprint(ev.Data["target"])
+		if ev.Type == "fill" && fillLine >= 0 && fillTarget == target {
+			// The page reports an input event per keystroke, so one field
+			// arrives as "a", "ad", "adm"… and what it ends up holding is the
+			// last of them. Keeping the first recorded a single letter.
+			lines[fillLine] = fmt.Sprintf("STEP %d:\n    %s", fillStep, action)
 			continue
 		}
-		seen[key] = true
 		lines = append(lines, fmt.Sprintf("STEP %d:\n    %s", step, action))
+		if ev.Type == "fill" {
+			fillLine, fillStep, fillTarget = len(lines)-1, step, target
+		} else {
+			fillLine = -1
+		}
 		lines = append(lines, "")
 		step++
 	}

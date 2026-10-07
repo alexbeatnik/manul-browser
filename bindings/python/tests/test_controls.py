@@ -348,3 +348,19 @@ def test_handlers_registered_before_any_session_are_published_on_open():
 def test_nothing_is_published_when_nothing_is_registered():
     with manul.Session(binary=FAKE) as s:
         assert s.published == {"controls": 0, "calls": 0, "hooks": 0}
+
+
+# A handler may return something JSON cannot carry. That is one failed step —
+# it used to raise out of the reply write with the engine still waiting on the
+# answer, and the next call on the session never returned.
+def test_unserialisable_result_fails_the_step_and_the_session_survives():
+    @manul.call("when")
+    def when(ctx):
+        return {1, 2, 3}  # a set
+
+    with manul.Session(binary=FAKE) as s:
+        out = s.step("CALL HOST when into {t}")
+        assert out.ok is False
+        assert "TypeError" in out.error
+
+        assert s.step("CLICK the 'Sign in' button").ok

@@ -266,6 +266,32 @@ func Rank(query, typeHint, mode string, elements []dom.ElementSnapshot, topN int
 	return result
 }
 
+// MatchesQuery reports whether el carries any trace of the query itself — in
+// its text, label, placeholder, aria-label, data-qa, id or class names.
+//
+// A score cannot answer this. Rank orders whatever it is given, and tag
+// semantics plus a type hint are worth more than the confidence bar on their
+// own: "the 'Delete account' button" scores as a strong match against every
+// button on a page that has no such button. Callers that are about to act on a
+// winner ask this first, so a target that is not there fails as not found
+// instead of landing on a bystander.
+//
+// An empty query matches everything: it is what a proximity search ranks with.
+func MatchesQuery(query string, el *dom.ElementSnapshot) bool {
+	q := norm(query)
+	if q == "" {
+		return true
+	}
+	return scoreExactText(q, el) > 0 ||
+		scoreNormText(q, el) > 0 ||
+		scoreLabel(q, el) > 0 ||
+		scorePlaceholder(q, el) > 0 ||
+		scoreAria(q, el) > 0 ||
+		scoreDataQA(q, el) > 0 ||
+		scoreID(q, el) > 0 ||
+		scoreClassName(q, el) > 0
+}
+
 // ── Scoring signal functions ──────────────────────────────────────────────────
 
 // scoreExactText returns 1.0 for an exact normalized text match, 0 otherwise.
