@@ -104,34 +104,57 @@ func SetInputValue(id int, xpath, value string) string {
 	`, id, xpath, value)
 }
 
+// checkable is the JS that walks from a resolved element to the checkbox or
+// radio it stands for: the element itself, the control a <label> points at,
+// one nested inside it, or one sharing its cell or row. It is defined once
+// because the step that sets a state and the step that reads it back have to
+// land on the same control — when they did not, a box ticked through its
+// caption was reported as never having been ticked.
+const checkable = `
+		var manulCheckable = function(el) {
+			var boxes = 'input[type=checkbox], input[type=radio]';
+			if (el.tagName === 'INPUT' && (el.type === 'checkbox' || el.type === 'radio')) return el;
+			if (el.tagName === 'LABEL' && el.htmlFor) return document.getElementById(el.htmlFor) || el;
+			var child = el.querySelector(boxes);
+			if (child) return child;
+			// Look in nearby siblings or parents (common in tables)
+			var cell = el.closest('td, th, div');
+			if (cell) {
+				var cb = cell.querySelector(boxes) || (cell.parentElement && cell.parentElement.querySelector(boxes));
+				if (cb) return cb;
+			}
+			return el;
+		};
+`
+
+// CheckedState reports the state of the checkbox, radio or ARIA-checkable
+// control that the element at ID or XPath stands for. Its completion value is
+// a JSON string: {"found":true,"checked":…}, or {"found":false} when there is
+// no such control.
+func CheckedState(id int, xpath string) string {
+	return fmt.Sprintf(`(() => {%[3]s
+		var el = (window.__manulReg && window.__manulReg[%[1]d]) || document.evaluate(%[2]q, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+		if (!el) return JSON.stringify({found: false});
+		el = manulCheckable(el);
+		if (el.tagName === 'INPUT' && (el.type === 'checkbox' || el.type === 'radio')) {
+			return JSON.stringify({found: true, checked: el.checked});
+		}
+		var role = (el.getAttribute('role') || '').toLowerCase();
+		if (role === 'checkbox' || role === 'radio' || role === 'switch') {
+			return JSON.stringify({found: true, checked: el.getAttribute('aria-checked') === 'true'});
+		}
+		return JSON.stringify({found: false});
+	})()`, id, xpath, checkable)
+}
+
 // SetChecked sets the checked state of a checkbox, radio or ARIA-checkable
 // element resolved by ID or XPath.
 func SetChecked(id int, xpath string, checked bool) string {
-	return fmt.Sprintf(`
+	return fmt.Sprintf(checkable+`
 		var el = (window.__manulReg && window.__manulReg[%[1]d]) || document.evaluate(%[2]q, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
 		if (el) {
-			var targetEl = el;
 			var desiredAria = %[3]v ? 'true' : 'false';
-			// Refinement: find checkbox/radio if el is not one
-			if (el.tagName !== 'INPUT' || (el.type !== 'checkbox' && el.type !== 'radio')) {
-				if (el.tagName === 'LABEL' && el.htmlFor) {
-					targetEl = document.getElementById(el.htmlFor) || targetEl;
-				} else {
-					var child = el.querySelector('input[type=checkbox], input[type=radio]');
-					if (child) {
-						targetEl = child;
-					} else {
-						// Look in nearby siblings or parents (common in tables)
-						var cell = el.closest('td, th, div');
-						if (cell) {
-							var cb = cell.querySelector('input[type=checkbox], input[type=radio]') ||
-							         cell.parentElement.querySelector('input[type=checkbox], input[type=radio]');
-							if (cb) targetEl = cb;
-						}
-					}
-				}
-			}
-			el = targetEl;
+			el = manulCheckable(el);
 
 			if (el.tagName === 'INPUT' && (el.type === 'checkbox' || el.type === 'radio')) {
 				if (el.checked !== %[3]v) {
@@ -452,6 +475,48 @@ func ElementCenter(id int, xpath string) string {
 		// If it's still outside, we might need a small delay, but instant scroll usually is synchronous.
 		JSON.stringify({x: rect.x + rect.width/2, y: rect.y + rect.height/2});
 	`, id, xpath)
+}
+
+// CoveredBy reports whether a click at viewport point (x, y) would reach the
+// element at ID or XPath. Its completion value is a JSON string:
+// {"covered":false}, or {"covered":true,"by":"<div.modal>"} naming what is
+// on top.
+//
+// A click is dispatched at coordinates, so it goes to whatever is there. When
+// that is an open date picker, a modal backdrop or a cookie banner, the step
+// used to pass having clicked the wrong thing. The element itself, anything
+// inside it, anything it is inside, and the <label> it belongs to all count
+// as reaching it — a styled checkbox sits under its own label's artwork by
+// design.
+func CoveredBy(id int, xpath string, x, y float64) string {
+	return fmt.Sprintf(`(() => {
+		var el = (window.__manulReg && window.__manulReg[%[1]d]) || document.evaluate(%[2]q, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+		var clear = JSON.stringify({covered: false});
+		if (!el) return clear;
+		var hit = document.elementFromPoint(%[3]f, %[4]f);
+		while (hit && hit.shadowRoot) {
+			var inner = hit.shadowRoot.elementFromPoint(%[3]f, %[4]f);
+			if (!inner || inner === hit) break;
+			hit = inner;
+		}
+		if (!hit) return clear;
+		// Up through shadow hosts as well as parents.
+		var within = function(outer, node) {
+			for (var n = node; n; n = n.parentNode || n.host) {
+				if (n === outer) return true;
+			}
+			return false;
+		};
+		if (within(el, hit) || within(hit, el)) return clear;
+		var label = hit.closest('label');
+		if (label && (label.control === el || within(label, el))) return clear;
+		var name = hit.tagName.toLowerCase();
+		if (hit.id) name += '#' + hit.id;
+		if (typeof hit.className === 'string' && hit.className.trim()) {
+			name += '.' + hit.className.trim().split(/\s+/).slice(0, 2).join('.');
+		}
+		return JSON.stringify({covered: true, by: '<' + name + '>'});
+	})()`, id, xpath, x, y)
 }
 
 // ElementRect scrolls the element at ID or XPath into view and returns its

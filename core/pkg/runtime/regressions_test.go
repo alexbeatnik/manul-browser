@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -431,5 +433,323 @@ func TestDebugAbortRequested(t *testing.T) {
 		if got := debugAbortRequested([]byte(raw)); got != want {
 			t.Errorf("%q: got %v, want %v", raw, got, want)
 		}
+	}
+}
+
+// ── Reading a field back ─────────────────────────────────────────────────────
+
+// fieldProbePage answers every probe with what the extraction probe sends for
+// a form control.
+type fieldProbePage struct {
+	*MockPage
+	answer string
+}
+
+func (p fieldProbePage) CallProbe(context.Context, string, any) ([]byte, error) {
+	return []byte(p.answer), nil
+}
+
+// EXTRACT read text nodes only, so a field came back as its own label. Now the
+// probe answers with the field, and an empty one is an answer — not the
+// "not found or empty" that empty text is.
+func TestExtract_FieldValueIsReadEvenWhenEmpty(t *testing.T) {
+	for _, tc := range []struct{ answer, want string }{
+		{`{"field":true,"value":"ada@example.com"}`, "ada@example.com"},
+		{`{"field":true,"value":""}`, ""},
+	} {
+		rt := New(regConfig(), fieldProbePage{&MockPage{}, tc.answer}, utils.NewLoggerTo(nopWriter{}, nil))
+		rt.vars.Set("e", "stale", LevelRow)
+		res, err := rt.RunCommand(context.Background(), dsl.Command{Type: dsl.CmdExtract, Target: "Email", ExtractVar: "e"})
+		if err != nil {
+			t.Fatalf("%s: %v", tc.answer, err)
+		}
+		if got, _ := rt.vars.Resolve("e"); got != tc.want || res.ActionValue != tc.want {
+			t.Errorf("%s: extracted %q into {e}=%q, want %q", tc.answer, res.ActionValue, got, tc.want)
+		}
+		if !ExtractedFromField(res) {
+			t.Errorf("%s: not reported as a field", tc.answer)
+		}
+	}
+
+	rt := New(regConfig(), fieldProbePage{&MockPage{}, ""}, utils.NewLoggerTo(nopWriter{}, nil))
+	res, err := rt.RunCommand(context.Background(), dsl.Command{Type: dsl.CmdExtract, Target: "Email", ExtractVar: "e"})
+	if err == nil || ExtractedFromField(res) {
+		t.Errorf("empty text passed as found: err=%v", err)
+	}
+}
+
+// The label's own text is the field's name, so it outranked the field — and a
+// label has no value, so a filled textarea verified as "".
+func TestVerifyField_ValueIsReadOffTheFieldNotItsLabel(t *testing.T) {
+	notes := regEl(2, "textarea", "")
+	notes.LabelText = "Notes"
+	notes.Value = "line one"
+	notes.Placeholder = "anything"
+	// As the snapshot reports a wrapping <label>: its text is its own label.
+	label := regEl(1, "label", "Notes")
+	label.LabelText = "Notes"
+	page := &MockPage{Elements: []dom.ElementSnapshot{label, notes}}
+
+	if _, err := runSource(t, page, "VERIFY 'Notes' field has value 'line one'\n"); err != nil {
+		t.Errorf("value: %v", err)
+	}
+	if _, err := runSource(t, page, "VERIFY 'Notes' field has placeholder 'anything'\n"); err != nil {
+		t.Errorf("placeholder: %v", err)
+	}
+}
+
+func TestVerifyField_DisabledFieldStillHasAValue(t *testing.T) {
+	field := regEl(1, "input", "")
+	field.InputType = "text"
+	field.LabelText = "Plan"
+	field.Value = "Free"
+	field.IsDisabled = true
+	page := &MockPage{Elements: []dom.ElementSnapshot{field, regEl(2, "p", "hello")}}
+
+	if _, err := runSource(t, page, "VERIFY 'Plan' field has value 'Free'\n"); err != nil {
+		t.Error(err)
+	}
+}
+
+// ── FOR EACH ─────────────────────────────────────────────────────────────────
+
+// @var: values are substituted at parse time, so the loop was handed the list
+// where it expected a variable name, found no such variable, and ran its body
+// zero times without a word.
+func TestForEach_CollectionDeclaredWithVar(t *testing.T) {
+	res, err := runSource(t, &MockPage{}, "@var: {names} = Ada, Grace\nFOR EACH {n} IN {names}:\n    PRINT 'n={n}'\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var printed []string
+	for _, r := range res.Results {
+		if r.CommandType == string(dsl.CmdPrint) {
+			printed = append(printed, r.ActionValue)
+		}
+	}
+	if strings.Join(printed, ",") != "n=Ada,n=Grace" {
+		t.Errorf("printed %v", printed)
+	}
+}
+
+// ── WAIT FOR ─────────────────────────────────────────────────────────────────
+
+// One shared word was enough to keep a target "present": the scorer ranks by
+// word overlap, and 'A checkbox' overlaps any sentence about checkboxes.
+func TestWaitFor_GoneWhenOnlyAWordOfItRemains(t *testing.T) {
+	page := &MockPage{Elements: []dom.ElementSnapshot{
+		regEl(1, "p", "Elements (e.g., checkbox, input field) are changed asynchronously."),
+	}}
+	if _, err := runSource(t, page, "WAIT FOR 'A checkbox' to disappear\n"); err != nil {
+		t.Errorf("still waiting for something that is gone: %v", err)
+	}
+
+	page.Elements = append(page.Elements, regEl(2, "div", "A checkbox"))
+	if _, err := runSource(t, page, "WAIT FOR 'A checkbox' to be visible\n"); err != nil {
+		t.Errorf("present: %v", err)
+	}
+}
+
+// ── CHECK ────────────────────────────────────────────────────────────────────
+
+// captionedBoxes is a list of rows like TodoMVC's: a checkbox with no name of
+// its own, and beside it a <label> that is not bound to it.
+func captionedBoxes() *MockPage {
+	box := func(id int) dom.ElementSnapshot {
+		el := regEl(id, "input", "")
+		el.InputType = "checkbox"
+		return el
+	}
+	return &MockPage{Elements: []dom.ElementSnapshot{
+		box(1), regEl(2, "label", "call Ada"),
+		box(3), regEl(4, "label", "call Grace"),
+	}}
+}
+
+// The box is reached through its caption but cannot be found by it, so the
+// check by name said it had never been ticked — and went on to try others.
+// The page is asked about the control that was acted on instead.
+func TestCheck_StateIsReadOffTheControlThatWasActedOn(t *testing.T) {
+	page := captionedBoxes()
+	// The page says the caption's own box is ticked; the snapshot, which can
+	// only look boxes up by name, still shows every box clear.
+	page.EvalResult = func(expr string) ([]byte, bool) {
+		if strings.Contains(expr, "manulCheckable") && strings.Contains(expr, "found: true") {
+			return []byte(`{"found":true,"checked":true}`), true
+		}
+		return nil, false
+	}
+	rt := New(regConfig(), page, utils.NewLoggerTo(nopWriter{}, nil))
+
+	caption := page.Elements[3]
+	if err := rt.ensureCheckboxTargetState(context.Background(), caption, "call Grace", true, nil); err != nil {
+		t.Fatal(err)
+	}
+	for _, el := range page.Elements {
+		if el.IsChecked {
+			t.Errorf("element %d was ticked by a retry the step had no need of", el.ID)
+		}
+	}
+}
+
+// The retry's plain rankings always return five of something. With the
+// checkbox hint that was the page's first five checkboxes, whatever they
+// belonged to, and each of them was ticked in turn.
+func TestCheck_RetryCandidatesCarryTheTarget(t *testing.T) {
+	named := func(id int, label string) dom.ElementSnapshot {
+		el := regEl(id, "input", "")
+		el.InputType = "checkbox"
+		el.LabelText = label
+		return el
+	}
+	page := &MockPage{Elements: []dom.ElementSnapshot{
+		named(1, "Newsletter"), named(2, "Terms"), named(3, "Remember me"),
+	}}
+	rt := New(regConfig(), page, utils.NewLoggerTo(nopWriter{}, nil))
+
+	candidates, err := rt.collectCheckboxRetryCandidates(context.Background(), "call Grace", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range candidates {
+		t.Errorf("%q would be ticked on a retry for 'call Grace'", c.Element.LabelText)
+	}
+}
+
+// ── CLICK ────────────────────────────────────────────────────────────────────
+
+// A click is dispatched at coordinates and goes to whatever is there. Under an
+// open date picker that was a day of the month, and the step passed.
+func TestClick_CoveredTargetIsNotClicked(t *testing.T) {
+	covered := true
+	page := &MockPage{Elements: []dom.ElementSnapshot{regEl(1, "button", "Submit")}}
+	page.EvalResult = func(expr string) ([]byte, bool) {
+		if !strings.Contains(expr, "elementFromPoint") {
+			return nil, false
+		}
+		if covered {
+			return []byte(`{"covered":true,"by":"<td.day>"}`), true
+		}
+		return []byte(`{"covered":false}`), true
+	}
+
+	for _, verb := range []string{"CLICK", "DOUBLE CLICK", "RIGHT CLICK"} {
+		_, err := runSource(t, page, verb+" the 'Submit' button\n")
+		if err == nil || !strings.Contains(err.Error(), "covered by <td.day>") {
+			t.Errorf("%s: want a covered-target failure, got %v", verb, err)
+		}
+	}
+	if len(page.Clicks) != 0 {
+		t.Errorf("clicked anyway: %v", page.Clicks)
+	}
+
+	covered = false
+	if _, err := runSource(t, page, "CLICK the 'Submit' button\n"); err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Clicks) != 1 {
+		t.Errorf("clicks = %v, want one", page.Clicks)
+	}
+}
+
+// ── MOCK ─────────────────────────────────────────────────────────────────────
+
+// MOCK was a patch over window.fetch in the current document. It is a rule
+// handed to the page, which answers at the network.
+func TestMock_HandsTheRuleToThePage(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "users.json")
+	if err := os.WriteFile(file, []byte(`{"users":[]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	page := &MockPage{}
+	if _, err := runSource(t, page, "MOCK get \"/api/users*\" with '"+file+"'\n"); err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Mocks) != 1 {
+		t.Fatalf("rules = %v", page.Mocks)
+	}
+	rule := page.Mocks[0]
+	if rule.Method != "GET" || rule.Pattern != "/api/users*" || string(rule.Body) != `{"users":[]}` || rule.ContentType != "application/json" {
+		t.Errorf("rule = %+v", rule)
+	}
+	for _, expr := range page.EvalCalls {
+		if strings.Contains(expr, "fetch") {
+			t.Errorf("still patching fetch in the page: %s", expr)
+		}
+	}
+}
+
+// ── NAVIGATE ─────────────────────────────────────────────────────────────────
+
+// stalledPage never finishes loading, and remembers how long it was asked to
+// wait for a response.
+type stalledPage struct {
+	*MockPage
+	responseTimeout time.Duration
+}
+
+func (p *stalledPage) WaitForLoad(ctx context.Context) error {
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func (p *stalledPage) WaitForResponse(_ context.Context, _ string, timeout time.Duration) error {
+	p.responseTimeout = timeout
+	return nil
+}
+
+// nav_timeout was declared, documented, and read by nothing: a page with one
+// resource that never arrives held NAVIGATE for as long as its server liked.
+func TestNavigate_GivesUpAfterNavTimeout(t *testing.T) {
+	for _, tc := range []struct {
+		readyState string
+		wantErr    bool
+	}{
+		{"loading", true},      // not a page yet
+		{"interactive", false}, // parsed and usable; only a straggler is missing
+	} {
+		page := &stalledPage{MockPage: &MockPage{}}
+		page.EvalResult = func(expr string) ([]byte, bool) {
+			if expr == "document.readyState" {
+				return []byte(tc.readyState), true
+			}
+			return nil, false
+		}
+		cfg := regConfig()
+		cfg.NavTimeout = 50 * time.Millisecond
+		rt := New(cfg, page, utils.NewLoggerTo(nopWriter{}, nil))
+
+		done := make(chan error, 1)
+		go func() {
+			_, err := rt.RunCommand(context.Background(), dsl.Command{Type: dsl.CmdNavigate, URL: "https://slow.test/"})
+			done <- err
+		}()
+		select {
+		case err := <-done:
+			if tc.wantErr && (err == nil || !strings.Contains(err.Error(), "navigation timeout")) {
+				t.Errorf("%s: want a navigation timeout, got %v", tc.readyState, err)
+			}
+			if !tc.wantErr && err != nil {
+				t.Errorf("%s: a parsed document is a page to carry on with, got %v", tc.readyState, err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatalf("%s: NAVIGATE is still waiting long after nav_timeout", tc.readyState)
+		}
+	}
+}
+
+// The config contract gives a response nav_timeout to arrive in; the step
+// timeout, a sixth of it by default, was what it actually got.
+func TestWaitForResponse_IsGivenNavTimeout(t *testing.T) {
+	page := &stalledPage{MockPage: &MockPage{}}
+	cfg := regConfig()
+	cfg.NavTimeout = 7 * time.Second
+	rt := New(cfg, page, utils.NewLoggerTo(nopWriter{}, nil))
+
+	if _, err := rt.RunCommand(context.Background(), dsl.Command{Type: dsl.CmdWaitForResponse, WaitResponseURL: "/api/cart"}); err != nil {
+		t.Fatal(err)
+	}
+	if page.responseTimeout != 7*time.Second {
+		t.Errorf("waited %s for the response, want nav_timeout", page.responseTimeout)
 	}
 }

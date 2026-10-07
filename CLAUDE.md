@@ -83,6 +83,35 @@ reply it serves only `page.eval` and `page.url`. Anything else would re-enter
 the step currently executing, so it is refused rather than deadlocking. A
 handler must not call `session.map()`.
 
+**A JavaScript dialog blocks the page, and nothing was listening.** `alert()`
+stops the page's only thread until something answers it. Over CDP Chrome only
+announces a dialog to a client that enabled the Page domain, so the click that
+opened one never returned and neither did any step after it — no error, no
+timeout. Firefox dismissed dialogs on its own, which hid this there and made
+`confirm` answer Cancel. Both now accept: `cdp.AcceptDialogs` on every page
+connection, `unhandledPromptBehavior` in `session.new`.
+
+**A headless Chrome page is not focused.** `element.focus()` moves
+`activeElement` and fires nothing; the first real mouse press then focuses the
+page and every owed focus handler runs in the middle of that click. A date
+picker opened under the cursor and took the click meant for the button beneath
+it. `cdp.EmulateFocus` is what makes focus happen when the engine asks for it.
+
+**Chrome accepts a relative upload path and then stops answering.**
+`DOM.setFileInputFiles` with `avatar.png` succeeds; the *next* command, whatever
+it is, never returns, and the process then resists being killed. Firefox refuses
+the path outright. `resolveUploadPath` makes it absolute before any browser
+sees it.
+
+**Chrome reports a failed navigation as a success.** `Page.navigate` answers
+without error for a host that does not resolve; the failure is the `errorText`
+field of the reply, and the tab is left on `chrome-error://`. Firefox fails the
+command itself. `cdp.Navigate` reads the field so both do.
+
+**A click goes to coordinates, not to an element.** Whatever is on top at that
+point receives it, and the step used to pass. `clickPoint` asks the page first
+(`pagejs.CoveredBy`) and fails the step if something else would get the click.
+
 **Snapshot caching hides change.** The cache makes resolution cheap within a
 step. Any polling loop must call `invalidateSnapshot()` each iteration or it
 will never see what it is waiting for.

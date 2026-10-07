@@ -58,9 +58,6 @@ type Runtime struct {
 	cachedElements       []dom.ElementSnapshot
 	stickyCheckboxStates map[string]bool
 
-	// mockRules stores MOCK command rules keyed by "METHOD URL_PATTERN".
-	mockRules map[string]mockRule
-
 	// debug state — only populated when cfg.DebugMode is true
 	breakLines        map[int]bool             // source line numbers that are breakpoints; empty = pause every step
 	breakSteps        map[int]bool             // command indices queued by extension-mode "next" to pause at
@@ -84,13 +81,6 @@ type Runtime struct {
 	activeHuntRes *explain.HuntResult
 }
 
-type mockRule struct {
-	Method      string
-	Pattern     string
-	Body        string
-	ContentType string
-}
-
 // New creates a new Runtime bound to the given Config, Page, and Logger.
 //
 // The returned Runtime is single-goroutine; see the type doc for the
@@ -103,7 +93,6 @@ func New(cfg config.Config, page browser.Page, logger *utils.Logger) *Runtime {
 		vars:                 NewScopedVariables(),
 		pages:                pages.NewRegistry(""),
 		stickyCheckboxStates: make(map[string]bool),
-		mockRules:            make(map[string]mockRule),
 		breakLines:           make(map[int]bool),
 	}
 	for _, ln := range cfg.BreakLines {
@@ -454,25 +443,11 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 	case dsl.CmdNavigate:
 		url := rt.resolveVariables(cmd.URL)
 		res.ActionValue = url
-		err = rt.page.Navigate(ctx, url)
+		err = rt.navigate(ctx, url)
 		if err == nil {
-			// Navigation started, wait for it to complete.
-			// Brief pause helps CDP catch up before we check readyState.
-			if waitErr := rt.page.Wait(ctx, 300*time.Millisecond); waitErr != nil {
-				err = waitErr
-				break
-			}
-			if waitErr := rt.page.WaitForLoad(ctx); waitErr != nil {
-				err = waitErr
-				break
-			}
 			rt.invalidateSnapshot()
 			if rt.cfg.AutoAnnotate {
 				rt.autoAnnotateNavigate(ctx, url)
-			}
-			// Re-apply mocks after navigation so they are available on the new page.
-			if len(rt.mockRules) > 0 {
-				_ = rt.applyMockJS(ctx)
 			}
 		}
 
@@ -581,7 +556,13 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 	case dsl.CmdWaitForResponse:
 		pattern := rt.resolveVariables(cmd.WaitResponseURL)
 		res.ActionValue = pattern
-		err = rt.page.WaitForResponse(ctx, pattern, rt.cfg.DefaultTimeout)
+		// nav_timeout is the one the config contract gives a response to
+		// arrive in; a Runtime built without it keeps the step timeout.
+		limit := rt.cfg.NavTimeout
+		if limit <= 0 {
+			limit = rt.cfg.DefaultTimeout
+		}
+		err = rt.page.WaitForResponse(ctx, pattern, limit)
 
 	case dsl.CmdCallGo:
 		res.ActionValue, res.ProbeMetadata, err = rt.executeCallGo(ctx, cmd)
@@ -873,12 +854,11 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 					break
 				}
 			}
-			x, y, e := rt.page.GetElementCenter(ctx, winner.ID, winner.XPath)
+			x, y, e := rt.clickPoint(ctx, winner, targetPath)
 			if e != nil {
-				err = fmt.Errorf("center calc: %w", e)
+				err = e
 			} else {
 				// Perform interaction
-				_ = rt.page.ScrollIntoView(ctx, winner.ID, winner.XPath)
 				err = rt.page.Click(ctx, x, y)
 				if err == nil {
 					// A click may trigger navigation or AJAX update.
@@ -887,23 +867,23 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 						break
 					}
 					rt.invalidateSnapshot()
-					_ = rt.page.WaitForLoad(ctx)
+					_ = rt.waitForLoad(ctx)
 					if stickyErr := rt.reconcileStickyCheckboxStates(ctx); stickyErr != nil {
 						err = stickyErr
 					}
 				}
 			}
 		case dsl.CmdDoubleClick:
-			x, y, e := rt.page.GetElementCenter(ctx, winner.ID, winner.XPath)
+			x, y, e := rt.clickPoint(ctx, winner, targetPath)
 			if e != nil {
-				err = fmt.Errorf("center calc: %w", e)
+				err = e
 			} else {
 				err = rt.page.DoubleClick(ctx, x, y)
 			}
 		case dsl.CmdRightClick:
-			x, y, e := rt.page.GetElementCenter(ctx, winner.ID, winner.XPath)
+			x, y, e := rt.clickPoint(ctx, winner, targetPath)
 			if e != nil {
-				err = fmt.Errorf("center calc: %w", e)
+				err = e
 			} else {
 				err = rt.page.RightClick(ctx, x, y)
 			}
@@ -928,7 +908,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 			if err == nil {
 				rt.rememberStickyCheckboxState(targetPath, checked)
 				rt.invalidateSnapshot()
-				if verifyErr := rt.ensureCheckboxTargetState(ctx, targetPath, checked, ranked); verifyErr != nil {
+				if verifyErr := rt.ensureCheckboxTargetState(ctx, winner, targetPath, checked, ranked); verifyErr != nil {
 					err = verifyErr
 				}
 			}
@@ -1000,7 +980,12 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 				filePath = rt.resolveVariables(cmd.UploadFile)
 			}
 			res.ActionValue = filePath
-			err = rt.page.SetFileInput(ctx, winner.ID, winner.XPath, []string{filePath})
+			absPath, pathErr := rt.resolveUploadPath(filePath)
+			if pathErr != nil {
+				err = pathErr
+				break
+			}
+			err = rt.page.SetFileInput(ctx, winner.ID, winner.XPath, []string{absPath})
 			if err == nil {
 				rt.invalidateSnapshot()
 			}
@@ -1067,11 +1052,15 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 			break
 		}
 
-		extracted := strings.Trim(string(val), "\"") // Unquote JSON string if needed
+		extracted, fromField := decodeExtractResult(val)
 
-		if extracted == "" || extracted == "null" {
+		// An empty field was found and is empty; empty text was not found.
+		if !fromField && (extracted == "" || extracted == "null") {
 			err = fmt.Errorf("extract target not found or empty: %q", target)
 			break
+		}
+		if fromField {
+			res.ProbeMetadata = map[string]any{extractSourceKey: extractSourceField}
 		}
 		rt.vars.Set(cmd.ExtractVar, extracted, LevelRow)
 		res.ActionValue = extracted
@@ -1248,7 +1237,15 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 					break
 				}
 				res.CandidatesConsidered = len(elements)
-				ranked = scorer.Rank(target, cmd.TypeHint, string(dsl.ModeNone), elements, 5, nil)
+				if cmd.VerifyFieldKind != "text" {
+					// A <label> has neither a value nor a placeholder, but it
+					// carries the field's name as its own text and outranked
+					// the field it labels — whose value then read as "".
+					elements = withoutLabels(elements)
+				}
+				// Ranked as if nothing were disabled, as the state form below
+				// does: a disabled field still has a value to verify.
+				ranked = restoreDisabled(scorer.Rank(target, cmd.TypeHint, string(dsl.ModeNone), asIfEnabled(elements), 5, nil), elements)
 				found = len(ranked) > 0 && scorer.MatchesQuery(target, &ranked[0].Element)
 				if found {
 					winner := ranked[0].Element
@@ -1415,8 +1412,14 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 		}
 
 	case dsl.CmdForEach:
-		v, _ := rt.vars.Resolve(cmd.ForEachCollection)
-		coll := v
+		coll, isVar := rt.vars.Resolve(cmd.ForEachCollection)
+		if !isVar {
+			// Not a variable name, so it is the list itself. That is what a
+			// collection declared with @var: has become by now — @var: values
+			// are substituted into the line at parse time — and treating
+			// "Ada,Grace" as the name of a variable looped zero times, green.
+			coll = rt.resolveVariables(cmd.ForEachCollection)
+		}
 		items := strings.Split(coll, ",")
 		for _, val := range items {
 			val = strings.TrimSpace(val)
@@ -1446,6 +1449,33 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 		res.Success = true
 	}
 	return res, err
+}
+
+const (
+	extractSourceKey   = "extract_source"
+	extractSourceField = "field"
+)
+
+// ExtractedFromField reports whether an EXTRACT result is the value of a form
+// control rather than text found on the page. Only then is an empty value an
+// answer: the field is there and holds nothing.
+func ExtractedFromField(res explain.ExecutionResult) bool {
+	return res.ProbeMetadata[extractSourceKey] == extractSourceField
+}
+
+// decodeExtractResult reads what the extraction probe sent back. Text arrives
+// as a string — bare, as every string from the page does. A form control
+// answers with an object instead, so that its being empty can be told apart
+// from nothing having been found.
+func decodeExtractResult(raw []byte) (value string, fromField bool) {
+	var field struct {
+		Field bool   `json:"field"`
+		Value string `json:"value"`
+	}
+	if json.Unmarshal(raw, &field) == nil && field.Field {
+		return field.Value, true
+	}
+	return strings.Trim(string(raw), "\""), false // Unquote JSON string if needed
 }
 
 // classifyFailure derives a machine-readable FailureReason from a failed
@@ -1659,56 +1689,94 @@ func (rt *Runtime) handleMock(ctx context.Context, cmd dsl.Command) error {
 		contentType = "application/json"
 	}
 
-	key := method + " " + pattern
-	rt.mockRules[key] = mockRule{
+	// The page answers from here on, at the network: a navigation, a fetch,
+	// an XHR and an image are all the same request to it, and a rule outlives
+	// the document it was declared on. This used to be a patch over
+	// window.fetch looked up by the exact string the page passed — so a
+	// pattern never matched a full URL, nothing but fetch was covered, and
+	// the next navigation threw the patch away.
+	if err := rt.page.Mock(ctx, browser.MockRule{
 		Method:      method,
 		Pattern:     pattern,
-		Body:        string(body),
+		Body:        body,
 		ContentType: contentType,
+	}); err != nil {
+		return fmt.Errorf("MOCK: %w", err)
 	}
-
 	rt.logger.ActionDetail("🔀", "MOCK %s *%s → %s", method, pattern, mockFile)
-
-	// Inject the mock override JS into the page.
-	if err := rt.applyMockJS(ctx); err != nil {
-		return fmt.Errorf("MOCK: failed to inject mock JS: %w", err)
-	}
 	return nil
 }
 
-func (rt *Runtime) applyMockJS(ctx context.Context) error {
-	js := `(function(){
-  if (window.__manulMockApplied) return;
-  window.__manulMockApplied = true;
-  window.__manulMocks = window.__manulMocks || {};
-  const origFetch = window.fetch;
-  window.fetch = function(url, opts) {
-    var method = (opts && opts.method || 'GET').toUpperCase();
-    var mock = window.__manulMocks[method + ' ' + url];
-    if (mock) {
-      return Promise.resolve(new Response(mock.body, {
-        status: 200,
-        headers: {'Content-Type': mock.contentType}
-      }));
-    }
-    return origFetch(url, opts);
-  };
-})();`
-	_, err := rt.page.EvalJS(ctx, js)
-	if err != nil {
+// navigate loads url and waits for the page, for no longer than nav_timeout.
+//
+// The timeout was declared, documented and never read: a page with one
+// resource that never arrives held NAVIGATE for as long as the server cared
+// to, and with nothing else bounding a step that could be for ever.
+func (rt *Runtime) navigate(ctx context.Context, url string) error {
+	limited, cancel := rt.withNavTimeout(ctx)
+	defer cancel()
+
+	err := rt.page.Navigate(limited, url)
+	if err == nil {
+		// Brief pause helps CDP catch up before we check readyState.
+		if err = rt.page.Wait(limited, 300*time.Millisecond); err == nil {
+			err = rt.page.WaitForLoad(limited)
+		}
+	}
+	if err == nil || limited.Err() == nil || ctx.Err() != nil {
+		// Loaded, failed for a reason of its own, or the caller gave up.
 		return err
 	}
 
-	// Register each mock rule.
-	for key, rule := range rt.mockRules {
-		regJS := fmt.Sprintf(`window.__manulMocks[%q] = {body: %q, contentType: %q};`,
-			key, rule.Body, rule.ContentType)
-		_, err := rt.page.EvalJS(ctx, regJS)
-		if err != nil {
-			return err
+	// Out of time. Whether that is a failure depends on what there is to work
+	// with: a document that has been parsed is a page a person would already
+	// be using, held up by an image or a tracker that may never come. One
+	// that has not is not a page yet.
+	probe, cancelProbe := context.WithTimeout(ctx, 2*time.Second)
+	defer cancelProbe()
+	state, _ := rt.page.EvalJS(probe, pagejs.ReadyState)
+	if s := strings.Trim(string(state), `"`); s == "interactive" || s == "complete" {
+		rt.logger.Warn("NAVIGATE: %s had not finished loading after %s; its document is ready, so the hunt goes on", url, rt.cfg.NavTimeout)
+		return nil
+	}
+	return fmt.Errorf("navigation timeout: %s did not load within %s", url, rt.cfg.NavTimeout)
+}
+
+// waitForLoad waits for the page to finish loading, for no longer than
+// nav_timeout.
+func (rt *Runtime) waitForLoad(ctx context.Context) error {
+	limited, cancel := rt.withNavTimeout(ctx)
+	defer cancel()
+	return rt.page.WaitForLoad(limited)
+}
+
+// withNavTimeout bounds ctx by nav_timeout. Zero means no limit, which is
+// also what a Runtime built from an empty Config gets.
+func (rt *Runtime) withNavTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	if rt.cfg.NavTimeout <= 0 {
+		return ctx, func() {}
+	}
+	return context.WithTimeout(ctx, rt.cfg.NavTimeout)
+}
+
+// resolveUploadPath turns the path of an UPLOAD into an absolute one that
+// exists, looking beside the hunt first and then in the working directory.
+//
+// A browser has to be handed an absolute path. Firefox refuses a relative one;
+// Chrome accepts it, and then stops answering — the next step, whatever it is,
+// never returns. A file that is not there is reported here for the same
+// reason: neither browser says so in a way a hunt author could act on.
+func (rt *Runtime) resolveUploadPath(path string) (string, error) {
+	candidates := []string{path}
+	if rt.sourcePath != "" && !filepath.IsAbs(path) {
+		candidates = []string{filepath.Join(filepath.Dir(rt.sourcePath), path), path}
+	}
+	for _, c := range candidates {
+		if info, err := os.Stat(c); err == nil && !info.IsDir() {
+			return filepath.Abs(c)
 		}
 	}
-	return nil
+	return "", fmt.Errorf("UPLOAD: file not found: %s", path)
 }
 
 func (rt *Runtime) resolveVariables(s string) string {
@@ -2050,6 +2118,17 @@ func asIfEnabled(elements []dom.ElementSnapshot) []dom.ElementSnapshot {
 	return probe
 }
 
+// withoutLabels returns elements minus the <label> ones, as a new slice.
+func withoutLabels(elements []dom.ElementSnapshot) []dom.ElementSnapshot {
+	kept := make([]dom.ElementSnapshot, 0, len(elements))
+	for _, el := range elements {
+		if el.Tag != "label" {
+			kept = append(kept, el)
+		}
+	}
+	return kept
+}
+
 func restoreDisabled(ranked []scorer.RankedCandidate, elements []dom.ElementSnapshot) []scorer.RankedCandidate {
 	for i := range ranked {
 		c := &ranked[i].Element
@@ -2147,9 +2226,17 @@ func verifyRankedCandidateAcceptable(state string, ranked []scorer.RankedCandida
 	}
 }
 
-func (rt *Runtime) ensureCheckboxTargetState(ctx context.Context, target string, desired bool, initialRanked []scorer.RankedCandidate) error {
+func (rt *Runtime) ensureCheckboxTargetState(ctx context.Context, acted dom.ElementSnapshot, target string, desired bool, initialRanked []scorer.RankedCandidate) error {
 	if waitErr := rt.page.Wait(ctx, 150*time.Millisecond); waitErr != nil {
 		return waitErr
+	}
+	// Ask the control that was just acted on before asking the page for one
+	// by name. A box with an unbound caption beside it — <input><label> with
+	// no for= — is reached through the caption but cannot be found by it, so
+	// the by-name check below reported a ticked box as never ticked, and then
+	// went on to try other boxes.
+	if checked, ok := rt.checkedState(ctx, acted); ok && checked == desired {
+		return nil
 	}
 	rt.invalidateSnapshot()
 	matched, err := rt.checkboxTargetHasState(ctx, target, desired)
@@ -2213,12 +2300,94 @@ func (rt *Runtime) collectCheckboxRetryCandidates(ctx context.Context, target st
 	}
 	var candidates []scorer.RankedCandidate
 	candidates = append(candidates, initialRanked...)
-	if restrictive, _ := resolveRestrictiveCandidates(target, "checkbox", dsl.ModeCheckbox, elements, nil, nil); len(restrictive) > 0 {
+	// "restrictive-anchor" is that resolver giving up: it hands back whatever
+	// ranked highest, matching or not.
+	if restrictive, strategy := resolveRestrictiveCandidates(target, "checkbox", dsl.ModeCheckbox, elements, nil, nil); len(restrictive) > 0 && strategy != "restrictive-anchor" {
 		candidates = append(candidates, restrictive...)
 	}
-	candidates = append(candidates, scorer.Rank(target, "checkbox", string(dsl.ModeCheckbox), elements, 5, nil)...)
-	candidates = append(candidates, scorer.Rank(target, "", string(dsl.ModeNone), elements, 5, nil)...)
+	// The two plain rankings always return five of something. With the
+	// checkbox hint that is the page's first five checkboxes whether or not
+	// they have anything to do with the target, and a retry ticked them.
+	for _, c := range scorer.Rank(target, "checkbox", string(dsl.ModeCheckbox), elements, 5, nil) {
+		if scorer.MatchesQuery(target, &c.Element) {
+			candidates = append(candidates, c)
+		}
+	}
+	for _, c := range scorer.Rank(target, "", string(dsl.ModeNone), elements, 5, nil) {
+		if scorer.MatchesQuery(target, &c.Element) {
+			candidates = append(candidates, c)
+		}
+	}
 	return candidates, nil
+}
+
+// clickPoint returns where a click on el should land, once nothing else is
+// in the way there.
+//
+// Something on top of the target is often on its way out — a modal's backdrop
+// fading, a toast, a menu closing — so it is given a moment to clear. What is
+// still there after that is reported instead of clicked: the click would have
+// gone to it, and the step would have passed.
+func (rt *Runtime) clickPoint(ctx context.Context, el dom.ElementSnapshot, target string) (x, y float64, err error) {
+	for check := 1; ; check++ {
+		// Measured again each time round: what was in the way may have been
+		// holding the layout where it was.
+		x, y, err = rt.page.GetElementCenter(ctx, el.ID, el.XPath)
+		if err != nil {
+			return 0, 0, fmt.Errorf("center calc: %w", err)
+		}
+		cover := rt.coveredBy(ctx, el, x, y)
+		if cover == "" {
+			return x, y, nil
+		}
+		if check == coverChecks {
+			return 0, 0, fmt.Errorf("%q is covered by %s where the click would land; nothing was clicked", target, cover)
+		}
+		if waitErr := rt.page.Wait(ctx, coverCheckEvery); waitErr != nil {
+			return 0, 0, waitErr
+		}
+	}
+}
+
+// Something covering a click target is given coverChecks looks, coverCheckEvery
+// apart, to go away before the step fails: about a second and a half.
+const (
+	coverChecks     = 10
+	coverCheckEvery = 150 * time.Millisecond
+)
+
+// coveredBy names the element sitting on top of el at (x, y), or returns ""
+// when a click there reaches el.
+func (rt *Runtime) coveredBy(ctx context.Context, el dom.ElementSnapshot, x, y float64) string {
+	raw, err := rt.page.EvalJS(ctx, pagejs.CoveredBy(el.ID, el.XPath, x, y))
+	if err != nil {
+		return ""
+	}
+	var report struct {
+		Covered bool   `json:"covered"`
+		By      string `json:"by"`
+	}
+	if json.Unmarshal(raw, &report) != nil || !report.Covered {
+		return ""
+	}
+	return report.By
+}
+
+// checkedState reads the state of the checkbox or radio el stands for, off the
+// page as it is now. ok is false when the page has no such control to report.
+func (rt *Runtime) checkedState(ctx context.Context, el dom.ElementSnapshot) (checked, ok bool) {
+	raw, err := rt.page.EvalJS(ctx, pagejs.CheckedState(el.ID, el.XPath))
+	if err != nil {
+		return false, false
+	}
+	var state struct {
+		Found   bool `json:"found"`
+		Checked bool `json:"checked"`
+	}
+	if json.Unmarshal(raw, &state) != nil {
+		return false, false
+	}
+	return state.Checked, state.Found
 }
 
 func (rt *Runtime) rememberStickyCheckboxState(target string, checked bool) {

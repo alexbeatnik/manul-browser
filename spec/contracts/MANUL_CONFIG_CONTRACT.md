@@ -39,7 +39,7 @@
       "envVar": "MANUL_HEADLESS",
       "type": "boolean",
       "default": false,
-      "description": "Run browser in headless mode (no visible window).",
+      "description": "Run browser in headless mode (no visible window). The headless window is 1366×768 in both Chromium and Firefox, so a responsive site lays itself out the same way in either.",
       "cliFlag": "--headless"
     },
     {
@@ -116,7 +116,7 @@
       "type": "integer",
       "unit": "milliseconds",
       "default": 30000,
-      "description": "Navigation timeout for NAVIGATE, page loads, and WAIT FOR RESPONSE.",
+      "description": "Navigation timeout for NAVIGATE, page loads, and WAIT FOR RESPONSE. NAVIGATE that runs out of it fails, unless the document has already been parsed, in which case the hunt continues with a warning. The wait for a page a CLICK started loading is cut off at it without failing the step. 0 removes the limit for NAVIGATE and page loads, and leaves WAIT FOR RESPONSE with the step timeout.",
       "minimum": 0
     },
     {

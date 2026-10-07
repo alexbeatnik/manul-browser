@@ -57,12 +57,12 @@
     {
       "name": "Read",
       "signature": "(*Session) Read(ctx context.Context, target string) (Value, error)",
-      "description": "Extracts the text of the element matching a human label, using only the cheap extraction probe (one CDP round-trip, no full snapshot). A target that doesn't resolve (or resolves empty) returns Value{Found:false, Reason:ReasonNotFound} with a nil error — 'nothing there' is a normal answer."
+      "description": "Extracts the text of the element matching a human label, using only the cheap extraction probe (one CDP round-trip, no full snapshot). A target that names a form control (by label, placeholder, aria-label, title, name, id or test id) reads what the control currently holds — the way to read back a value written by FILL — and is Found even when the control is empty. A target that doesn't resolve (or resolves to empty text) returns Value{Found:false, Reason:ReasonNotFound} with a nil error — 'nothing there' is a normal answer."
     },
     {
       "name": "ReadText",
       "signature": "(*Session) ReadText(ctx context.Context, selector string) (string, error)",
-      "description": "Returns the case-preserved, shadow-DOM-aware visible text of the page, sanitized of markup noise (base64/data-*/SVG path data). Pass a CSS selector to scope to a region; pass \"\" for the whole body. Single probe round-trip."
+      "description": "Returns the case-preserved, shadow-DOM-aware visible text of the page, sanitized of markup noise (base64/data-*/SVG path data). Pass a CSS selector to scope to a region; pass \"\" for the whole body. A selector that matches nothing returns \"\" with a nil error — the region is not there, which is not the whole page. A selector that is not valid CSS returns ErrBadSelector. Single probe round-trip."
     },
     {
       "name": "Step",
@@ -82,7 +82,7 @@
     {
       "name": "Map",
       "signature": "(*Session) Map(ctx context.Context, budget MapBudget) (PageMap, error)",
-      "description": "Returns a landmark-grouped, budgeted scan of the current page (one full-scan JS probe; no navigation). The bounded alternative to dumping the DOM — deduped, ranked, per-group capped."
+      "description": "Returns a landmark-grouped, budgeted scan of the current page (one full-scan JS probe; no navigation). The bounded alternative to dumping the DOM — deduped, ranked, per-group capped. A form control is listed under the text of the <label> bound to it (by for= or by wrapping it, a trailing ':' or '*' dropped), then its aria-label, placeholder, own text, title, name and id in that order; a <select> is never named after its options."
     }
   ],
 
@@ -90,8 +90,8 @@
     "Value": {
       "description": "Result of a Read.",
       "fields": [
-        { "name": "Text",   "type": "string", "description": "Extracted, trimmed text. Empty when Found is false." },
-        { "name": "Found",  "type": "bool",   "description": "Whether the target resolved to a non-empty value." },
+        { "name": "Text",   "type": "string", "description": "Extracted, trimmed text. Empty when Found is false, and when the target is a form control that holds nothing." },
+        { "name": "Found",  "type": "bool",   "description": "Whether the target resolved: to non-empty text, or to a form control — whose current value Text carries even when it is empty." },
         { "name": "Reason", "type": "Reason", "description": "ReasonOK when Found, ReasonNotFound otherwise. (Read uses the extraction probe, not the scorer, so it offers no Near candidates — use Step/Map to retarget.)" }
       ]
     },

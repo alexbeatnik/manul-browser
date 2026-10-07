@@ -76,6 +76,12 @@ type Page interface {
 	// WaitForResponse waits for a network response matching the URL pattern.
 	WaitForResponse(ctx context.Context, urlPattern string, timeout time.Duration) error
 
+	// Mock answers, from rule, every later request it matches — whatever
+	// makes the request: a navigation, fetch, XHR, an <img> — in place of
+	// the network. It holds across navigations, for as long as the page
+	// lives. A rule for a method and pattern already given replaces it.
+	Mock(ctx context.Context, rule MockRule) error
+
 	// HighlightElement injects a temporary border highlight for debugging.
 	HighlightElement(ctx context.Context, id int, xpath string, durationMS int) error
 
