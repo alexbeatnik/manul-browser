@@ -6,10 +6,6 @@ Browser automation in plain English — for humans and LLM agents.
 pip install manul-browser
 ```
 
-> Not on PyPI yet — the release workflow builds the wheels but does not upload
-> them. Until it does, install from a workflow artifact or build one yourself:
-> `MANUL_TARGET=<goos>/<goarch> python -m build --wheel`.
-
 The distribution is `manul-browser`; the import stays `manul`. The wheel carries
 the engine binary and installs the `manul` command, so there is nothing else to
 install except a system Chrome/Chromium or Firefox.
@@ -30,6 +26,18 @@ with manul.Session() as s:
 
 No selectors, no waits, no page objects. Targets are named the way a person
 would name them, and the engine resolves them with deterministic DOM heuristics.
+
+### Firefox
+
+A launch starts Chromium. Ask for Firefox and the same script runs there, over
+WebDriver BiDi instead of CDP:
+
+```python
+with manul.Session(browser="firefox", headless=True) as s:
+    s.step("NAVIGATE to https://example.com")
+```
+
+`MANUL_BROWSER=firefox` does the same from the environment.
 
 ### Drive a Chrome you already have open
 

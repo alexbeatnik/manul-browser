@@ -24,6 +24,23 @@ describe('startup', () => {
     assert.equal(s.mode, 'launch');
   });
 
+  // The engine has taken `browser` on open all along; the binding had no way
+  // to say it, so Firefox was reachable only through MANUL_BROWSER.
+  it('passes the browser choice to the engine', async () => {
+    const chromium = await openFake();
+    after(() => chromium.close());
+    assert.equal(chromium.browser, 'chromium');
+
+    const firefox = await Session.launch({
+      binary: [process.execPath, FAKE],
+      stderr: 'ignore',
+      browser: 'firefox',
+    });
+    after(() => firefox.close());
+    assert.equal(firefox.mode, 'launch');
+    assert.equal(firefox.browser, 'firefox');
+  });
+
   it('refuses a protocol major it was not written against', async () => {
     await assert.rejects(() => openFake({ MANUL_FAKE_MODE: 'future' }), ProtocolError);
   });

@@ -217,6 +217,12 @@ class Transport:
                     f"engine asked for {msg.get('kind')!r} but no handler is registered"
                 )
             result = self.on_invoke(msg)
+            # Encoded here, inside the try. A handler may return something JSON
+            # cannot carry — a datetime, a Decimal, a set — and that has to fail
+            # its own step like any other handler error. Raised from the write
+            # instead, it escaped with the engine still waiting on this reply,
+            # and every later call on the session hung behind it.
+            reply = self._encode({"invoke": invoke_id, "ok": True, "result": result})
         except BaseException as exc:  # noqa: BLE001 - reported, never swallowed
             self._send({
                 "invoke": invoke_id,
@@ -227,7 +233,7 @@ class Transport:
                 },
             })
         else:
-            self._send({"invoke": invoke_id, "ok": True, "result": result})
+            self._write(reply)
 
     def nested_call(self, cmd: str, args: dict[str, Any] | None = None) -> Any:
         """Issue a request from inside a reverse call.
@@ -247,11 +253,18 @@ class Transport:
         self._next_id += 1
         return self._next_id
 
+    @staticmethod
+    def _encode(payload: dict[str, Any]) -> str:
+        return json.dumps(payload, ensure_ascii=False)
+
     def _send(self, payload: dict[str, Any]) -> None:
+        self._write(self._encode(payload))
+
+    def _write(self, line: str) -> None:
         stdin = self._proc.stdin
         if stdin is None:
             raise ProtocolError("engine stdin is not available")
-        stdin.write(json.dumps(payload, ensure_ascii=False) + "\n")
+        stdin.write(line + "\n")
         stdin.flush()
 
     def _readline(self) -> str | None:
