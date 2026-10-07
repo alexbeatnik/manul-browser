@@ -37,7 +37,7 @@
       "uiText": "NAVIGATE to ''",
       "snippet": "NAVIGATE to ${1:url}",
       "regex": "\\bNAVIGATE\\b",
-      "description": "Navigates the browser to a specific URL and waits for DOM settlement.",
+      "description": "Navigates the browser to a specific URL and waits for the page to finish loading, for at most nav_timeout (30s by default). A navigation the browser could not make — a host that does not resolve, a refused connection — fails the step with the browser's own error, on both backends. When the time runs out, a document that has already been parsed is carried on with and a warning logged: it is a usable page held up by a resource that may never arrive. One that has not been parsed fails the step with a navigation timeout.",
       "category": "navigation"
     },
     {
@@ -55,7 +55,7 @@
       "uiText": "CLICK the ''",
       "snippet": "CLICK the '${1:target}'${2: button}",
       "regex": null,
-      "description": "Clicks a resolved element. Detected by the 'click' verb (case-insensitive). Element type hint (button, link, element) after the target is optional but recommended for scoring accuracy. Interaction mode: clickable.",
+      "description": "Clicks a resolved element. Detected by the 'click' verb (case-insensitive). Element type hint (button, link, element) after the target is optional but recommended for scoring accuracy. The click is dispatched at the centre of the element, so it would go to whatever is on top of it there. When that is not the element, something inside it, something it is inside, or the <label> it belongs to, the engine waits up to about 1.5s for it to clear and then fails the step naming what is in the way (for example an open date picker or a modal backdrop) — nothing is clicked. Interaction mode: clickable.",
       "category": "interaction",
       "interactionMode": "clickable"
     },
@@ -65,7 +65,7 @@
       "uiText": "DOUBLE CLICK the ''",
       "snippet": "DOUBLE CLICK the '${1:target}'",
       "regex": null,
-      "description": "Double-clicks a resolved element. Detected by the 'double' + 'click' verbs (case-insensitive). Interaction mode: clickable.",
+      "description": "Double-clicks a resolved element. Detected by the 'double' + 'click' verbs (case-insensitive). A covered target fails the step, as for CLICK. Interaction mode: clickable.",
       "category": "interaction",
       "interactionMode": "clickable"
     },
@@ -75,7 +75,7 @@
       "uiText": "CHECK the checkbox for ''",
       "snippet": "CHECK the checkbox for '${1:target}'",
       "regex": null,
-      "description": "Checks a checkbox element. Detected by the 'check' verb (case-insensitive). Interaction mode: clickable.",
+      "description": "Checks a checkbox element. Detected by the 'check' verb (case-insensitive). The target may be the box itself, its <label>, or a caption beside it in the same cell, row or block. Afterwards the state is read off the control that was acted on; only if the page cannot report it is the box looked up again by name, and a retry never touches a checkbox that does not carry the target. Interaction mode: clickable.",
       "category": "interaction",
       "interactionMode": "clickable"
     },
@@ -85,7 +85,7 @@
       "uiText": "UNCHECK the checkbox for ''",
       "snippet": "UNCHECK the checkbox for '${1:target}'",
       "regex": null,
-      "description": "Unchecks a checkbox element. Detected by the 'uncheck' verb (case-insensitive). Interaction mode: clickable.",
+      "description": "Unchecks a checkbox element. Detected by the 'uncheck' verb (case-insensitive). Resolved and verified as CHECK is. Interaction mode: clickable.",
       "category": "interaction",
       "interactionMode": "clickable"
     },
@@ -163,7 +163,7 @@
       "uiText": "WAIT FOR '' to be visible",
       "snippet": "WAIT FOR '${1:target}' to ${2|be visible,be hidden,disappear|}",
       "regex": "^\\s*(?:\\d+\\.\\s*)?WAIT\\s+FOR\\s+(?P<quote>[\"'])(?P<target>.+?)(?P=quote)\\s+TO\\s+(?:(?:BE\\s+(?P<state_be>VISIBLE|HIDDEN))|(?P<state_disappear>DISAPPEAR))\\s*$",
-      "description": "Explicit wait for a quoted element to reach a desired state. States: visible (the default), hidden / disappear, enabled, disabled. Polls every 250ms for up to 15s, invalidating the snapshot cache each time so the wait can see the change it is waiting for. Presence is judged at ThresholdAmbiguous — the same bar the rest of the engine uses to call a target resolved — because the scorer always ranks something and 'a top candidate exists' is not 'the target is present'.",
+      "description": "Explicit wait for a quoted element to reach a desired state. States: visible (the default), hidden / disappear, enabled, disabled. Polls every 250ms for up to 15s, invalidating the snapshot cache each time so the wait can see the change it is waiting for. Presence is judged at ThresholdAmbiguous — the same bar the rest of the engine uses to call a target resolved — because the scorer always ranks something and 'a top candidate exists' is not 'the target is present'. Only an element that carries the target whole can be the one awaited: as a phrase in its text, label, placeholder, aria-label, title, name, value or test id, or as its id. Sharing a word with the target is not enough, or 'A checkbox' would stay present for as long as any sentence on the page mentioned checkboxes.",
       "timeout": "15s",
       "pollInterval": "250ms",
       "category": "wait"
@@ -185,7 +185,7 @@
       "uiText": "WAIT FOR RESPONSE \"\"",
       "snippet": "WAIT FOR RESPONSE \"${1:url_pattern}\"",
       "regex": "\\bWAIT\\s+FOR\\s+RESPONSE\\b",
-      "description": "Blocks until a network response whose URL ends with the pattern arrives (suffix match, on both the CDP and the BiDi backend).",
+      "description": "Blocks until a network response whose URL ends with the pattern arrives (suffix match, on both the CDP and the BiDi backend), for at most nav_timeout; the step fails when none does.",
       "category": "wait"
     },
     {
@@ -194,7 +194,7 @@
       "uiText": "EXTRACT the '' into {variable}",
       "snippet": "EXTRACT the '${1:target}' into {${2:variable}}",
       "regex": "\\bEXTRACT\\b",
-      "description": "Extracts the text content of a resolved element and stores it into a runtime variable for use in subsequent steps.",
+      "description": "Extracts the text content of a resolved element and stores it into a runtime variable for use in subsequent steps. A target that names a form control reads what the control currently holds instead of the text around it — this is how a value written by FILL is read back. The control is named when its label, placeholder, aria-label, title, name, id or test id is the target (case, surrounding whitespace and a trailing ':' or '*' aside), when the text the target matched turns out to be its <label>, or — for a control with no name of its own — when the element just before it is a caption that reads exactly as the target (\"<p>Number</p><input>\", or the table cell beside the one holding the field). An <input> or <textarea> answers with its value, a <select> with the option it shows as selected (the option text, not its value attribute), a contenteditable or role=textbox element with its text. An empty control extracts as an empty string and the step passes; text that is not found, or is empty, still fails the step. Checkboxes, radios, buttons and file inputs are not read this way.",
       "category": "data"
     },
     {
@@ -221,7 +221,7 @@
       "uiText": "VERIFY '' field has placeholder ''",
       "snippet": "VERIFY '${1:element_name}' ${2|button,field,element,input|} has placeholder '${3:Expected Placeholder}'",
       "regex": "^\\s*(?:\\d+\\.\\s*)?VERIFY\\s+(?P<target_quote>[\"'])(?P<target>.+?)(?P=target_quote)\\s+(?P<element_type>button|field|element|input)\\s+HAS\\s+PLACEHOLDER\\s+(?P<expected_quote>[\"'])(?P<expected>.*?)(?P=expected_quote)\\s*\\.?\\s*$",
-      "description": "Strict placeholder verification. Resolves the element via heuristics, reads its placeholder attribute, and asserts exact equality against the expected placeholder.",
+      "description": "Strict placeholder verification. Resolves the element via heuristics, reads its placeholder attribute, and asserts exact equality against the expected placeholder. As with the value form, a <label> is never the element resolved and a disabled field is.",
       "category": "assertion"
     },
     {
@@ -230,7 +230,7 @@
       "uiText": "VERIFY '' field has value ''",
       "snippet": "VERIFY '${1:element_name}' ${2|button,field,element,input|} has value '${3:Expected Value}'",
       "regex": "^\\s*(?:\\d+\\.\\s*)?VERIFY\\s+(?P<target_quote>[\"'])(?P<target>.+?)(?P=target_quote)\\s+(?P<element_type>button|field|element|input)\\s+HAS\\s+VALUE\\s+(?P<expected_quote>[\"'])(?P<expected>.*?)(?P=expected_quote)\\s*\\.?\\s*$",
-      "description": "Strict value verification. Resolves the element via heuristics, reads its current value via locator.input_value() with a value-attribute fallback, normalizes missing values to an empty string, and asserts exact equality against the expected value.",
+      "description": "Strict value verification. Resolves the element via heuristics, reads its current value via locator.input_value() with a value-attribute fallback, normalizes missing values to an empty string, and asserts exact equality against the expected value. A <label> is never the element resolved — it has no value, only the field's name — and a disabled field is resolved like any other.",
       "category": "assertion"
     },
     {
@@ -275,7 +275,7 @@
       "uiText": "RIGHT CLICK ''",
       "snippet": "RIGHT CLICK '${1:target}'",
       "regex": "\\bRIGHT\\s+CLICK\\b",
-      "description": "Right-clicks a resolved element to open a context menu.",
+      "description": "Right-clicks a resolved element to open a context menu. A covered target fails the step, as for CLICK.",
       "category": "interaction"
     },
     {
@@ -284,7 +284,7 @@
       "uiText": "UPLOAD '' to ''",
       "snippet": "UPLOAD '${1:file_path}' to '${2:target}'",
       "regex": "\\bUPLOAD\\b",
-      "description": "Uploads a file to a file-input element. Both file path and target must be quoted. Path resolved relative to the .hunt file directory, then CWD.",
+      "description": "Uploads a file to a file-input element. Both file path and target must be quoted. Path resolved relative to the .hunt file directory, then CWD, and handed to the browser as an absolute path. A path that names no file fails the step before the browser is asked.",
       "category": "interaction"
     },
     {
@@ -293,7 +293,7 @@
       "uiText": "MOCK GET \"\" with ''",
       "snippet": "MOCK ${1|GET,POST,PUT,PATCH,DELETE|} \"${2:url_pattern}\" with '${3:mock_file}'",
       "regex": "\\bMOCK\\s+(?:GET|POST|PUT|PATCH|DELETE)\\b",
-      "description": "Intercepts matching network requests via CDP request interception and fulfills from a local mock file. Supported HTTP methods: GET, POST, PUT, PATCH, DELETE.",
+      "description": "Answers matching network requests from a local file instead of from the network, by request interception: the Fetch domain over CDP, network intercepts over WebDriver BiDi. The pattern is matched against the end of the request URL, query string included, and '*' stands for any run of characters — \"/api/users\" answers https://host/v1/api/users, \"/api/users*\" also answers it with a query string. Any request is covered, whatever makes it: a navigation, fetch, XMLHttpRequest, an image. A rule holds for the rest of the session, across navigations; a later MOCK for the same method and pattern replaces it. The response has status 200 and a Content-Type of application/json for a .json file and text/plain otherwise. A cross-origin request gets the CORS headers it needs, and its preflight is answered too. The HTTP cache is bypassed from the first MOCK on, since a cached response is never requested. The mock file is resolved relative to the .hunt file directory, then CWD. Supported HTTP methods: GET, POST, PUT, PATCH, DELETE.",
       "category": "network"
     },
     {
@@ -448,7 +448,7 @@
       "uiText": "FOR EACH {item} IN {items}:",
       "snippet": "FOR EACH {${1:var}} IN {${2:collection}}:\n        ${3:action}",
       "regex": "^\\s*(?:\\d+\\.\\s*)?FOR\\s+EACH\\s+\\{?\\w+\\}?\\s+IN\\s+\\{?\\w+\\}?\\s*:\\s*$",
-      "description": "Iterate over comma-separated values from a variable. On each iteration the loop variable is set to the next value. Nesting supported.",
+      "description": "Iterate over comma-separated values from a variable. On each iteration the loop variable is set to the next value. Nesting supported. A collection that is not the name of a variable is taken as the list itself, which is also what a collection declared with @var: is by the time the loop runs: @var: values are substituted into the line at parse time.",
       "category": "control_flow"
     },
     {
@@ -628,6 +628,13 @@
       "description": "Highlights the element without performing any action."
     }
   ],
+  "dialogs": {
+    "policy": "accept",
+    "note": "A JavaScript dialog the page opens — alert, confirm, prompt, beforeunload — is accepted by the engine at once, on both backends: confirm answers OK, prompt answers with its default text. There is no verb for it and no step waits on it. A dialog blocks the page, so one left unanswered would stall every step after it."
+  },
+  "focus": {
+    "note": "The page is treated as focused whether or not its window is. Focusing a field — which FILL and TYPE do — runs the page's focus handlers there and then, so a widget that opens on focus (a date picker, an autocomplete list) is open after the step and may cover what the next one aims at."
+  },
   "comments": {
     "lineComment": "#",
     "rule": "Any line whose trimmed text starts with '#' is ignored. '#' after a step on the same line is treated as step text, not a comment."

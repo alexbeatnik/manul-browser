@@ -22,6 +22,7 @@ type MockPage struct {
 	Clicks       []Point
 	Inputs       map[string]string // xpath -> value
 	FileInputs   map[string][]string
+	Mocks        []browser.MockRule
 	LastNavigate string
 	ProbeCalls   int
 	EvalCalls    []string
@@ -131,6 +132,11 @@ func (m *MockPage) DragAndDrop(ctx context.Context, fX, fY, tX, tY float64) erro
 
 func (m *MockPage) GetDragCenters(ctx context.Context, srcID int, srcXPath string, dstID int, dstXPath string) (float64, float64, float64, float64, error) {
 	return 0, 0, 0, 0, nil
+}
+
+func (m *MockPage) Mock(ctx context.Context, rule browser.MockRule) error {
+	m.Mocks = append(m.Mocks, rule)
+	return nil
 }
 
 func (m *MockPage) SetFileInput(ctx context.Context, id int, xpath string, paths []string) error {

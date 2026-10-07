@@ -24,6 +24,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -192,9 +193,11 @@ func (s *Session) Close() error {
 
 // Value is the result of a Read.
 type Value struct {
-	// Text is the extracted, trimmed text. Empty when Found is false.
+	// Text is the extracted, trimmed text. Empty when Found is false, and
+	// when the target is a form control that holds nothing.
 	Text string
-	// Found reports whether the target resolved to a non-empty value.
+	// Found reports whether the target resolved: to non-empty text, or to a
+	// form control, whose current value Text then carries even if empty.
 	Found bool
 	// Reason classifies the outcome — ReasonOK when Found, ReasonNotFound
 	// otherwise. Lets a caller branch without string-matching. (Read uses the
@@ -207,6 +210,11 @@ type Value struct {
 // dedicated extraction probe — a single CDP round-trip with no full-DOM
 // snapshot. This is the cheapest way for an agent to read one piece of the
 // page (a heading, a price, a status) without paying for a whole page scan.
+//
+// A target that names a form control — by its label, placeholder, aria-label,
+// name, id or test id — reads what the control currently holds, which is how
+// a value written by FILL is read back. A <select> answers with the option it
+// shows as selected.
 //
 // A target that doesn't resolve (or resolves to empty) returns Found=false
 // with a nil error — "nothing there" is a normal answer, not a failure.
@@ -234,7 +242,8 @@ func (s *Session) Read(ctx context.Context, target string) (Value, error) {
 		}
 		return Value{}, fmt.Errorf("agent: read %q: %w", target, err)
 	}
-	found := res.ActionValue != ""
+	// A form control that holds nothing was still found.
+	found := res.ActionValue != "" || runtime.ExtractedFromField(res)
 	reason := ReasonOK
 	if !found {
 		reason = ReasonNotFound
@@ -242,10 +251,17 @@ func (s *Session) Read(ctx context.Context, target string) (Value, error) {
 	return Value{Text: res.ActionValue, Found: found, Reason: reason}, nil
 }
 
+// ErrBadSelector is returned by ReadText for a selector that is not valid CSS.
+var ErrBadSelector = errors.New("not a valid CSS selector")
+
 // ReadText returns the case-preserved, shadow-DOM-aware visible text of the
 // page, sanitized of markup noise (base64 blobs, data-* attributes, SVG path
 // data) so it's fit to hand to an LLM. Pass a CSS selector to scope extraction
 // to one region; pass "" for the whole document body.
+//
+// A selector that matches nothing returns "" with a nil error — the region is
+// not there, which is not the same as the whole page. A selector that cannot
+// parse returns ErrBadSelector.
 //
 // This complements Read: Read resolves ONE element by a human label and
 // returns its value; ReadText dumps a whole region's prose — the right tool
@@ -262,6 +278,12 @@ func (s *Session) ReadText(ctx context.Context, selector string) (string, error)
 	raw, err := s.page.CallProbe(ctx, heuristics.BuildPageTextProbe(), selector)
 	if err != nil {
 		return "", fmt.Errorf("agent: read text: %w", err)
+	}
+	var refusal struct {
+		InvalidSelector bool `json:"invalidSelector"`
+	}
+	if json.Unmarshal(raw, &refusal) == nil && refusal.InvalidSelector {
+		return "", fmt.Errorf("agent: read text: %q: %w", selector, ErrBadSelector)
 	}
 	// CallProbe returns the JSON-encoded string value; unquote it.
 	var text string

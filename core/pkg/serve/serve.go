@@ -481,6 +481,9 @@ func (s *Server) cmdRead(ctx context.Context, raw json.RawMessage) (any, string,
 	// shapes, exactly as the CLI contract defines them.
 	if a.Selector != "" {
 		text, err := s.sess.ReadText(ctx, a.Selector)
+		if errors.Is(err, agent.ErrBadSelector) {
+			return nil, CodeBadRequest, err
+		}
 		if err != nil {
 			return nil, CodeInternal, err
 		}

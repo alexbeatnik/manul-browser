@@ -2,6 +2,8 @@ package runtime
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -66,7 +68,16 @@ func TestRuntime_UploadFile(t *testing.T) {
 	}
 	mock.Elements[0].Normalize()
 
+	// The file sits beside the hunt and is named relative to it; the browser
+	// must be handed where it actually is.
+	dir := t.TempDir()
+	want := filepath.Join(dir, "avatar.png")
+	if err := os.WriteFile(want, []byte("png"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
 	rt := New(config.Config{}, mock, utils.NewLogger(nil))
+	rt.sourcePath = filepath.Join(dir, "profile.hunt")
 	res, err := rt.executeCommand(context.Background(), dsl.Command{
 		Type:           dsl.CmdUploadFile,
 		Raw:            "UPLOAD 'avatar.png' to 'Profile Picture'",
@@ -77,8 +88,8 @@ func TestRuntime_UploadFile(t *testing.T) {
 		t.Fatalf("executeCommand failed: %v", err)
 	}
 	files := mock.FileInputs["/input[1]"]
-	if len(files) != 1 || files[0] != "avatar.png" {
-		t.Fatalf("uploaded files = %v, want [avatar.png]", files)
+	if len(files) != 1 || files[0] != want {
+		t.Fatalf("uploaded files = %v, want [%s]", files, want)
 	}
 	if res.ActionValue != "avatar.png" {
 		t.Fatalf("ActionValue = %q, want avatar.png", res.ActionValue)
@@ -88,6 +99,32 @@ func TestRuntime_UploadFile(t *testing.T) {
 	}
 	if !res.TargetRequired {
 		t.Fatal("expected upload to require target resolution")
+	}
+}
+
+// A path that names no file went to the browser as it was. Neither browser
+// reports that usefully, and Chrome stops answering altogether.
+func TestRuntime_UploadMissingFileFails(t *testing.T) {
+	mock := &MockPage{
+		Elements: []dom.ElementSnapshot{
+			{ID: 7, XPath: "/input[1]", Tag: "input", InputType: "file", AriaLabel: "Profile Picture", IsVisible: true, Rect: dom.Rect{Top: 10, Left: 20, Width: 120, Height: 30}},
+		},
+	}
+	mock.Elements[0].Normalize()
+
+	rt := New(config.Config{}, mock, utils.NewLogger(nil))
+	rt.sourcePath = filepath.Join(t.TempDir(), "profile.hunt")
+	_, err := rt.executeCommand(context.Background(), dsl.Command{
+		Type:           dsl.CmdUploadFile,
+		Raw:            "UPLOAD 'no-such-file.png' to 'Profile Picture'",
+		Target:         "Profile Picture",
+		UploadFilePath: "no-such-file.png",
+	})
+	if err == nil || !strings.Contains(err.Error(), "file not found") {
+		t.Fatalf("want file not found, got %v", err)
+	}
+	if len(mock.FileInputs) != 0 {
+		t.Fatalf("a missing file reached the browser: %v", mock.FileInputs)
 	}
 }
 

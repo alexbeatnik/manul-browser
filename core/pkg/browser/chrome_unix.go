@@ -14,6 +14,13 @@ func setProcGroup(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 }
 
+// tieToEngine is where a started browser would be made to die with this
+// process. Nothing portable does that here: Linux has a parent-death signal,
+// but it follows the thread that forked, which the Go runtime is free to
+// retire, and macOS has no equivalent. A browser outlives an engine that is
+// killed outright; one that exits normally closes it.
+func tieToEngine(cmd *exec.Cmd) {}
+
 // killProcessTree terminates a launched browser and every process it spawned,
 // via process group kill, escalating to SIGKILL if it does not go quietly.
 func killProcessTree(cmd *exec.Cmd) {

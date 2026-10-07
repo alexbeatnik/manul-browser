@@ -29,21 +29,29 @@ const SCAN_JS = `() => {
         } catch (_) {}
         return false;
     }
+    // The <label> bound to a form control, by for= or by wrapping it: what a
+    // person calls the field. Without this a labelled input was listed under
+    // its name attribute ("my-text") and a <select> under its own options.
+    function labelText(el) {
+        for (const lbl of (el.labels || [])) {
+            const copy = lbl.cloneNode(true);
+            copy.querySelectorAll('input, select, textarea').forEach(c => c.remove());
+            const t = (copy.textContent || '').replace(/\s+/g, ' ').trim().replace(/[\s:*]+$/, '');
+            if (t) return t;
+        }
+        return '';
+    }
     function bestLabel(el) {
         const tag  = el.tagName ? el.tagName.toUpperCase() : '';
         const type = (el.getAttribute('type') || '').toLowerCase();
+        const bound = labelText(el);
+        if (bound) return bound;
         if (tag === 'INPUT' && (type === 'radio' || type === 'checkbox')) {
-            if (el.id) {
-                const root = el.getRootNode();
-                const lbl = root.querySelector('label[for="' + CSS.escape(el.id) + '"]');
-                if (lbl) return lbl.innerText.trim();
-            }
-            const closestLbl = el.closest('label');
-            if (closestLbl) return closestLbl.innerText.trim();
             const nextSib = el.nextElementSibling;
             if (nextSib && nextSib.tagName === 'LABEL') return nextSib.innerText.trim();
         }
-        const text = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+        // A <select>'s text is its options, not its name.
+        const text = tag === 'SELECT' ? '' : (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
         if (text && text.length <= 80) return text;
         const aria = el.getAttribute('aria-label') || '';
         if (aria.trim()) return aria.trim();
@@ -244,22 +252,28 @@ const FULL_SCAN_JS = `() => {
         } catch (_) {}
         return false;
     }
+    // The <label> bound to a form control, by for= or by wrapping it: what a
+    // person calls the field. Without this a labelled input was listed under
+    // its name attribute ("my-text") and a <select> under its own options.
+    function labelText(el) {
+        for (const lbl of (el.labels || [])) {
+            const copy = lbl.cloneNode(true);
+            copy.querySelectorAll('input, select, textarea').forEach(c => c.remove());
+            const t = (copy.textContent || '').replace(/\s+/g, ' ').trim().replace(/[\s:*]+$/, '');
+            if (t) return t;
+        }
+        return '';
+    }
     function bestLabel(el) {
         const tag  = (el.tagName || '').toUpperCase();
-        const type = (el.getAttribute('type') || '').toLowerCase();
-        if (tag === 'INPUT' && (type === 'radio' || type === 'checkbox')) {
-            if (el.id) {
-                const lbl = document.querySelector('label[for="' + CSS.escape(el.id) + '"]');
-                if (lbl) return lbl.innerText.trim();
-            }
-            const closest = el.closest('label');
-            if (closest) return closest.innerText.trim();
-        }
+        const bound = labelText(el);
+        if (bound) return bound;
         const ariaLabel = el.getAttribute('aria-label') || '';
         if (ariaLabel.trim()) return ariaLabel.trim();
         const ph = el.getAttribute('placeholder') || '';
         if (ph.trim()) return ph.trim();
-        const text = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+        // A <select>'s text is its options, not its name.
+        const text = tag === 'SELECT' ? '' : (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
         if (text && text.length <= 80) return text;
         const title = el.getAttribute('title') || '';
         if (title.trim()) return title.trim();

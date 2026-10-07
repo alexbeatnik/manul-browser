@@ -367,3 +367,61 @@ func TestWebSocketURL(t *testing.T) {
 		t.Fatalf("fallback URL = %q, want %q", got, want)
 	}
 }
+
+// Firefox dismisses an unhandled dialog by default: a confirm answers Cancel.
+// The CDP side accepts, and a hunt must mean the same thing in both browsers.
+func TestNewSession_AsksForDialogsToBeAccepted(t *testing.T) {
+	m := startMockBrowser(t, map[string]string{"session.new": `{"sessionId":"s1","capabilities":{}}`})
+	c, ctx := dialMock(t, m)
+
+	if err := NewSession(ctx, c); err != nil {
+		t.Fatalf("session.new: %v", err)
+	}
+	caps, _ := m.paramsFor("session.new")["capabilities"].(map[string]any)
+	always, _ := caps["alwaysMatch"].(map[string]any)
+	behaviour, _ := always["unhandledPromptBehavior"].(map[string]any)
+	if behaviour["default"] != "accept" {
+		t.Fatalf("unhandledPromptBehavior = %v, want default accept", always["unhandledPromptBehavior"])
+	}
+}
+
+func TestIntercept_BlocksThePageAndAnswersARequest(t *testing.T) {
+	m := startMockBrowser(t, map[string]string{"network.addIntercept": `{"intercept":"int-1"}`})
+	c, ctx := dialMock(t, m)
+
+	id, err := AddIntercept(ctx, c, "ctx-1")
+	if err != nil || id != "int-1" {
+		t.Fatalf("AddIntercept = %q, %v", id, err)
+	}
+	p := m.paramsFor("network.addIntercept")
+	if !reflect.DeepEqual(p["phases"], []any{"beforeRequestSent"}) || !reflect.DeepEqual(p["contexts"], []any{"ctx-1"}) {
+		t.Errorf("addIntercept params = %v", p)
+	}
+
+	err = ProvideResponse(ctx, c, "req-9", 200, [][2]string{{"Content-Type", "application/json"}}, []byte(`{"ok":1}`))
+	if err != nil {
+		t.Fatalf("ProvideResponse: %v", err)
+	}
+	p = m.paramsFor("network.provideResponse")
+	body, _ := p["body"].(map[string]any)
+	headers, _ := p["headers"].([]any)
+	// The body travels base64-encoded: {"ok":1}.
+	if p["request"] != "req-9" || p["statusCode"] != float64(200) || body["type"] != "base64" || body["value"] != "eyJvayI6MX0=" {
+		t.Errorf("provideResponse params = %v", p)
+	}
+	if len(headers) != 1 {
+		t.Fatalf("headers = %v", headers)
+	}
+	header, _ := headers[0].(map[string]any)
+	value, _ := header["value"].(map[string]any)
+	if header["name"] != "Content-Type" || value["type"] != "string" || value["value"] != "application/json" {
+		t.Errorf("header = %v", header)
+	}
+
+	if err := ContinueRequest(ctx, c, "req-10"); err != nil {
+		t.Fatalf("ContinueRequest: %v", err)
+	}
+	if m.paramsFor("network.continueRequest")["request"] != "req-10" {
+		t.Errorf("continueRequest params = %v", m.paramsFor("network.continueRequest"))
+	}
+}
