@@ -9,11 +9,10 @@ name: Release
 # and a smoke run — never starts for a version that is already out, and never
 # ships artifacts whose copies of the version disagree with the engine's.
 #
-# Wheels and npm packages are NOT built here. That pipeline is
-# release.yml.disabled and it stays off on purpose: the first upload to PyPI is
-# the one irreversible step in this repository — the version number is spent
-# whether or not the artifact was any good — so it waits for a decision, not a
-# push. Everything this workflow does can be deleted and done again.
+# Wheels and npm packages are NOT built here. That is publish.yml, which runs on
+# the same push and uploads a version the registries do not have yet. The two
+# are kept apart because they differ in kind: everything this workflow does can
+# be deleted and done again, and an upload to PyPI or npm cannot.
 on:
   push:
     branches: [main]

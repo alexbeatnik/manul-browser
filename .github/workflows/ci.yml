@@ -116,6 +116,37 @@ jobs:
             echo "::endgroup::"
           done
 
+  packages:
+    name: Packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: core/go.mod
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+
+      - name: Build every package
+        # The same script publish.yml runs, so a change that breaks packaging
+        # shows up on the push that made it rather than on release day. Nothing
+        # is uploaded anywhere; this only proves the six wheels, the sdist and
+        # the seven npm tarballs can still be put together.
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip build twine
+          bash bindings/build-packages.sh
+          python -m twine check dist/pypi/*
+          [ "$(ls dist/pypi/*.whl | wc -l)" -eq 6 ]
+          [ "$(ls dist/npm/*.tgz | wc -l)" -eq 7 ]
+
   python:
     name: Python binding (${{ matrix.os }}, ${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
