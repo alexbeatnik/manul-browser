@@ -56,8 +56,8 @@ The esbuild model, in both ecosystems:
   extension, so there is nothing for hatchling to infer a tag from and no
   `cibuildwheel` to run: [`python/hatch_build.py`](python/hatch_build.py) states
   the tag outright, from the same `GOOS/GOARCH` pair the cross-compile used.
-  Written, in [`.github/workflows/release.yml.disabled`](../.github/workflows/release.yml.disabled),
-  and switched off there — see below.
+  An sdist goes up beside them, for platforms with no wheel: it installs without
+  an engine and looks for one in `$MANUL_BINARY` or on `PATH`.
 - **npm** — `manul-browser` declaring `optionalDependencies` on per-platform
   packages (`@manul-browser/engine-linux-x64`,
   `@manul-browser/engine-darwin-arm64`, …), each carrying one binary and gated
@@ -65,23 +65,42 @@ The esbuild model, in both ecosystems:
   split esbuild and rollup use, and it means one npm organisation reserves every
   platform name instead of six global ones being claimable separately.
   [`node/src/binary.ts`](node/src/binary.ts) resolves exactly this name at
-  runtime. None is published yet, so the binding falls through to
-  `$MANUL_BINARY` or `PATH`.
+  runtime. The committed `package.json` lists none of them:
+  [`node/scripts/pack.mjs`](node/scripts/pack.mjs) adds the six, at the version
+  being packed, so the list cannot name a different version from the package
+  that carries it.
 
-One git tag — `vX.Y.Z` — builds every binary and packages them together, so
-versions cannot disagree; the release job refuses to start unless the tag, the
-engine's `version` constant and `manul.__version__` are the same string. The Go
-module is tagged separately as `core/vX.Y.Z`, because Go derives module versions
-from the subdirectory the module lives in.
+[`build-packages.sh`](build-packages.sh) is the one description of how any of
+this is put together. It cross-compiles the engine, wraps a wheel and an npm
+package around each binary, and leaves everything under `dist/` — and it refuses
+to start unless the engine's `version` constant, `manul.__version__` and
+`package.json` are the same string, so the packages cannot ship at different
+versions from the engine inside them. It publishes nothing.
 
-A wheel is useless if the engine inside it will not start, so the same workflow
-installs each wheel on a matching runner and drives a real Chrome through it.
+```bash
+python -m pip install build
+bash bindings/build-packages.sh      # → dist/pypi, dist/npm, dist/bin
+```
 
-None of which happens yet. The whole workflow is switched off — the file does
-not end in `.yml`, and its contents are commented out on top of that — so a tag
-today starts nothing at all. Inside it, the `publish` and `github-release` jobs
-are commented a second time, because publishing is the step to re-enable last
-and separately. Both headers say what to switch on and in what order.
+On Windows it builds the Windows targets only. A wheel or a tarball records the
+mode bits it finds on disk, and a Linux engine that installs as a file nobody
+can run is worse than no package — so the full set of six comes from a POSIX
+host, which in practice means CI.
+
+Publishing is [`.github/workflows/publish.yml`](../.github/workflows/publish.yml),
+and a push to `main` starts it. It asks PyPI and npm whether the version on
+`main` is already there and stops if it is, so what releases is the version
+bump, not the push. Otherwise it runs that script, installs each package on a
+matching runner and drives a real Chrome through it — a package is useless if
+the engine inside it will not start — and only then uploads. Started by hand
+with its inputs left alone it is a rehearsal that leaves the packages on the run
+as artifacts. Its header lists the one-time setup each registry needs.
+
+An upload cannot be taken back, so bumping the version is the decision to
+publish: the number is spent the moment it reaches a registry.
+
+The Go module is tagged separately as `core/vX.Y.Z` by `release.yml`, because Go
+derives module versions from the subdirectory the module lives in.
 
 ## Note on shipping a binary
 

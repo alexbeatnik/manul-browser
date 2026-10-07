@@ -134,13 +134,15 @@ serialised through a queue, which is what Python's lock does by other means.
 
 What is left is the packaging half:
 
-- **Nothing is published.** `optionalDependencies` is empty because the
-  `@manul-browser/engine-<platform>-<arch>` packages do not exist yet; the
-  release workflow that would build them is §4, and it is switched off. Until
-  then the binding finds the engine through `$MANUL_BINARY` or `PATH`, which is
-  what the tests and the manual runs used.
-- **The release workflow does not know about npm.** It builds six wheels; it
-  builds no tarballs, and `bindings/node` is not in it at all.
+- **Nothing is published yet.** The packages can now be built:
+  `bindings/node/scripts/pack.mjs` wraps each engine binary in an
+  `@manul-browser/engine-<platform>-<arch>` package and adds the six to the main
+  package's `optionalDependencies` at pack time, which is why the committed
+  `package.json` still lists none. Verified on Windows from the tarballs: the
+  install resolves the engine out of `node_modules`, and it drives a real Chrome.
+- **The `@manul-browser` scope does not exist on npm.** It has to be created
+  before the first publish; that is a setting on npmjs.com, not in this
+  repository.
 
 ### 4. Release pipeline — binaries ship, packages do not
 
@@ -155,34 +157,31 @@ disagree with it, cross-compiles the six targets, and publishes the archives plu
 Everything it does is reversible: a release can be deleted, a tag re-pushed.
 That is the line it does not cross — no package index is touched.
 
-The wheel half is still off. `.github/workflows/release.yml.disabled` takes a
-`vX.Y.Z` tag, cross-compiles the
-engine for six targets, wraps each in a platform-tagged wheel, and installs every
-wheel on a matching runner to drive a real Chrome through it. Locally verified as
-far as a Windows machine allows: the wheel builds, installs, and `manul
---version` answers from the bundled binary.
+The package half is `.github/workflows/publish.yml`, on the same push. It asks
+PyPI and npm whether the version on `main` is already published and does nothing
+if it is. Otherwise it runs `bindings/build-packages.sh` — six engines, a wheel
+and an npm package around each, an sdist and the main npm package — installs
+every package on a matching runner, drives a real Chrome through it, and then
+uploads. Started by hand with the inputs left alone it is a rehearsal that
+leaves the packages on the run. Locally verified as far as a Windows machine
+allows: both Windows wheels and npm packages build, install into a clean
+environment, and drive Chrome from the bundled engine.
 
-**None of it runs.** The file is disabled twice over — the extension is not
-`.yml`, so GitHub never parses it, and every line inside is commented out as
-well. A tag pushed today starts nothing.
-
-That is deliberate while the repository is still being put in order. It also
-buys the one thing worth being careful about: the first upload to PyPI is the
-single irreversible step here — the version number is spent whether or not the
-artifact was any good, and yanking does not give it back. So the `publish` and
-`github-release` jobs are commented a *second* time inside the workflow, and
-stay that way when the rest is switched back on. The order to follow is written
-above them: repository renamed first, then the PyPI trusted publisher and the
-`pypi` environment, then uncomment.
+This is the one irreversible step in the repository — a version number is spent
+whether or not the artifact was any good, and yanking does not give it back —
+and it is automatic by choice. The version bump is therefore the decision to
+publish, and the smoke job is what stands between a push and the registries.
 
 What is still open:
 
-- **The wheel pipeline has never run**, and cannot until it is re-enabled.
-  Everything about it is therefore theory, including whether `pypi` as a trusted
-  publisher is configured at all — which is a setting on PyPI, not in this
-  repository.
-- **npm and NuGet do not exist yet.** "Both packages together" is currently one
-  package. The npm half is §3.
+- **`publish.yml` has never run.** The script it calls has, on Windows and for
+  the Windows targets only; the Linux and macOS packages, the smoke matrix and
+  both upload jobs are unexercised until the first run. Dispatching it by hand
+  with the inputs left alone exercises everything except the uploads.
+- **Neither registry is set up.** The PyPI trusted publisher, the `pypi` and
+  `npm` environments, the `@manul-browser` organisation and the `NPM_TOKEN`
+  secret are settings outside this repository; the workflow's header lists them.
+- **NuGet does not exist yet.**
 - **`macos-15-intel` and `ubuntu-24.04-arm` smoke jobs are best-effort.** They
   are marked `continue-on-error` so a retired runner label cannot hold up a
   release; those two wheels ship built but unproven.
@@ -231,8 +230,8 @@ here only so nobody re-adds it thinking it was forgotten.
 3. Verify `attach` end-to-end, and on one non-Windows platform. (§verify 1)
 4. Settle `run-suite` session semantics and write it into the contract. (§verify 4)
 5. Conformance suite. (§missing 2)
-6. Teach the release pipeline about npm, push a tag, and watch it run.
-   (§missing 4, and the packaging half of §missing 3)
+6. Set the two registries up, push a version bump, and watch `publish.yml`
+   run. (§missing 4, and the packaging half of §missing 3)
 
 Items 2–4 are cheap and each one stops a class of future surprise. Items 5–6 are
 the real remaining engineering.

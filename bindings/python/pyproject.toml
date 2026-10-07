@@ -53,8 +53,8 @@ path = "manul/__init__.py"
 [tool.hatch.build.targets.wheel]
 packages = ["manul"]
 
-# The engine binary is dropped into manul/_bin/ by the release job before the
-# wheel is built; it is not in the repository. `artifacts` is what gets it past
+# The engine binary is dropped into manul/_bin/ by bindings/build-packages.sh
+# before the wheel is built; it is not in the repository. `artifacts` is what gets it past
 # the .gitignore rule that keeps it out of git.
 artifacts = ["manul/_bin/*"]
 
@@ -64,7 +64,8 @@ path = "hatch_build.py"
 
 [tool.hatch.build.targets.sdist]
 # The sdist is source only. It carries no binary, and installing from it yields
-# a package that falls back to $MANUL_BINARY or `manul` on PATH.
+# a package that falls back to $MANUL_BINARY or `manul` on PATH — hatch_build.py
+# recognises an unpacked sdist and lets that one wheel be built without an engine.
 exclude = ["tests/", "manul/_bin/"]
 
 [tool.pytest.ini_options]
