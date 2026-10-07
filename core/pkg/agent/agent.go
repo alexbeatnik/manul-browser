@@ -26,12 +26,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"sort"
 	"strings"
 	"sync"
 
 	"github.com/alexbeatnik/manul-browser/core/pkg/browser"
 	"github.com/alexbeatnik/manul-browser/core/pkg/config"
+	"github.com/alexbeatnik/manul-browser/core/pkg/data"
 	"github.com/alexbeatnik/manul-browser/core/pkg/dsl"
 	"github.com/alexbeatnik/manul-browser/core/pkg/explain"
 	"github.com/alexbeatnik/manul-browser/core/pkg/heuristics"
@@ -431,6 +433,21 @@ type RunOutcome struct {
 // outcomes are in Steps_, in order. Use this for the "agent emits a whole
 // script" path; use Step for one-instruction-at-a-time control.
 func (s *Session) Run(ctx context.Context, huntScript string) (RunOutcome, error) {
+	return s.run(ctx, huntScript, "<agent>")
+}
+
+// RunFile executes the .hunt file at path. Unlike Run on the file's text, it
+// keeps the file's location: `@import:` and MOCK paths resolve relative to the
+// hunt, exactly as they do under `manul run <file>`.
+func (s *Session) RunFile(ctx context.Context, path string) (RunOutcome, error) {
+	src, err := os.ReadFile(path)
+	if err != nil {
+		return RunOutcome{}, fmt.Errorf("agent: read hunt: %w", err)
+	}
+	return s.run(ctx, string(src), path)
+}
+
+func (s *Session) run(ctx context.Context, huntScript, sourcePath string) (RunOutcome, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
@@ -441,7 +458,7 @@ func (s *Session) Run(ctx context.Context, huntScript string) (RunOutcome, error
 	if perr != nil {
 		return RunOutcome{}, fmt.Errorf("agent: parse hunt: %w", perr)
 	}
-	hunt.SourcePath = "<agent>"
+	hunt.SourcePath = sourcePath
 	if err := dsl.ResolveImports(hunt); err != nil {
 		return RunOutcome{}, fmt.Errorf("agent: resolve imports: %w", err)
 	}
@@ -449,18 +466,33 @@ func (s *Session) Run(ctx context.Context, huntScript string) (RunOutcome, error
 		return RunOutcome{}, fmt.Errorf("agent: expand hunt: %w", err)
 	}
 
-	hr, runErr := s.rt.RunHunt(ctx, hunt)
-	out := RunOutcome{}
-	if hr != nil {
-		out.OK = hr.Success
-		out.TotalSteps = hr.TotalSteps
-		out.Passed = hr.Passed
-		out.Failed = hr.Failed
-		out.Duration = hr.TotalDurationMS
-		// The final URL lives on RunOutcome; per-step URLs are only emitted
-		// when they CHANGE from the previous step, so a multi-step run on one
-		// page doesn't repeat the same URL on every StepOutcome.
-		prevURL := ""
+	// Once per @data: row, as `manul run` does — a single pass for a hunt
+	// without one. The outcome adds the rows up.
+	rows, derr := data.RowsFor(hunt.DataFile, hunt.SourcePath)
+	if derr != nil {
+		return RunOutcome{}, fmt.Errorf("agent: load data file: %w", derr)
+	}
+
+	out := RunOutcome{OK: true}
+	var runErr error
+	// The final URL lives on RunOutcome; per-step URLs are only emitted
+	// when they CHANGE from the previous step, so a multi-step run on one
+	// page doesn't repeat the same URL on every StepOutcome.
+	prevURL := ""
+	for _, row := range rows {
+		hr, err := s.rt.RunHunt(ctx, hunt, row)
+		if err != nil && runErr == nil {
+			runErr = err
+		}
+		if hr == nil {
+			out.OK = false
+			continue
+		}
+		out.OK = out.OK && hr.Success
+		out.TotalSteps += hr.TotalSteps
+		out.Passed += hr.Passed
+		out.Failed += hr.Failed
+		out.Duration += hr.TotalDurationMS
 		for _, r := range hr.Results {
 			so := outcomeFrom(r, errFromResult(r))
 			if so.URL == prevURL {
@@ -470,7 +502,9 @@ func (s *Session) Run(ctx context.Context, huntScript string) (RunOutcome, error
 			}
 			out.Results = append(out.Results, so)
 		}
-		out.URL = lastURL(hr.Results)
+		if url := lastURL(hr.Results); url != "" {
+			out.URL = url
+		}
 	}
 	return out, runErr
 }

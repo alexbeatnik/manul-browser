@@ -147,7 +147,37 @@ func LaunchFirefox(ctx context.Context, opts LaunchOptions) (*FirefoxProcess, er
 		fp.wsURL = fallback
 	}
 
+	// Best effort: a browser that could not be re-tabbed still drives pages.
+	_ = fp.focusContent(ctx)
+
 	return fp, nil
+}
+
+// focusContent replaces the startup tab with one the page content has focus in.
+//
+// Firefox starts with keyboard focus in the address bar, and nothing BiDi
+// offers moves it into the page: not activating the tab, not a pointer click,
+// not window.focus(). Until it moves, document.hasFocus() is false and the page
+// receives no focus, blur, focusin or focusout at all — a field can be focused
+// and typed into while validation-on-blur and open-on-focus widgets never hear
+// of it. A tab created over BiDi does start with focus in its content, so the
+// startup tab is swapped for one.
+func (fp *FirefoxProcess) focusContent(ctx context.Context) error {
+	conn, err := sharedConn(ctx, fp.wsURL)
+	if err != nil {
+		return err
+	}
+	startup, err := bidi.GetTree(ctx, conn, "")
+	if err != nil {
+		return err
+	}
+	if _, err := bidi.CreateContext(ctx, conn); err != nil {
+		return err
+	}
+	for _, c := range startup {
+		_ = bidi.CloseContext(ctx, conn, c.ID)
+	}
+	return nil
 }
 
 // Endpoint returns the WebDriver BiDi WebSocket URL. Unlike Chrome's HTTP CDP

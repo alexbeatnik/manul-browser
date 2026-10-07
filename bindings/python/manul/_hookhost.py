@@ -15,7 +15,7 @@ A hook script is therefore just::
 
     @manul.before_all
     def sign_in(ctx):
-        ctx.vars["token"] = get_token()
+        ctx.set("token", get_token())
 
     manul.serve_hooks()
 
@@ -49,8 +49,15 @@ class _HookHost:
 
     # ── wire ────────────────────────────────────────────────────────────────
 
+    @staticmethod
+    def _encode(payload: dict[str, Any]) -> str:
+        return json.dumps(payload, separators=(",", ":"))
+
     def _send(self, payload: dict[str, Any]) -> None:
-        self._out.write(json.dumps(payload, separators=(",", ":")) + "\n")
+        self._write(self._encode(payload))
+
+    def _write(self, line: str) -> None:
+        self._out.write(line + "\n")
         self._out.flush()
 
     def _readline(self) -> dict[str, Any] | None:
@@ -109,14 +116,20 @@ class _HookHost:
                 # would corrupt the stream rather than fail it.
                 raise RuntimeError(f"expected an invocation, got {msg!r}")
 
-            reply: dict[str, Any] = {"invoke": msg["invoke"]}
+            invoke_id = msg["invoke"]
             try:
-                reply["result"] = controls.dispatch_invoke(msg, self)
-                reply["ok"] = True
+                result = controls.dispatch_invoke(msg, self)
+                # Encoded inside the try: a result JSON cannot carry is that
+                # handler's failure, not a reason for the whole host to die and
+                # take every later hook with it.
+                line = self._encode({"invoke": invoke_id, "ok": True, "result": result})
             except Exception as exc:  # a failing handler is an answer, not a crash
-                reply["ok"] = False
-                reply["error"] = {"code": "handler_failed", "message": f"{type(exc).__name__}: {exc}"}
-            self._send(reply)
+                line = self._encode({
+                    "invoke": invoke_id,
+                    "ok": False,
+                    "error": {"code": "handler_failed", "message": f"{type(exc).__name__}: {exc}"},
+                })
+            self._write(line)
 
 
 def serve_hooks() -> int:
@@ -126,6 +139,13 @@ def serve_hooks() -> int:
     run is over.
     """
     real_stdout = sys.stdout
+    # The engine writes UTF-8 whatever this machine's locale says. A pipe on
+    # Windows defaults to the ANSI code page, which turns every non-ASCII label,
+    # value and variable into mojibake before a handler ever sees it.
+    for stream in (sys.stdin, real_stdout):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8")
     sys.stdout = sys.stderr  # see the module docstring
     try:
         return _HookHost(sys.stdin, real_stdout).run()

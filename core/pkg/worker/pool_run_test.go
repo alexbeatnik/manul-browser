@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -11,6 +13,7 @@ import (
 
 	"github.com/alexbeatnik/manul-browser/core/pkg/config"
 	"github.com/alexbeatnik/manul-browser/core/pkg/dsl"
+	"github.com/alexbeatnik/manul-browser/core/pkg/lifecycle"
 	"github.com/alexbeatnik/manul-browser/core/pkg/runtime"
 )
 
@@ -229,5 +232,176 @@ func TestPool_Run_PartialSpawnFail(t *testing.T) {
 	}
 	if !foundSuccess {
 		t.Fatal("expected at least one successful result with partial spawn failure")
+	}
+}
+
+// A worker runs many hunts on one page. What the first one SET must not be
+// visible to the second — at row scope it would shadow the second file's own
+// @var, and which file inherits it would depend on scheduling.
+func TestPool_Run_HuntsDoNotInheritEachOthersVariables(t *testing.T) {
+	parse := func(src string) *dsl.Hunt {
+		h, err := dsl.Parse(strings.NewReader(src))
+		if err != nil {
+			t.Fatalf("parse: %v", err)
+		}
+		return h
+	}
+	hunts := []*dsl.Hunt{
+		parse("SET {who} = first\nPRINT 'who={who}'\n"),
+		parse("@var: {who} = second\nPRINT 'who={who}'\n"),
+		parse("PRINT 'who={who}'\n"),
+	}
+
+	pool, err := NewPool(PoolOptions{
+		Concurrency: 1, // one worker, so the hunts share it in order
+		Allocator:   NewPortAllocator(40100, 40110),
+		Factory:     perWorkerFactory(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	results, err := pool.Run(context.Background(), hunts)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := []string{"who=first", "who=second", "who={who}"}
+	for i, r := range results {
+		steps := r.Result.Results
+		if got := steps[len(steps)-1].ActionValue; got != want[i] {
+			t.Errorf("hunt %d printed %q, want %q", i, got, want[i])
+		}
+	}
+}
+
+// A before-group hook publishes for the hunt it brackets. The pool used to
+// seed globals once, when the worker started — before any such hook had run.
+func TestPool_Run_HuntSeesWhatItsGroupHookPublished(t *testing.T) {
+	lifecycle.Reset()
+	t.Cleanup(lifecycle.Reset)
+	if err := lifecycle.RegisterBeforeGroup("smoke", func(_ context.Context, g *lifecycle.GlobalContext) error {
+		g.SetVar("token", "abc123")
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	hunt, err := dsl.Parse(strings.NewReader("@tags: smoke\nPRINT 'token={token}'\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pool, err := NewPool(PoolOptions{
+		Concurrency: 1,
+		Allocator:   NewPortAllocator(40100, 40110),
+		Factory:     perWorkerFactory(),
+		Lifecycle:   lifecycle.NewGlobalContext(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	results, err := pool.Run(context.Background(), []*dsl.Hunt{hunt})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := results[0].Result.Results[0].ActionValue; got != "token=abc123" {
+		t.Errorf("printed %q", got)
+	}
+}
+
+// The pool used to run a data-driven hunt once, with no row at all — `@data:`
+// only meant anything in a sequential run.
+func TestPool_Run_DataDrivenHuntRunsOncePerRow(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "users.csv"), []byte("user\nann\nbob\ncid\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	hunt, err := dsl.Parse(strings.NewReader("@data: users.csv\nPRINT 'hello {user}'\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	hunt.SourcePath = filepath.Join(dir, "greet.hunt")
+	plain, _ := dsl.Parse(strings.NewReader("PRINT 'no data'\n"))
+
+	pool, err := NewPool(PoolOptions{
+		Concurrency: 2,
+		Allocator:   NewPortAllocator(40100, 40110),
+		Factory:     perWorkerFactory(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	results, err := pool.Run(context.Background(), []*dsl.Hunt{hunt, plain})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var printed []string
+	for _, row := range results[0].Rows {
+		printed = append(printed, row.Results[0].ActionValue)
+	}
+	if got := strings.Join(printed, ","); got != "hello ann,hello bob,hello cid" {
+		t.Errorf("rows printed %q", got)
+	}
+	if results[0].Result == nil || !results[0].Result.Success {
+		t.Errorf("summary result = %+v", results[0].Result)
+	}
+	if results[1].Rows != nil {
+		t.Errorf("a hunt without @data: reported rows: %v", results[1].Rows)
+	}
+}
+
+// --retries in parallel mode: a hunt that fails once and then passes is a
+// flaky pass, on a Runtime that does not remember the first attempt.
+func TestPool_Run_RetriesAFailedHunt(t *testing.T) {
+	runtime.ResetRuntimeRegistries()
+	t.Cleanup(runtime.ResetRuntimeRegistries)
+
+	var mu sync.Mutex
+	calls := 0
+	if err := runtime.RegisterGoCall("flaky.once", func(context.Context, runtime.GoCallInvocation) (any, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		calls++
+		if calls == 1 {
+			return nil, errors.New("first attempt fails")
+		}
+		return "ok", nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	parse := func() *dsl.Hunt {
+		h, err := dsl.Parse(strings.NewReader("SET {seen} = yes\nCALL GO flaky.once into {r}\nPRINT 'r={r}'\n"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return h
+	}
+	run := func(retries int) PoolResult {
+		cfg := config.Default()
+		cfg.Retries = retries
+		pool, err := NewPool(PoolOptions{
+			Concurrency: 1,
+			Config:      cfg,
+			Allocator:   NewPortAllocator(40100, 40110),
+			Factory:     perWorkerFactory(),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		results, _ := pool.Run(context.Background(), []*dsl.Hunt{parse()})
+		return results[0]
+	}
+
+	if r := run(0); r.Err == nil || r.Result.Success {
+		t.Errorf("without retries the failure stands: err=%v", r.Err)
+	}
+
+	mu.Lock()
+	calls = 0
+	mu.Unlock()
+	r := run(2)
+	if r.Err != nil || !r.Result.Success || !r.Result.Flaky || r.Result.Attempts != 2 {
+		t.Errorf("err=%v success=%v flaky=%v attempts=%d", r.Err, r.Result.Success, r.Result.Flaky, r.Result.Attempts)
 	}
 }

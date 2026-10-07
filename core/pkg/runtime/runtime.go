@@ -26,13 +26,6 @@ import (
 	"github.com/alexbeatnik/manul-browser/core/pkg/utils"
 )
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 const (
 	ThresholdHighConfidence = 0.15 // strong heuristic match
 	ThresholdAmbiguous      = 0.03 // minimum for heuristic choice
@@ -318,6 +311,9 @@ func (rt *Runtime) runCommands(ctx context.Context, commands []dsl.Command, hunt
 				cmd, replaced = next, true
 				continue step
 			}
+			stepResult.StepIndex = i
+			stepResult.StepBlock = cmd.StepBlock
+			rt.captureStepScreenshot(ctx, cmd, &stepResult, err)
 
 			if huntRes != nil {
 				huntRes.Results = append(huntRes.Results, stepResult)
@@ -529,20 +525,26 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 	case dsl.CmdPress:
 		// PRESS <key> dispatches a keyboard event to whatever element
 		// currently has focus. Typical use: FILL '<field>' '<text>'
-		// followed by PRESS Enter to submit a form. The "PRESS Key ON
-		// '<target>'" form is parsed but not yet supported — callers
-		// should CLICK '<target>' first, then PRESS Key.
-		key := strings.TrimSpace(cmd.PressKey)
-		if key == "" {
+		// followed by PRESS Enter to submit a form. "PRESS Key ON
+		// '<target>'" focuses the target first, and a chord such as
+		// Control+A holds its modifiers around the key.
+		chord := strings.TrimSpace(cmd.PressKey)
+		if chord == "" {
 			err = fmt.Errorf("PRESS: missing key name")
 			break
 		}
-		res.ActionValue = key
-		if strings.TrimSpace(cmd.PressTarget) != "" {
-			rt.logger.Warn("PRESS ON '<target>' is not yet implemented — dispatching to focused element instead")
+		res.ActionValue = chord
+		if target := strings.TrimSpace(rt.resolveVariables(cmd.PressTarget)); target != "" {
+			res.TargetQuery = target
+			if focusErr := rt.focusTarget(ctx, target); focusErr != nil {
+				err = fmt.Errorf("PRESS %s ON %q: %w", chord, target, focusErr)
+				res.FailureReason = explain.ReasonNotFound
+				break
+			}
 		}
-		if dispatchErr := rt.page.DispatchKey(ctx, key, 0); dispatchErr != nil {
-			err = fmt.Errorf("PRESS %s: %w", key, dispatchErr)
+		key, modifiers := splitKeyChord(chord)
+		if dispatchErr := rt.page.DispatchKey(ctx, key, modifiers); dispatchErr != nil {
+			err = fmt.Errorf("PRESS %s: %w", chord, dispatchErr)
 			break
 		}
 		rt.invalidateSnapshot()
@@ -603,7 +605,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 
 	case dsl.CmdDebugVars:
 		vars := rt.vars.String()
-		rt.logger.Info(vars)
+		rt.logger.Info("%s", vars)
 		res.ActionValue = vars
 
 	case dsl.CmdSet:
@@ -752,6 +754,17 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 		}
 
 		best := ranked[0]
+		// The ranking always has a first place. Unless the winner was found by
+		// its position next to a matching label (pass 3), it has to show some
+		// sign of the target itself — otherwise the target is simply not here,
+		// and acting on the runner-up of nothing is how a missing 'Delete'
+		// button became a click on whichever button came first.
+		if !strings.Contains(resolutionStrategy, "pass3") && !scorer.MatchesQuery(targetPath, &best.Element) {
+			err = fmt.Errorf("target not found: %q", targetPath)
+			res.FailureReason = explain.ReasonNotFound
+			appendRankedCandidates(&res, ranked, 5)
+			break
+		}
 		if selectionIsAmbiguous(ranked) {
 			runnerUp := 0.0
 			if len(ranked) > 1 {
@@ -965,8 +978,10 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 					}
 				}
 
+				// Same rule as a native <select>: an option that is not in the
+				// list fails the step rather than clicking whatever ranked first.
 				rankedOpt := scorer.Rank(val, "", "clickable", candidates, 1, nil)
-				if len(rankedOpt) > 0 {
+				if len(rankedOpt) > 0 && scorer.MatchesQuery(val, &rankedOpt[0].Element) {
 					opt := rankedOpt[0].Element
 					rt.logger.Info("Selected option %q (Tag=%s ID=%d)", val, opt.Tag, opt.ID)
 					_ = rt.page.ScrollIntoView(ctx, opt.ID, opt.XPath)
@@ -1000,8 +1015,9 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 
 		sourcePath := rt.resolveVariables(cmd.DragSource)
 		rankedSrc := scorer.Rank(sourcePath, cmd.TypeHint, string(dsl.ModeClickable), elements, 5, nil)
-		if len(rankedSrc) == 0 {
+		if len(rankedSrc) == 0 || !scorer.MatchesQuery(sourcePath, &rankedSrc[0].Element) {
 			err = fmt.Errorf("drag source not found: %q", sourcePath)
+			res.FailureReason = explain.ReasonNotFound
 			break
 		}
 		for _, r := range rankedSrc {
@@ -1011,8 +1027,9 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 
 		dropPath := rt.resolveVariables(cmd.DragTarget)
 		rankedDest := scorer.Rank(dropPath, "", string(dsl.ModeClickable), elements, 5, nil)
-		if len(rankedDest) == 0 {
+		if len(rankedDest) == 0 || !scorer.MatchesQuery(dropPath, &rankedDest[0].Element) {
 			err = fmt.Errorf("drag destination not found: %q", dropPath)
+			res.FailureReason = explain.ReasonNotFound
 			break
 		}
 		for _, r := range rankedDest {
@@ -1112,24 +1129,48 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 		// need to actually wait for an element.
 		target := rt.resolveVariables(cmd.VerifyText)
 		res.TargetQuery = target
-		raw, errProbe := rt.page.CallProbe(ctx, heuristics.BuildVisibleTextProbe(), nil)
-		if errProbe != nil {
-			rt.logger.ActionWarn(fmt.Sprintf("VERIFY SOFTLY skipped: probe error: %v", errProbe))
-			break
+		var satisfied bool
+		expect := "present"
+		if cmd.VerifyState != "" {
+			// `VERIFY SOFTLY that 'Submit' is disabled` asks about a state, and
+			// used to be answered as if it had asked whether the word "Submit"
+			// is on the page. Same single look, at the right thing.
+			expect = cmd.VerifyState
+			rt.invalidateSnapshot()
+			elements, errSnapshot := rt.loadSnapshot(ctx)
+			if errSnapshot != nil {
+				rt.logger.ActionWarn(fmt.Sprintf("VERIFY SOFTLY skipped: probe error: %v", errSnapshot))
+				break
+			}
+			ranked := rankForVerifyState(target, cmd.VerifyState, elements, rt.logger)
+			if verifyRankedCandidateAcceptable(cmd.VerifyState, ranked) {
+				satisfied = elementMatchesVerifyState(ranked[0].Element, cmd.VerifyState)
+			} else {
+				satisfied = missingElementSatisfiesVerifyState(cmd.VerifyState)
+			}
+		} else {
+			raw, errProbe := rt.page.CallProbe(ctx, heuristics.BuildVisibleTextProbe(), nil)
+			if errProbe != nil {
+				rt.logger.ActionWarn(fmt.Sprintf("VERIFY SOFTLY skipped: probe error: %v", errProbe))
+				break
+			}
+			pageText := strings.ToLower(string(raw))
+			satisfied = strings.Contains(pageText, strings.ToLower(target))
 		}
-		pageText := strings.ToLower(string(raw))
-		present := strings.Contains(pageText, strings.ToLower(target))
-		satisfied := present
 		if cmd.VerifyNegated {
-			satisfied = !present
+			satisfied = !satisfied
+			expect = "NOT " + expect
 		}
 		if !satisfied {
-			expect := "present"
-			if cmd.VerifyNegated {
-				expect = "NOT present"
+			msg := fmt.Sprintf("VERIFY SOFTLY failed (non-fatal): '%s' expected %s", target, expect)
+			rt.logger.ActionWarn(msg)
+			if rt.activeHuntRes != nil {
+				rt.activeHuntRes.SoftErrors = append(rt.activeHuntRes.SoftErrors, msg)
 			}
-			rt.logger.ActionWarn(fmt.Sprintf("VERIFY SOFTLY failed (non-fatal): '%s' expected %s", target, expect))
 		}
+
+	case dsl.CmdVerifyVisual:
+		err = rt.verifyVisual(ctx, cmd, &res)
 
 	case dsl.CmdVerify:
 		// Lightweight text presence check via dedicated probe with a small retry loop
@@ -1137,6 +1178,8 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 		res.TargetQuery = target
 		var present bool
 		var pageText string
+		var probed bool
+		var lastProbeErr error
 		deadline := time.Now().Add(rt.cfg.DefaultTimeout)
 		if dlat, ok := ctx.Deadline(); ok && dlat.Before(deadline) {
 			deadline = dlat
@@ -1145,8 +1188,11 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 		for {
 			raw, errProbe := rt.page.CallProbe(ctx, heuristics.BuildVisibleTextProbe(), nil)
 			if errProbe == nil {
+				probed = true
 				pageText = strings.ToLower(string(raw))
 				present = strings.Contains(pageText, strings.ToLower(target))
+			} else {
+				lastProbeErr = errProbe
 			}
 			if present || time.Now().After(deadline) {
 				break
@@ -1159,6 +1205,12 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 		if err != nil {
 			break
 		}
+		if !probed {
+			// The page text was never read, so "not present" would be a guess —
+			// and a guess that passes every negated VERIFY.
+			err = fmt.Errorf("verification failed: could not read the page text: %w", lastProbeErr)
+			break
+		}
 
 		if cmd.VerifyNegated {
 			if present {
@@ -1166,7 +1218,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 			}
 		} else {
 			if !present {
-				rt.logger.Error("VERIFY FAILED. pageText sample: %s", pageText[:min(500, len(pageText))])
+				rt.logger.Error("VERIFY FAILED. pageText sample: %s", truncateRunes(pageText, 500))
 				err = fmt.Errorf("verification failed: '%s' is not present", target)
 			}
 		}
@@ -1187,6 +1239,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 			var ranked []scorer.RankedCandidate
 			actual := ""
 			matched := false
+			found := false
 			for {
 				rt.invalidateSnapshot()
 				elements, errSnapshot := rt.loadSnapshot(ctx)
@@ -1196,7 +1249,8 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 				}
 				res.CandidatesConsidered = len(elements)
 				ranked = scorer.Rank(target, cmd.TypeHint, string(dsl.ModeNone), elements, 5, nil)
-				if len(ranked) > 0 {
+				found = len(ranked) > 0 && scorer.MatchesQuery(target, &ranked[0].Element)
+				if found {
 					winner := ranked[0].Element
 					switch cmd.VerifyFieldKind {
 					case "value":
@@ -1219,14 +1273,14 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 					break
 				}
 			}
-			if len(ranked) > 0 {
+			if found {
 				appendRankedCandidates(&res, ranked, 1)
 				res.WinnerXPath = ranked[0].Element.XPath
 				res.WinnerScore = ranked[0].Explain.Score.Total
 				res.ActionValue = actual
 			}
 			if err == nil && !matched {
-				if len(ranked) == 0 {
+				if !found {
 					err = fmt.Errorf("verification failed: target field '%s' not found", target)
 				} else {
 					err = fmt.Errorf("verification failed: '%s' has %s %q, expected %q", target, cmd.VerifyFieldKind, actual, expected)
@@ -1474,16 +1528,20 @@ func (rt *Runtime) evaluateCondition(ctx context.Context, cond string) (bool, er
 	if cond == "" {
 		return false, nil
 	}
-	if cond == "true" {
+	// Keywords are matched on a lower-cased copy — the DSL is case-insensitive,
+	// and the documented form is `'<target>' is NOT present`. Targets and
+	// values are still read from cond as written.
+	lower := strings.ToLower(cond)
+	if lower == "true" {
 		return true, nil
 	}
-	if cond == "false" {
+	if lower == "false" {
 		return false, nil
 	}
 
 	// 1. Handle element existence: (button|link|field|element|checkbox) 'Target' [not] exists
-	if strings.Contains(cond, "exists") {
-		neg := strings.Contains(cond, "not exists")
+	if strings.Contains(lower, "exists") {
+		neg := strings.Contains(lower, "not exists")
 		// Simple parsing for now, actual implementation should use regex
 		parts := strings.Fields(cond)
 		if len(parts) >= 2 {
@@ -1509,8 +1567,8 @@ func (rt *Runtime) evaluateCondition(ctx context.Context, cond string) (bool, er
 	}
 
 	// 2. Handle text presence: text 'Target' is [not] present
-	if strings.Contains(cond, "is present") || strings.Contains(cond, "is not present") {
-		neg := strings.Contains(cond, "is not present")
+	if strings.Contains(lower, "is present") || strings.Contains(lower, "is not present") {
+		neg := strings.Contains(lower, "is not present")
 		start := strings.Index(cond, "'")
 		end := strings.LastIndex(cond, "'")
 		target := ""
@@ -1693,8 +1751,12 @@ func (rt *Runtime) autoAnnotateNavigate(ctx context.Context, url string) {
 }
 
 func resolveRestrictiveCandidates(targetPath, typeHint string, mode dsl.InteractionMode, elements []dom.ElementSnapshot, anchor *scorer.AnchorContext, logger *utils.Logger) ([]scorer.RankedCandidate, string) {
+	// A type hint alone clears the confidence bar, so pass 1 also has to match
+	// the target — otherwise the first input on the page wins before the label
+	// passes below ever get to look for the right one.
 	selfRanked := scorer.Rank(targetPath, typeHint, string(mode), elements, 5, anchor)
-	if len(selfRanked) > 0 && selfRanked[0].Explain.Score.Total >= ThresholdHighConfidence {
+	if len(selfRanked) > 0 && selfRanked[0].Explain.Score.Total >= ThresholdHighConfidence &&
+		scorer.MatchesQuery(targetPath, &selfRanked[0].Element) {
 		return selfRanked, "restrictive-pass1"
 	}
 
@@ -1708,6 +1770,10 @@ func resolveRestrictiveCandidates(targetPath, typeHint string, mode dsl.Interact
 	bestStrategy := "restrictive-anchor"
 
 	for _, anchorCandidate := range anchorRanked {
+		// Only something that carries the target text can stand in as its label.
+		if !scorer.MatchesQuery(targetPath, &anchorCandidate.Element) {
+			continue
+		}
 		if anchorCandidate.Element.IsInteractive(string(mode)) {
 			candidateScore := anchorCandidate.Explain.Score.Total + 0.05
 			if candidateScore > bestScore {
@@ -1958,13 +2024,46 @@ func rankForVerifyState(target, state string, elements []dom.ElementSnapshot, lo
 	case "selected":
 		mode = dsl.ModeSelect
 	}
+	probe := asIfEnabled(elements)
 	if mode != dsl.ModeNone && target != "" {
-		ranked, _ := resolveRestrictiveCandidates(target, typeHint, mode, elements, nil, nil)
+		ranked, _ := resolveRestrictiveCandidates(target, typeHint, mode, probe, nil, nil)
 		if len(ranked) > 0 {
-			return ranked
+			return restoreDisabled(ranked, elements)
 		}
 	}
-	return scorer.Rank(target, "", "none", elements, 1, nil)
+	return restoreDisabled(scorer.Rank(target, "", "none", probe, 1, nil), elements)
+}
+
+// asIfEnabled copies elements with the disabled flag cleared, for ranking.
+//
+// The scorer zeroes a disabled element, which is right when choosing something
+// to act on and wrong when reading a state: `VERIFY that 'Submit' is disabled`
+// could never find the button it was asking about, and a read-only checkbox
+// was invisible to `is checked`. Pair it with restoreDisabled, which puts the
+// real flag back on whatever was ranked.
+func asIfEnabled(elements []dom.ElementSnapshot) []dom.ElementSnapshot {
+	probe := make([]dom.ElementSnapshot, len(elements))
+	copy(probe, elements)
+	for i := range probe {
+		probe[i].IsDisabled = false
+	}
+	return probe
+}
+
+func restoreDisabled(ranked []scorer.RankedCandidate, elements []dom.ElementSnapshot) []scorer.RankedCandidate {
+	for i := range ranked {
+		c := &ranked[i].Element
+		for j := range elements {
+			o := &elements[j]
+			if o.ID == c.ID && o.XPath == c.XPath && o.FrameIndex == c.FrameIndex &&
+				o.Tag == c.Tag && o.VisibleText == c.VisibleText {
+				c.IsDisabled = o.IsDisabled
+				ranked[i].Explain.IsEnabled = !o.IsDisabled
+				break
+			}
+		}
+	}
+	return ranked
 }
 
 func elementMatchesVerifyState(el dom.ElementSnapshot, state string) bool {
@@ -2548,4 +2647,65 @@ func pass3CandidateAcceptable(ranked []scorer.RankedCandidate) bool {
 		return true
 	}
 	return best.Total-ranked[1].Explain.Score.Total >= ThresholdPass3Gap
+}
+
+// focusTarget gives keyboard focus to the element a PRESS … ON '<target>' names.
+// A field is tried first, since that is what a key is usually aimed at, then
+// anything clickable.
+func (rt *Runtime) focusTarget(ctx context.Context, target string) error {
+	elements, err := rt.loadSnapshot(ctx)
+	if err != nil {
+		return err
+	}
+	for _, mode := range []dsl.InteractionMode{dsl.ModeInput, dsl.ModeClickable} {
+		ranked := scorer.Rank(target, "", string(mode), elements, 1, nil)
+		if len(ranked) == 0 || ranked[0].Explain.Score.Total < ThresholdAmbiguous ||
+			!scorer.MatchesQuery(target, &ranked[0].Element) {
+			continue
+		}
+		return rt.page.Focus(ctx, ranked[0].Element.ID, ranked[0].Element.XPath)
+	}
+	return fmt.Errorf("target not found: %q", target)
+}
+
+// splitKeyChord separates "Control+Shift+P" into the key and the modifier
+// bitmask Page.DispatchKey takes (1=Alt, 2=Ctrl, 4=Meta, 8=Shift). Anything
+// that is not a chord it recognises is returned unchanged with no modifiers,
+// so a literal "+" is still pressable.
+func splitKeyChord(chord string) (string, int) {
+	parts := strings.Split(chord, "+")
+	key := strings.TrimSpace(parts[len(parts)-1])
+	if len(parts) < 2 || key == "" {
+		return chord, 0
+	}
+	modifiers := 0
+	for _, part := range parts[:len(parts)-1] {
+		switch strings.ToLower(strings.TrimSpace(part)) {
+		case "alt", "option":
+			modifiers |= 1
+		case "control", "ctrl":
+			modifiers |= 2
+		case "meta", "cmd", "command", "win", "super":
+			modifiers |= 4
+		case "shift":
+			modifiers |= 8
+		default:
+			return chord, 0
+		}
+	}
+	// A shortcut is bound to the letter, not to its capital: Control+A is the
+	// "a" key with Control held.
+	if modifiers&^8 != 0 && len(key) == 1 {
+		key = strings.ToLower(key)
+	}
+	return key, modifiers
+}
+
+// truncateRunes cuts s to at most n characters without splitting one.
+func truncateRunes(s string, n int) string {
+	runes := []rune(s)
+	if len(runes) <= n {
+		return s
+	}
+	return string(runes[:n])
 }

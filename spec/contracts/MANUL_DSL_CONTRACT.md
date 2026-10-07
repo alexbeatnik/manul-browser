@@ -18,7 +18,7 @@
 
 ```json
 {
-  "version": "0.1.1",
+  "version": "0.1.2",
   "generatedFrom": "pkg/dsl :: classify_step(), detect_mode(), parse_contextual_hint(); pkg/runtime :: run_mission(); cmd/manul :: parse_hunt_file(); pkg/runtime :: _ActionsMixin; pkg/scorer :: DOMScorer contextual proximity rules; pkg/dom :: SNAPSHOT_JS geometry export; pkg/dsl :: parse_import_directive(), resolve_imports(), expand_use_directives()",
   "casePolicy": {
     "canonical": "ALL_UPPERCASE",
@@ -115,7 +115,7 @@
       "uiText": "SELECT '' from the '' dropdown",
       "snippet": "SELECT '${1:option}' from the '${2:target}' dropdown",
       "regex": null,
-      "description": "Selects an option from a native <select> or custom dropdown. Detected by the 'select' or 'choose' verbs (case-insensitive). Element type hint (dropdown) is optional but recommended. On a native <select> the option is matched against both its label and its value, whitespace-normalised and case-insensitively; the option is set through the native value setter and followed by input and change events. An option that matches nothing fails the step with failure_reason not_found, and the error lists the options the page does have. Interaction mode: select.",
+      "description": "Selects an option from a native <select> or custom dropdown. Detected by the 'select' or 'choose' verbs (case-insensitive). Element type hint (dropdown) is optional but recommended. On a native <select> the option is matched against both its label and its value, whitespace-normalised and case-insensitively; the option is set through the native value setter and followed by input and change events. An option that matches nothing fails the step with failure_reason not_found, and the error lists the options the page does have. A custom dropdown follows the same rule: after it is opened, an option no element in the list matches fails the step rather than clicking whatever ranked first. Interaction mode: select.",
       "category": "interaction",
       "interactionMode": "select"
     },
@@ -135,7 +135,7 @@
       "uiText": "DRAG '' and drop it into ''",
       "snippet": "DRAG '${1:source}' and drop it into '${2:destination}'",
       "regex": null,
-      "description": "Drags one element and drops it onto another. Detected by the 'drag' + 'drop' verbs (case-insensitive). Interaction mode: drag.",
+      "description": "Drags one element and drops it onto another. Detected by the 'drag' + 'drop' verbs (case-insensitive). A source or destination that nothing on the page matches fails the step with failure_reason not_found. Interaction mode: drag.",
       "category": "interaction",
       "interactionMode": "drag"
     },
@@ -185,7 +185,7 @@
       "uiText": "WAIT FOR RESPONSE \"\"",
       "snippet": "WAIT FOR RESPONSE \"${1:url_pattern}\"",
       "regex": "\\bWAIT\\s+FOR\\s+RESPONSE\\b",
-      "description": "Blocks until a network response matching the URL pattern arrives (substring match via the CDP response watcher).",
+      "description": "Blocks until a network response whose URL ends with the pattern arrives (suffix match, on both the CDP and the BiDi backend).",
       "category": "wait"
     },
     {
@@ -203,7 +203,7 @@
       "uiText": "VERIFY that '' is present",
       "snippet": "VERIFY that '${1:target}' is ${2|present,NOT present,ENABLED,DISABLED,checked,NOT checked|}",
       "regex": "\\bVERIFY\\b",
-      "description": "Asserts that an element or text is present, not present, enabled, disabled, checked, or not checked. Fails the mission on mismatch.",
+      "description": "Asserts that an element or text is present, not present, enabled, disabled, checked, or not checked. Fails the mission on mismatch. State is read off the element whether or not it is disabled — 'is disabled' finds the disabled control, and a read-only checkbox still reports 'is checked'. A text check that could not read the page at all fails rather than concluding the text is absent.",
       "category": "assertion"
     },
     {
@@ -239,7 +239,7 @@
       "uiText": "VERIFY SOFTLY that '' is present",
       "snippet": "VERIFY SOFTLY that '${1:target}' is ${2|present,NOT present,ENABLED,DISABLED,checked,NOT checked|}",
       "regex": "\\bVERIFY\\s+SOFTLY\\b",
-      "description": "Non-fatal assertion. Same as VERIFY but does not stop execution on failure. Failures are collected as soft errors with 'warning' status.",
+      "description": "Non-fatal assertion. Same as VERIFY but does not stop execution on failure. Failures are collected as soft errors with 'warning' status. One look at the page, no retry loop: the text form checks the page text, the state form (enabled, disabled, checked, visible, …) reads that state off the resolved element.",
       "category": "assertion"
     },
     {
@@ -248,7 +248,7 @@
       "uiText": "VERIFY VISUAL ''",
       "snippet": "VERIFY VISUAL '${1:element}'",
       "regex": "\\bVERIFY\\s+VISUAL\\b",
-      "description": "Takes an element screenshot and compares against a baseline in visual_baselines/. Saves baseline on first run. Uses PIL/Pillow threshold comparison (1%) or raw byte fallback.",
+      "description": "Compares how the named element looks against a saved baseline image. The element is resolved like any other target (a name nothing on the page matches fails with not_found), scrolled into view, and cropped out of a viewport screenshot. The baseline is visual_baselines/<element-name>_<hash of the step text>.png beside the .hunt file (the working directory when the hunt has no file); the first run saves it and passes. Later runs fail when the size differs or when more than 1% of pixels differ. Baselines are browser-specific: Chromium and Firefox do not render alike.",
       "category": "assertion"
     },
     {
@@ -266,7 +266,7 @@
       "uiText": "PRESS Escape",
       "snippet": "PRESS ${1:Key}${2: on '${3:target}'}",
       "regex": "^\\s*(?:\\d+\\.\\s*)?PRESS\\b",
-      "description": "Presses any key or key combination globally (e.g. PRESS Escape, PRESS Control+A), or on a specific resolved element when 'on <target>' is appended.",
+      "description": "Presses any key or key combination globally (e.g. PRESS Escape, PRESS Control+A), or on a specific resolved element when 'on <target>' is appended. A chord holds its modifiers (Control/Ctrl, Alt/Option, Meta/Cmd, Shift) around the last key. With 'on <target>' the target is focused first — a field if one matches, otherwise anything clickable — and a target nothing matches fails the step instead of pressing the key wherever focus happens to be.",
       "category": "keyboard"
     },
     {
@@ -412,7 +412,7 @@
       "uiText": "IF button 'Save' exists:",
       "snippet": "IF ${1:condition}:\n        ${2:action}",
       "regex": "^\\s*(?:\\d+\\.\\s*)?IF\\b.+:\\s*$",
-      "description": "Block-style conditional branching. Body lines are indented by 4 extra spaces. Supports ELIF and ELSE branches. Nesting supported. Conditions: element exists, text present, variable comparison/contains/truthy.",
+      "description": "Block-style conditional branching. Body lines are indented by 4 extra spaces. Supports ELIF and ELSE branches, in the mission body and inside [SETUP] / [TEARDOWN] alike. Nesting supported. Conditions: element exists, text present, variable comparison/contains/truthy; their keywords are case-insensitive ('is NOT present').",
       "category": "control_flow"
     },
     {
@@ -439,7 +439,7 @@
       "uiText": "REPEAT 3 TIMES:",
       "snippet": "REPEAT ${1:N} TIMES:\n        ${2:action}",
       "regex": "^\\s*(?:\\d+\\.\\s*)?REPEAT\\s+\\d+\\s+TIMES\\s*:\\s*$",
-      "description": "Fixed-count loop. Body lines are indented by 4 extra spaces. {i} counter variable is auto-set (1-based). Nesting supported.",
+      "description": "Fixed-count loop. Body lines are indented by 4 extra spaces. The counter variable is {i} unless the header names another with 'REPEAT N TIMES as {name}:', and counts from 0. Nesting supported.",
       "category": "control_flow"
     },
     {
@@ -448,7 +448,7 @@
       "uiText": "FOR EACH {item} IN {items}:",
       "snippet": "FOR EACH {${1:var}} IN {${2:collection}}:\n        ${3:action}",
       "regex": "^\\s*(?:\\d+\\.\\s*)?FOR\\s+EACH\\s+\\{?\\w+\\}?\\s+IN\\s+\\{?\\w+\\}?\\s*:\\s*$",
-      "description": "Iterate over comma-separated values from a variable. On each iteration, the loop variable and {i} counter are set. Nesting supported.",
+      "description": "Iterate over comma-separated values from a variable. On each iteration the loop variable is set to the next value. Nesting supported.",
       "category": "control_flow"
     },
     {
@@ -457,7 +457,7 @@
       "uiText": "WHILE button 'Next' exists:",
       "snippet": "WHILE ${1:condition}:\n        ${2:action}",
       "regex": "^\\s*(?:\\d+\\.\\s*)?WHILE\\b.+:\\s*$",
-      "description": "Repeat while condition is true. Uses same conditions as IF blocks. Safety limit: 100 iterations. {i} counter auto-set. Nesting supported.",
+      "description": "Repeat while condition is true. Uses same conditions as IF blocks. Safety limit: 100 iterations. Nesting supported.",
       "category": "control_flow"
     }
   ],

@@ -9,7 +9,7 @@
 
 ```json
 {
-  "version": "0.1.1",
+  "version": "0.1.2",
   "generatedFrom": "pkg/scorer/scorer.go :: DOMScorer, WEIGHTS, SCALE, score_elements(); pkg/dom (snapshot JS) :: SNAPSHOT_JS",
 
   "constants": {
@@ -117,7 +117,16 @@
   "penalties": {
     "disabled": { "multiplier": 0.0, "effect": "Zeroes entire score" },
     "hidden":   { "multiplier": 0.1, "effect": "90% reduction" },
-    "normal":   { "multiplier": 1.0, "effect": "No penalty" }
+    "normal":   { "multiplier": 1.0, "effect": "No penalty" },
+    "stateReads": "The disabled multiplier applies when choosing an element to act on. VERIFY states and WAIT FOR rank with it ignored and read the flag afterwards, so 'is disabled' finds the disabled control it asks about."
+  },
+
+  "targetEvidence": {
+    "function": "pkg/scorer :: MatchesQuery(query, element)",
+    "rule": "Before an action command acts on its winner, the winner must match the target in at least one query-dependent signal: text, label, placeholder, aria-label, data-qa, id or class names. A partial match counts. A winner with none fails the step with failure_reason not_found and the ranked candidates attached.",
+    "why": "The ranking always has a first place, and tag semantics plus a type hint outscore the confidence threshold by themselves — \"the 'Delete account' button\" scored 0.30 against every button on a page with no such button.",
+    "appliesTo": ["click", "double_click", "right_click", "hover", "fill", "type", "check", "uncheck", "select", "upload", "drag (source and destination)", "custom dropdown option", "highlight", "press … on <target>", "verify … has text/value/placeholder", "verify visual"],
+    "exempt": "A control found by its position next to a matching label (restrictive pass 3): there the label carries the match and the control is ranked with an empty query."
   },
 
   "domScorer": {

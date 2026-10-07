@@ -23,10 +23,10 @@ export const BINARY_NAME = process.platform === 'win32' ? 'manul.exe' : 'manul';
 /**
  * The platform package that would carry the engine for this host.
  *
- * These are published by the release workflow as `optionalDependencies`, one
- * per target, so npm installs exactly the one that matches. None exists yet —
- * the release pipeline that would build them is switched off — so resolution
- * failing here is the expected case today, not an error.
+ * `manul-browser` lists one of these per target as `optionalDependencies`, so
+ * npm installs exactly the one that matches. `scripts/pack.mjs` builds them and
+ * adds that list at pack time. In a checkout none is installed, so resolution
+ * failing here is the expected case there, not an error.
  */
 export function platformPackage(): string {
   return `@manul-browser/engine-${process.platform}-${process.arch}`;

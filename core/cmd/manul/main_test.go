@@ -118,3 +118,35 @@ func TestCmdRead_RequiresTargetOrSelector(t *testing.T) {
 		t.Errorf("error should explain the requirement, got: %v", err)
 	}
 }
+
+// --tags was parsed into the config and then never consulted, so a tagged run
+// executed every file in the directory.
+func TestFilterByTags(t *testing.T) {
+	hunt := func(title string, tags ...string) *dsl.Hunt {
+		return &dsl.Hunt{Title: title, Tags: tags}
+	}
+	hunts := []*dsl.Hunt{
+		hunt("a", "smoke", "login"),
+		hunt("b", "Regression"),
+		hunt("c"),
+		hunt("d", " SMOKE "),
+	}
+
+	titles := func(hs []*dsl.Hunt) string {
+		var out []string
+		for _, h := range hs {
+			out = append(out, h.Title)
+		}
+		return strings.Join(out, ",")
+	}
+
+	if got := titles(filterByTags(hunts, []string{"smoke"})); got != "a,d" {
+		t.Errorf("smoke → %q", got)
+	}
+	if got := titles(filterByTags(hunts, []string{"regression", "login"})); got != "a,b" {
+		t.Errorf("regression,login → %q", got)
+	}
+	if got := filterByTags(hunts, []string{"nightly"}); len(got) != 0 {
+		t.Errorf("nightly → %q", titles(got))
+	}
+}

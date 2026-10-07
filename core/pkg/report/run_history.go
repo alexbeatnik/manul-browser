@@ -42,6 +42,11 @@ func AppendRunHistory(reportsDir string, result *explain.HuntResult) error {
 		if len(result.SoftErrors) > 0 {
 			status = "warning"
 		}
+		// Ahead of warning: that it needed a retry is the more useful thing
+		// to know about a run, and a soft warning is still in the report.
+		if result.Flaky {
+			status = "flaky"
+		}
 	}
 
 	entry := RunHistoryEntry{

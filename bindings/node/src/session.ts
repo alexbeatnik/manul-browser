@@ -98,6 +98,11 @@ export interface SessionOptions extends TransportOptions {
   headless?: boolean;
   port?: number;
   executablePath?: string;
+  /**
+   * The engine a launch starts: `'chromium'` (the default) or `'firefox'`.
+   * Ignored when attaching — there the endpoint decides.
+   */
+  browser?: 'chromium' | 'firefox' | (string & {});
 }
 
 function num(v: Json, fallback = 0): number {
@@ -123,6 +128,8 @@ export class Session implements PagePeer {
   mode = '';
   /** The CDP endpoint in use, when attaching. */
   cdp = '';
+  /** The engine a launch started — `chromium` or `firefox`. Empty when attaching. */
+  browser = '';
   /** What `register` reported when handlers were published. */
   published: { controls: number; calls: number; hooks: number } = {
     controls: 0,
@@ -154,10 +161,12 @@ export class Session implements PagePeer {
         headless: options.headless,
         port: options.port,
         executablePath: options.executablePath,
+        browser: options.browser,
       })) ?? {}) as Record<string, Json>;
       s.#opened = true;
       s.mode = str(res['mode']);
       s.cdp = str(res['cdp']);
+      s.browser = str(res['browser']);
       return s;
     } catch (err) {
       await s.#t.close();

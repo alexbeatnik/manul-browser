@@ -2,9 +2,12 @@
 
 **Browser automation in plain English — for humans and LLM agents.**
 
-> **Not on npm yet.** The release pipeline that would build the platform
-> packages is switched off while the repository is put in order. Until then this
-> package finds the engine through `$MANUL_BINARY` or `manul` on `PATH`.
+```bash
+npm install manul-browser
+```
+
+The engine arrives with it: npm picks the one `@manul-browser/engine-<os>-<cpu>`
+package that matches your machine. You need only a system Chrome or Firefox.
 
 A thin client for the Manul engine. It starts `manul serve --stdio` and speaks
 the protocol in [`spec/protocol.md`](../../spec/protocol.md). It contains no
@@ -38,6 +41,15 @@ Manul did not open it:
 ```js
 const s = await Session.attach('http://127.0.0.1:9222');
 ```
+
+A launch starts Chromium. Ask for Firefox and the same script runs there, over
+WebDriver BiDi instead of CDP:
+
+```js
+const s = await Session.launch({ browser: 'firefox', headless: true });
+```
+
+`MANUL_BROWSER=firefox` does the same from the environment.
 
 ## Extensions
 

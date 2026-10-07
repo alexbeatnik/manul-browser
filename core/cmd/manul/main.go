@@ -31,7 +31,6 @@ import (
 	"strings"
 	"sync"
 	"syscall"
-	"time"
 
 	"github.com/alexbeatnik/manul-browser/core/pkg/agent"
 	"github.com/alexbeatnik/manul-browser/core/pkg/browser"
@@ -54,10 +53,10 @@ import (
 
 // version is the single source of truth for the engine version. Reported by
 // `manul --version` and emitted in the agent schema, so it is kept WITHOUT a
-// `v` prefix to match the contracts (contracts/*.md `"version": "0.1.1"`). The
-// git module tag adds the prefix Go requires (`go get ...@v0.1.1`). Bump this
+// `v` prefix to match the contracts (contracts/*.md `"version": "0.1.2"`). The
+// git module tag adds the prefix Go requires (`go get ...@v0.1.2`). Bump this
 // together with the tag.
-const version = "0.1.1"
+const version = "0.1.2"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -174,7 +173,7 @@ func cmdRun(args []string) error {
 	jsonOut := fs.Bool("json", false, "print JSON result to stdout")
 	jsonlOut := fs.Bool("jsonl", false, "stream per-step JSON Lines + final HuntResult to stdout (implies -json semantics)")
 	targetSelector := fs.String("target", "", "CDP tab selector, e.g. 'url=youtube.com' to pick the most recently active tab whose URL contains 'youtube.com'")
-	timeout := fs.Duration("timeout", 30*time.Second, "default command timeout")
+	timeout := fs.Duration("timeout", 0, "per-command timeout, e.g. 10s (default: the configured value, 5s)")
 	userDataDir := fs.String("user-data-dir", "", "browser profile directory (empty = unique temp dir per run)")
 	headless := fs.Bool("headless", false, "run the browser in headless mode")
 	debug := fs.Bool("debug", false, "enable debug mode (pause on each step)")
@@ -262,32 +261,38 @@ func cmdRun(args []string) error {
 		cfg.CDPEndpoint = *cdpEndpoint
 	}
 
-	cfg.Verbose = *verbose
-	if *timeout != 30*time.Second { // only override if user provided a flag
+	// A flag overrides config and env only when it was actually passed. Copying
+	// every flag's default across instead silently undid whatever
+	// manul.config.json or MANUL_* had set — MANUL_VERBOSE, MANUL_DEBUG,
+	// MANUL_RETRIES and MANUL_DISABLE_CACHE never took effect, and
+	// `--screenshot none` could not turn a configured mode off.
+	passed := map[string]bool{}
+	fs.Visit(func(f *flag.Flag) { passed[f.Name] = true })
+
+	if passed["verbose"] {
+		cfg.Verbose = *verbose
+	}
+	if passed["timeout"] {
 		cfg.DefaultTimeout = *timeout
 	}
-	cfg.DebugMode = *debug
+	if passed["debug"] {
+		cfg.DebugMode = *debug
+	}
 	if *explainMode {
 		cfg.ExplainMode = true
 	}
-	if *screenshot != "none" {
+	if passed["screenshot"] {
 		cfg.Screenshot = *screenshot
 	}
-	// Only let --html-report override config/env when the user passed it
-	// explicitly; otherwise honour JSON/MANUL_HTML_REPORT (default off, opt-in,
-	// matching the daemon subcommand). The flag default `true`
-	// previously clobbered config silently.
-	htmlReportSet := false
-	fs.Visit(func(f *flag.Flag) {
-		if f.Name == "html-report" {
-			htmlReportSet = true
-		}
-	})
-	if htmlReportSet {
+	if passed["html-report"] {
 		cfg.HTMLReport = *htmlReport
 	}
-	cfg.Retries = *retries
-	cfg.DisableCache = *disableCache
+	if passed["retries"] {
+		cfg.Retries = *retries
+	}
+	if passed["disable-cache"] {
+		cfg.DisableCache = *disableCache
+	}
 	// CLI --browser wins over JSON/env (MANUL_BROWSER). Validate here so an
 	// unsupported engine is rejected before any hunt is parsed, rather than at
 	// launch time with the run half set up.
@@ -322,8 +327,13 @@ func cmdRun(args []string) error {
 		}
 	}
 
+	// A debug prompt reads one stdin; several workers cannot share it.
+	if cfg.DebugMode {
+		cfg.Workers = 1
+	}
+
 	logLevel := utils.LogLevelInfo
-	if *verbose {
+	if cfg.Verbose {
 		logLevel = utils.LogLevelDebug
 	}
 	// When emitting JSON, keep stdout exclusively for the structured
@@ -379,6 +389,17 @@ func cmdRun(args []string) error {
 
 	if len(hunts) == 0 {
 		return fmt.Errorf("no hunt files could be parsed")
+	}
+
+	// A script piped in on stdin is the one thing asked for, tags or not.
+	if len(cfg.Tags) > 0 && stdinHunt == nil {
+		selected := filterByTags(hunts, cfg.Tags)
+		fmt.Fprintf(os.Stderr, "🐾 Manul: %d of %d hunt file(s) match tags %s\n",
+			len(selected), len(hunts), strings.Join(cfg.Tags, ", "))
+		if len(selected) == 0 {
+			return fmt.Errorf("no hunt files carry any of the tags %s", strings.Join(cfg.Tags, ", "))
+		}
+		hunts = selected
 	}
 
 	opts := outputOpts{json: *jsonOut, jsonl: *jsonlOut}
@@ -442,6 +463,28 @@ func cmdRun(args []string) error {
 		return fmt.Errorf("%d/%d hunt file(s) failed", totalFailed, len(hunts))
 	}
 	return nil
+}
+
+// filterByTags keeps the hunts whose @tags: header names at least one of the
+// wanted tags, compared the way group hooks compare them: ignoring case and
+// surrounding whitespace.
+func filterByTags(hunts []*dsl.Hunt, wanted []string) []*dsl.Hunt {
+	want := map[string]bool{}
+	for _, t := range wanted {
+		if key := strings.ToLower(strings.TrimSpace(t)); key != "" {
+			want[key] = true
+		}
+	}
+	var out []*dsl.Hunt
+	for _, h := range hunts {
+		for _, t := range h.Tags {
+			if want[strings.ToLower(strings.TrimSpace(t))] {
+				out = append(out, h)
+				break
+			}
+		}
+	}
+	return out
 }
 
 // outputOpts decides how the CLI emits results to stdout. -json prints a
@@ -597,82 +640,53 @@ func runSequential(ctx context.Context, cfg config.Config, hunts []*dsl.Hunt, op
 		func() {
 			defer page.Close()
 
-			// Data-driven testing: if @data: is declared, load rows and run once per row.
+			// One pass per @data: row; a hunt without a data file is a single
+			// row with nothing in it.
+			rows, dErr := data.RowsFor(hunt.DataFile, hunt.SourcePath)
+			if dErr != nil {
+				logger.Error("load data file %q: %v", hunt.DataFile, dErr)
+				totalFailed++
+				return
+			}
 			if hunt.DataFile != "" {
-				rows, dErr := data.LoadFile(hunt.DataFile, filepath.Dir(hunt.SourcePath))
-				if dErr != nil {
-					logger.Error("load data file %q: %v", hunt.DataFile, dErr)
-					totalFailed++
-					return
-				}
-				if len(rows) == 0 {
+				if len(rows) == 1 && rows[0] == nil {
 					logger.Warn("data file %q is empty — running once with no extra vars", hunt.DataFile)
 				} else {
 					logger.Info("📊 Data-Driven: %d rows loaded from %q", len(rows), hunt.DataFile)
 				}
+			}
 
-				allOk := true
-				for rowIdx, row := range rows {
-					if len(rows) > 1 {
-						fmt.Fprintf(os.Stderr, "\n%s\n📊 Data row %d/%d: %v\n%s\n",
-							strings.Repeat("-", 40), rowIdx+1, len(rows), row, strings.Repeat("-", 40))
+			allOk := true
+			for rowIdx, row := range rows {
+				if len(rows) > 1 {
+					fmt.Fprintf(os.Stderr, "\n%s\n📊 Data row %d/%d: %v\n%s\n",
+						strings.Repeat("-", 40), rowIdx+1, len(rows), row, strings.Repeat("-", 40))
+				}
+				// A fresh Runtime per attempt: a retry is the same hunt run
+				// again, not a continuation of the attempt that failed.
+				result, runErr := runtime.RunWithRetries(ctx, cfg.Retries, func(attempt int) (*explain.HuntResult, error) {
+					if attempt > 1 {
+						fmt.Fprintf(os.Stderr, "\n🔄 RETRY %d/%d for %s\n", attempt-1, cfg.Retries, filename)
 					}
 					rt := newRuntimeWithStreaming(cfg, page, logger, opts, gctx)
-					result, runErr := rt.RunHunt(ctx, hunt, row)
-					if runErr != nil {
+					return rt.RunHunt(ctx, hunt, row)
+				})
+				if runErr != nil {
+					if len(rows) > 1 {
 						logger.Error("hunt %q row %d failed: %v", hunt.SourcePath, rowIdx+1, runErr)
-						allOk = false
-					}
-					printResult(result, opts, logger)
-					if hErr := report.AppendRunHistory("reports", result); hErr != nil {
-						logger.Warn("run_history append failed: %v", hErr)
-					}
-					if cfg.HTMLReport {
-						reportPath, rErr := report.GenerateHTML(result, "reports")
-						if rErr != nil {
-							logger.Warn("HTML report generation failed: %v", rErr)
-						} else {
-							logger.Info("📊 HTML report: %s", reportPath)
-						}
-					}
-					if result != nil && !result.Success {
-						allOk = false
+					} else {
+						logger.Error("hunt %q failed: %v", hunt.SourcePath, runErr)
 					}
 				}
-				if !allOk {
-					totalFailed++
-				}
-				return
-			}
-
-			// Standard (non-data-driven) execution.
-			rt := newRuntimeWithStreaming(cfg, page, logger, opts, gctx)
-			result, err := rt.RunHunt(ctx, hunt)
-			if err != nil {
-				logger.Error("hunt %q failed: %v", hunt.SourcePath, err)
-				totalFailed++
-				// RunHunt returns a partial *HuntResult even on failure;
-				// emit it so downstream consumers (e.g. the OS-Manul
-				// dispatcher) can read per-step errors instead of being
-				// limited to "exit 1".
-				if result != nil {
-					printResult(result, opts, logger)
-				}
-				return
-			}
-			printResult(result, opts, logger)
-			if hErr := report.AppendRunHistory("reports", result); hErr != nil {
-				logger.Warn("run_history append failed: %v", hErr)
-			}
-			if cfg.HTMLReport {
-				reportPath, rErr := report.GenerateHTML(result, "reports")
-				if rErr != nil {
-					logger.Warn("HTML report generation failed: %v", rErr)
-				} else {
-					logger.Info("📊 HTML report: %s", reportPath)
+				// RunHunt returns a partial *HuntResult even on failure; it is
+				// recorded either way, so downstream consumers can read
+				// per-step errors instead of being limited to "exit 1".
+				recordResult(result, opts, cfg, logger)
+				if runErr != nil || result == nil || !result.Success {
+					allOk = false
 				}
 			}
-			if !result.Success {
+			if !allOk {
 				totalFailed++
 			}
 		}()
@@ -708,26 +722,42 @@ func runParallel(ctx context.Context, cfg config.Config, hunts []*dsl.Hunt, opts
 			strings.Repeat("=", 60), filename, pr.WorkerID, strings.Repeat("=", 60))
 		if pr.Err != nil {
 			logger.Error("hunt %q failed: %v", filename, pr.Err)
-			totalFailed++
-			continue
 		}
-		printResult(pr.Result, opts, logger)
-		if hErr := report.AppendRunHistory("reports", pr.Result); hErr != nil {
-			logger.Warn("run_history append failed: %v", hErr)
-		}
-		if cfg.HTMLReport && pr.Result != nil {
-			reportPath, rErr := report.GenerateHTML(pr.Result, "reports")
-			if rErr != nil {
-				logger.Warn("HTML report generation failed: %v", rErr)
-			} else {
-				logger.Info("📊 HTML report: %s", reportPath)
+		// A failed hunt still has a result — the steps that ran and the one
+		// that did not pass — and a data-driven hunt has one per row.
+		if len(pr.Rows) > 0 {
+			for _, row := range pr.Rows {
+				recordResult(row, opts, cfg, logger)
 			}
+		} else {
+			recordResult(pr.Result, opts, cfg, logger)
 		}
-		if pr.Result == nil || !pr.Result.Success {
+		if pr.Err != nil || pr.Result == nil || !pr.Result.Success {
 			totalFailed++
 		}
 	}
 	return totalFailed
+}
+
+// recordResult prints one hunt result and files it: the run history always,
+// the HTML report when asked for. A nil result — a hunt that never got as far
+// as running — has nothing to record.
+func recordResult(result *explain.HuntResult, opts outputOpts, cfg config.Config, logger *utils.Logger) {
+	if result == nil {
+		return
+	}
+	printResult(result, opts, logger)
+	if hErr := report.AppendRunHistory("reports", result); hErr != nil {
+		logger.Warn("run_history append failed: %v", hErr)
+	}
+	if cfg.HTMLReport {
+		reportPath, rErr := report.GenerateHTML(result, "reports")
+		if rErr != nil {
+			logger.Warn("HTML report generation failed: %v", rErr)
+		} else {
+			logger.Info("📊 HTML report: %s", reportPath)
+		}
+	}
 }
 
 // collectHuntFiles resolves a target path to a list of .hunt files.
@@ -791,6 +821,7 @@ func parseInterleaved(fs *flag.FlagSet, args []string) ([]string, error) {
 func cmdRunStep(args []string) error {
 	fs := flag.NewFlagSet("run-step", flag.ExitOnError)
 	cdpEndpoint := fs.String("cdp", "http://127.0.0.1:9222", "CDP endpoint URL")
+	urlSubstr := fs.String("tab", "", "attach to the page whose URL contains this substring")
 	verbose := fs.Bool("verbose", false, "enable verbose logging")
 	jsonOut := fs.Bool("json", false, "print the full ExecutionResult as JSON instead of the compact StepOutcome")
 	_ = fs.Bool("compact", false, "emit the compact agent StepOutcome (default; flag accepted for symmetry)")
@@ -816,7 +847,7 @@ func cmdRunStep(args []string) error {
 	// Default output is the compact agent StepOutcome via pkg/agent, as the
 	// agent contract specifies; --json opts into the full ExecutionResult below.
 	if !*jsonOut {
-		return runStepCompact(*cdpEndpoint, step)
+		return runStepCompact(*cdpEndpoint, *urlSubstr, step)
 	}
 
 	cfg := config.Default()
@@ -833,33 +864,32 @@ func cmdRunStep(args []string) error {
 	ctx := context.Background()
 
 	b := browser.Connect(cfg.CDPEndpoint)
-	page, err := b.FirstPage(ctx)
+	page, err := b.PageMatching(ctx, *urlSubstr)
 	if err != nil {
 		return fmt.Errorf("connect to browser at %q: %w", cfg.CDPEndpoint, err)
 	}
 	defer page.Close()
 
 	rt := runtime.New(cfg, page, logger)
+	// A failed step still has a result, and it is the one a caller asked to
+	// see as JSON: print it, then let the error set the exit code.
 	result, err := rt.RunStep(ctx, step)
-	if err != nil {
-		return err
+	if result != nil {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		enc.Encode(result)
+		os.Stdout.Sync()
 	}
-
-	enc := json.NewEncoder(os.Stdout)
-	enc.SetIndent("", "  ")
-	enc.Encode(result)
-	os.Stdout.Sync()
-
-	return nil
+	return err
 }
 
 // runStepCompact executes one step via pkg/agent and emits the compact
 // StepOutcome JSON (ok/action/value/url/reason/score/near). On a failed step
 // it still prints the outcome but returns an error so the process exits
 // non-zero — letting a caller branch on exit code without parsing.
-func runStepCompact(cdpEndpoint, step string) error {
+func runStepCompact(cdpEndpoint, urlSubstr, step string) error {
 	ctx := context.Background()
-	sess, err := agent.Attach(ctx, cdpEndpoint, "", agent.Options{})
+	sess, err := agent.Attach(ctx, cdpEndpoint, urlSubstr, agent.Options{})
 	if err != nil {
 		return err
 	}
@@ -976,11 +1006,16 @@ func printResult(result any, opts outputOpts, logger *utils.Logger) {
 		Failed          int   `json:"failed"`
 		TotalDurationMS int64 `json:"total_duration_ms"`
 		Success         bool  `json:"success"`
+		Flaky           bool  `json:"flaky"`
+		Attempts        int   `json:"attempts"`
 	}
 	json.Unmarshal(data, &s)
 
 	if s.Success {
 		logger.Info("✓ All %d steps passed (%dms)", s.TotalSteps, s.TotalDurationMS)
+		if s.Flaky {
+			logger.Warn("⚠ passed on attempt %d — marked FLAKY", s.Attempts)
+		}
 		fmt.Fprintln(os.Stderr, "RESULT: PASS")
 	} else {
 		logger.Error("✗ %d/%d steps failed (%dms)", s.Failed, s.TotalSteps, s.TotalDurationMS)
@@ -1211,11 +1246,12 @@ Core Flags:
   --headless          Run the browser in headless mode
   --verbose           Enable verbose debug logging
   --json              Output structured JSON result to stdout
-  --timeout DURATION  Per-command timeout (default: 30s)
+  --timeout DURATION  Per-command timeout (default: 5s)
   --tags TAGS         Filter hunt files by tags (comma-separated)
   --retries N         Retry failed hunt files up to N times (pass on retry = flaky)
-  --screenshot MODE   Screenshot mode: on-fail (default), always, none
-  --html-report       Generate HTML report after the run (default: true)
+  --screenshot MODE   Save a page screenshot under screenshots/ per step:
+                      on-fail (default), always, none
+  --html-report       Generate HTML report after the run (default: off)
   --explain           Show targeting candidates (explain mode)
   --executable-path   Absolute path to a custom browser or Electron app executable
   --channel           Browser channel to launch (chrome, chrome-beta, chromium, msedge,

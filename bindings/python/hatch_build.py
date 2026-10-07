@@ -68,6 +68,18 @@ class ManulBinaryHook(BuildHookInterface):
         present = sorted(p for p in bin_dir.glob("*") if p.is_file()) if bin_dir.is_dir() else []
 
         if not present:
+            # Installing from the sdist: pip is building a wheel on a platform
+            # none was published for. There is no engine to put in it and no Go
+            # tree to build one from, so it becomes the binary-less package the
+            # sdist is documented to yield — one that finds the engine through
+            # $MANUL_BINARY or `manul` on PATH, and says so when it cannot.
+            # PKG-INFO is what tells an unpacked sdist from a checkout.
+            if (Path(self.root) / "PKG-INFO").is_file():
+                self.app.display_warning(
+                    "manul: no prebuilt engine for this platform — installing "
+                    "without one. Set MANUL_BINARY, or put `manul` on PATH."
+                )
+                return
             # Deliberate escape hatch: `pip install -e .` and the test suite
             # never need the binary, and CI builds the sdist this way.
             if os.environ.get("MANUL_ALLOW_PURE_WHEEL"):

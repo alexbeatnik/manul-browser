@@ -304,3 +304,19 @@ func TestListCustomControls(t *testing.T) {
 		t.Fatal("expected sorted order")
 	}
 }
+
+// A handler's result becomes variable text. fmt prints a float64 in %g, which
+// turns an id of 1234567 into "1.234567e+06".
+func TestFormatHostValue(t *testing.T) {
+	for want, v := range map[string]any{
+		"1234567": float64(1234567),
+		"0.5":     0.5,
+		"42":      42,
+		"true":    true,
+		"text":    "text",
+	} {
+		if got := formatHostValue(v); got != want {
+			t.Errorf("formatHostValue(%v) = %q, want %q", v, got, want)
+		}
+	}
+}

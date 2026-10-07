@@ -39,7 +39,7 @@ func TestEveryDeclaredVerbIsImplemented(t *testing.T) {
 		dsl.CmdNavigate, dsl.CmdOpenApp, dsl.CmdClick, dsl.CmdDoubleClick,
 		dsl.CmdRightClick, dsl.CmdFill, dsl.CmdType, dsl.CmdSelect,
 		dsl.CmdCheck, dsl.CmdUncheck, dsl.CmdVerify, dsl.CmdVerifySoft,
-		dsl.CmdVerifyField, dsl.CmdExtract, dsl.CmdScroll, dsl.CmdPress,
+		dsl.CmdVerifyField, dsl.CmdVerifyVisual, dsl.CmdExtract, dsl.CmdScroll, dsl.CmdPress,
 		dsl.CmdWait, dsl.CmdWaitFor, dsl.CmdWaitForResponse, dsl.CmdWaitForSelector,
 		dsl.CmdFullScan, dsl.CmdScanPage, dsl.CmdHover, dsl.CmdDrag,
 		dsl.CmdSet, dsl.CmdPrint, dsl.CmdScreenshot, dsl.CmdHighlight,

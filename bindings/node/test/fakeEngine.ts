@@ -73,8 +73,12 @@ async function handle(msg: Record<string, Json>): Promise<void> {
     case 'schema':
       return ok({ version: '0.1.0', commands: ['CLICK', 'FILL'] });
 
-    case 'open':
-      return ok({ mode: String(args['mode'] ?? 'launch'), cdp: String(args['cdp'] ?? ''), url: 'about:blank' });
+    case 'open': {
+      const mode = String(args['mode'] ?? 'launch');
+      // As the engine does: a launch reports the browser it started.
+      const browser = mode === 'launch' ? { browser: String(args['browser'] ?? 'chromium') } : {};
+      return ok({ mode, cdp: String(args['cdp'] ?? ''), url: 'about:blank', ...browser });
+    }
 
     case 'register':
       registered = {

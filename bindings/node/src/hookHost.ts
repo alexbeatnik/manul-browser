@@ -110,17 +110,23 @@ class HookHost implements PagePeer {
         throw new Error(`expected an invocation, got ${JSON.stringify(msg)}`);
       }
 
-      const reply: Record<string, Json> = { invoke: msg['invoke'] };
+      let line: string;
       try {
-        reply['result'] = (await controls.dispatchInvoke(msg, this)) ?? null;
-        reply['ok'] = true;
+        const result = (await controls.dispatchInvoke(msg, this)) ?? null;
+        // Encoded inside the try: a result JSON cannot carry (a BigInt, a
+        // cycle) is that handler's failure, not a reason for the whole host to
+        // die and take every later hook with it.
+        line = JSON.stringify({ invoke: msg['invoke'], ok: true, result });
       } catch (exc) {
         // A failing handler is an answer, not a crash.
         const e = exc as Error;
-        reply['ok'] = false;
-        reply['error'] = { code: 'handler_failed', message: `${e.name}: ${e.message}` };
+        line = JSON.stringify({
+          invoke: msg['invoke'],
+          ok: false,
+          error: { code: 'handler_failed', message: `${e.name}: ${e.message}` },
+        });
       }
-      this.#send(reply);
+      this.#write(line + '\n');
     }
   }
 }

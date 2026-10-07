@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/alexbeatnik/manul-browser/core/pkg/dsl"
 )
 
 func TestParseSchedule(t *testing.T) {
@@ -84,8 +86,8 @@ func TestParseSchedule_Weekly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if s.WeeklyDay != 1 {
-		t.Fatalf("WeeklyDay = %d, want 1 (tuesday)", s.WeeklyDay)
+	if s.WeeklyDay != int(time.Tuesday) {
+		t.Fatalf("WeeklyDay = %d, want %d (tuesday)", s.WeeklyDay, int(time.Tuesday))
 	}
 	if s.WeeklyHour != 10 || s.WeeklyMinute != 15 {
 		t.Fatalf("Weekly time = %02d:%02d, want 10:15", s.WeeklyHour, s.WeeklyMinute)
@@ -223,5 +225,48 @@ func TestCollectScheduledHunts_ParseError(t *testing.T) {
 	}
 	if len(hunts) != 0 {
 		t.Fatalf("expected 0 scheduled hunts (parse error skipped), got %d", len(hunts))
+	}
+}
+
+// The day a schedule names and the day it fires on have to be the same day.
+// They were numbered from different ends of the week.
+func TestWeeklySchedule_FiresOnTheDayItNames(t *testing.T) {
+	names := []string{"sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"}
+	for _, name := range names {
+		s, err := ParseSchedule("every " + name + " at 09:30")
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		// NextRunDelay measures from its own reading of the clock. Adding the
+		// delay to a reading taken before it lands a few nanoseconds short of
+		// the minute wherever the clock is fine enough to tell the two apart —
+		// Linux, not Windows — so read afterwards, and round the remainder off.
+		delay := NextRunDelay(s)
+		next := time.Now().Add(delay).Round(time.Second)
+		if got := strings.ToLower(next.Weekday().String()); got != name {
+			t.Errorf("every %s fires on %s", name, got)
+		}
+		if next.Hour() != 9 || next.Minute() != 30 {
+			t.Errorf("every %s at 09:30 fires at %02d:%02d", name, next.Hour(), next.Minute())
+		}
+	}
+}
+
+func TestCollectScheduledHunts_ExpandsImports(t *testing.T) {
+	dir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "auth.hunt"), []byte("STEP 1: Login\n    PRINT 'in login'\n"), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "nightly.hunt"),
+		[]byte("@schedule: every 1 hour\n@import: Login from 'auth.hunt'\nUSE Login\n"), 0644)
+
+	hunts, err := CollectScheduledHunts(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hunts) != 1 {
+		t.Fatalf("want 1 scheduled hunt, got %d", len(hunts))
+	}
+	cmds := hunts[0].Hunt.Commands
+	if len(cmds) != 1 || cmds[0].Type != dsl.CmdPrint {
+		t.Errorf("USE was not expanded: %+v", cmds)
 	}
 }
