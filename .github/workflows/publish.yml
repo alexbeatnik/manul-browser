@@ -42,8 +42,11 @@ on:
     paths:
       - 'core/**'
       - 'bindings/**'
-      # Deliberately not '.github/workflows/publish.yml': editing the pipeline
-      # is not a reason to publish. Use workflow_dispatch to try it.
+      # This file too. A fix to the pipeline usually exists because a version
+      # failed to go out, and it should go out when the fix lands rather than
+      # wait for someone to remember to start it. It costs nothing otherwise:
+      # a version that is already published stops at the first job.
+      - '.github/workflows/publish.yml'
   workflow_dispatch:
     inputs:
       pypi:
@@ -240,8 +243,33 @@ jobs:
           name: npm
           path: dist/npm
 
+      # setup-chrome has no build for Linux on arm64 — Google ships none — so
+      # that one target gets Chromium from Playwright's downloads instead. Either
+      # way the result is a plain binary whose path is handed to the engine.
       - uses: browser-actions/setup-chrome@v1
         id: chrome
+        if: matrix.target != 'linux/arm64'
+
+      - name: Chromium for linux/arm64
+        id: chromium
+        if: matrix.target == 'linux/arm64'
+        run: |
+          set -euo pipefail
+          npx --yes playwright install --with-deps chromium
+          path=
+          for candidate in "$HOME"/.cache/ms-playwright/chromium-*/chrome-linux*/chrome; do
+            [ -x "$candidate" ] && { path=$candidate; break; }
+          done
+          [ -n "$path" ] || { echo "::error::Playwright installed no Chromium binary"; exit 1; }
+          echo "chrome-path=$path" >> "$GITHUB_OUTPUT"
+
+      # Ubuntu 24.04 lets only AppArmor-profiled programs create user
+      # namespaces, which is what Chrome's sandbox is made of. A downloaded
+      # Chrome has no profile, so it would refuse to start; the runner is
+      # disposable, so the restriction is lifted rather than the sandbox.
+      - name: Let a downloaded Chrome use its sandbox
+        if: runner.os == 'Linux'
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
 
       - name: Install the wheel for this platform
         # --only-binary keeps pip from quietly falling back to the sdist, which
@@ -250,7 +278,10 @@ jobs:
           set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install --no-index --only-binary=:all: --find-links dist/pypi manul-browser
-          python -m pip show -f manul-browser | head -20
+          # Not through `head`: it closes the pipe after its twenty lines, pip
+          # dies writing the rest, and pipefail turns a clean install into a
+          # failed step.
+          python -m pip show manul-browser
 
       - name: The wheel's engine answers, with the right version
         run: |
@@ -263,7 +294,7 @@ jobs:
 
       - name: Drive a real Chrome through the wheel
         env:
-          MANUL_CHROME: ${{ steps.chrome.outputs.chrome-path }}
+          MANUL_CHROME: ${{ steps.chrome.outputs.chrome-path || steps.chromium.outputs.chrome-path }}
         run: python bindings/python/tests/smoke_release.py
 
       - name: Install the npm packages for this platform
@@ -283,7 +314,7 @@ jobs:
       - name: Drive a real Chrome through the npm package
         working-directory: npm-smoke
         env:
-          MANUL_CHROME: ${{ steps.chrome.outputs.chrome-path }}
+          MANUL_CHROME: ${{ steps.chrome.outputs.chrome-path || steps.chromium.outputs.chrome-path }}
         run: |
           set -euo pipefail
           got=$(npx --no-install manul --version | awk '{print $2}')
