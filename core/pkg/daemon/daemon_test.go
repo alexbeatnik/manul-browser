@@ -237,7 +237,12 @@ func TestWeeklySchedule_FiresOnTheDayItNames(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
-		next := time.Now().Add(NextRunDelay(s))
+		// NextRunDelay measures from its own reading of the clock. Adding the
+		// delay to a reading taken before it lands a few nanoseconds short of
+		// the minute wherever the clock is fine enough to tell the two apart —
+		// Linux, not Windows — so read afterwards, and round the remainder off.
+		delay := NextRunDelay(s)
+		next := time.Now().Add(delay).Round(time.Second)
 		if got := strings.ToLower(next.Weekday().String()); got != name {
 			t.Errorf("every %s fires on %s", name, got)
 		}
