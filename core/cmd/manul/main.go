@@ -571,12 +571,12 @@ func runSequential(ctx context.Context, cfg config.Config, hunts []*dsl.Hunt, op
 			logger.Error("%v", err)
 			return len(hunts)
 		}
-		logger.Info("Launching %s (port %d, profile %s)…", engine, opts.Port, opts.UserDataDir)
 		proc, err := browser.Launch(ctx, opts)
 		if err != nil {
 			logger.Error("launch %s: %v", engine, err)
 			return len(hunts)
 		}
+		logger.Info("Launched %s (%s, profile %s)", engine, proc.Endpoint(), opts.UserDataDir)
 		var closeOnce sync.Once
 		closeBrowser := func() {
 			closeOnce.Do(func() {

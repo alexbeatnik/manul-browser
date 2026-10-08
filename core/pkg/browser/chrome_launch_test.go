@@ -55,3 +55,35 @@ func TestLaunchChrome_SurvivesContextCancel(t *testing.T) {
 		t.Fatalf("chrome still answering after Close")
 	}
 }
+
+// TestLaunchChrome_FreePort is the default launch: Port 0, so Chrome picks the
+// port and LaunchChrome has to learn it from DevToolsActivePort. Gated like
+// the test above.
+func TestLaunchChrome_FreePort(t *testing.T) {
+	if os.Getenv("MANUL_TEST_LAUNCH") == "" {
+		t.Skip("set MANUL_TEST_LAUNCH=1 to run (spawns a real headless Chrome)")
+	}
+	if _, err := findChrome(""); err != nil {
+		t.Skipf("no chrome binary: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cp, err := LaunchChrome(ctx, ChromeOptions{Port: 0, Headless: true, DisableGPU: true})
+	if err != nil {
+		t.Fatalf("launch: %v", err)
+	}
+	defer cp.Close()
+
+	if cp.port == 0 {
+		t.Fatalf("port was not discovered; endpoint %s", cp.Endpoint())
+	}
+	resp, err := http.Get(cp.Endpoint() + "/json/version")
+	if err != nil {
+		t.Fatalf("no answer at %s: %v", cp.Endpoint(), err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET %s/json/version: %s", cp.Endpoint(), resp.Status)
+	}
+}

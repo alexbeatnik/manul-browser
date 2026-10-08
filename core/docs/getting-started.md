@@ -80,11 +80,11 @@ manul tests/my_flow.hunt
 
 Expected output:
 ```
-Launching chromium (port 9222, profile /tmp/manul-chrome)…
+Launched chromium (http://127.0.0.1:41873, profile /tmp/manul-chrome)
 Manul Browser — tests/my_flow.hunt
 Title: Demo Login
 Commands: 6
-CDP: http://127.0.0.1:9222
+CDP: http://127.0.0.1:41873
 
 [📦 BLOCK START] STEP 1: Navigate and verify start page
   [▶️  ACTION START] NAVIGATE to 'https://the-internet.herokuapp.com/login'

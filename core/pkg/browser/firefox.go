@@ -46,6 +46,9 @@ var firefoxChannelBinaries = map[string][]string{
 // on stderr. A cold profile on a slow machine takes several seconds.
 const bidiBannerTimeout = 30 * time.Second
 
+// firefoxDefaultPort is the BiDi port Firefox is given when none is asked for.
+const firefoxDefaultPort = 9222
+
 // LaunchFirefox starts a Firefox process with the WebDriver BiDi agent
 // enabled. It blocks until Firefox has announced its BiDi endpoint (or the
 // context expires). If opts.UserDataDir is empty, a unique temp profile is
@@ -60,7 +63,7 @@ func LaunchFirefox(ctx context.Context, opts LaunchOptions) (*FirefoxProcess, er
 		}
 	}
 	if opts.Port == 0 {
-		opts.Port = DefaultLaunchOptions().Port
+		opts.Port = firefoxDefaultPort
 	}
 
 	ownsDir := false

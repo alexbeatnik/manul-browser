@@ -26,7 +26,7 @@
     "type": "Options",
     "fields": [
       { "name": "Headless",       "type": "bool",            "default": false,            "description": "Run Chrome without a visible window (Launch only)." },
-      { "name": "Port",           "type": "int",             "default": "0 → 9222",       "description": "CDP debug port for a Launch-managed Chrome. Ignored by Attach." },
+      { "name": "Port",           "type": "int",             "default": "0 → free port",  "description": "Debug port for a Launch-managed browser. 0 → Chromium picks a free port (--remote-debugging-port=0) and the Session uses the one it reports; Firefox uses 9222. Connect probes 9222 for a running Chrome when it is 0. Ignored by Attach." },
       { "name": "CDPURL",         "type": "string",          "default": "",               "description": "Explicit CDP HTTP endpoint. Ignored by Launch." },
       { "name": "ExecutablePath", "type": "string",          "default": "",               "description": "Override the Chrome binary location (Launch only)." },
       { "name": "UserDataDir",    "type": "string",          "default": "",               "description": "Override the Chrome profile dir (Launch only). Empty → unique temp profile, removed on Close." },
