@@ -416,6 +416,16 @@ func (rt *Runtime) buildExplainNextResult(ctx context.Context, stepText string, 
 	}
 }
 
+// debugVarsMarker is the line that answers the pipe-mode `vars` command: every
+// runtime variable as a flat JSON object, behind its own marker.
+func debugVarsMarker(vars map[string]string) string {
+	if vars == nil {
+		vars = map[string]string{}
+	}
+	payload, _ := json.Marshal(vars)
+	return fmt.Sprintf("\x00MANUL_DEBUG_VARS\x00%s\n", payload)
+}
+
 func (rt *Runtime) debugPromptPipe(ctx context.Context, cmd dsl.Command, idx int) error {
 	// Contract §3.4: payload idx is 1-based.
 	pausePayload := fmt.Sprintf(`{"step":%q,"idx":%d}`, cmd.Raw, idx+1)
@@ -521,6 +531,15 @@ func (rt *Runtime) debugPromptPipe(ctx context.Context, cmd dsl.Command, idx int
 				if err := rt.debugHighlight(ctx, xpath); err != nil {
 					rt.logger.Warn("debug: highlight failed: %v", err)
 				}
+				emitPauseMarker()
+				readNext()
+
+			case lower == "vars":
+				// What the hunt has in hand at this pause. A driver that shows
+				// a variables view has no other way to learn it: the values are
+				// in this process, and DEBUG VARS prints them for a person.
+				fmt.Fprint(os.Stdout, debugVarsMarker(rt.Vars()))
+				os.Stdout.Sync()
 				emitPauseMarker()
 				readNext()
 

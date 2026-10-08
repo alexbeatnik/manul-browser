@@ -34,6 +34,10 @@ var channelBinaries = map[string][]string{
 	"msedge":      {"microsoft-edge-stable", "microsoft-edge"},
 }
 
+// headlessWindowSize is the window a headless Chrome is given: the size
+// headless Firefox uses unasked, so one hunt meets one layout in both.
+const headlessWindowSize = "--window-size=1366,768"
+
 // LaunchChrome starts a Chrome process with remote debugging enabled.
 // It blocks until Chrome's CDP endpoint is reachable (or context expires).
 // If opts.UserDataDir is empty, a unique temp directory is created and owned
@@ -94,7 +98,11 @@ func LaunchChrome(ctx context.Context, opts LaunchOptions) (*ChromeProcess, erro
 		args = append(args, "--disable-gpu")
 	}
 	if opts.Headless {
-		args = append(args, "--headless=new")
+		// Headless Chrome's own default is an 800×600 window, small enough
+		// that responsive sites serve their phone layout — a different page
+		// from the one the same hunt drives in a headed browser, and from the
+		// one headless Firefox draws at its default of 1366×768.
+		args = append(args, "--headless=new", headlessWindowSize)
 	}
 
 	// Chrome must outlive ctx: the caller's context typically scopes one task
@@ -118,6 +126,7 @@ func LaunchChrome(ctx context.Context, opts LaunchOptions) (*ChromeProcess, erro
 		}
 		return nil, fmt.Errorf("start chrome: %w", err)
 	}
+	tieToEngine(cmd)
 
 	cp := &ChromeProcess{
 		cmd:         cmd,

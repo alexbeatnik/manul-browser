@@ -5,15 +5,21 @@
     // shadow content rather than flattening everything for matching.
     //
     // sel is an optional CSS selector scoping extraction to one region; when
-    // empty or not found, the whole document body is used.
+    // empty, the whole document body is used.
+    //
+    // A selector that matches nothing reads as nothing. It used to fall back
+    // to the body, so asking for '#result' on a page without one returned the
+    // whole page as if that were the result. A selector that cannot parse is
+    // answered with an object, which no text can be mistaken for.
     sel = sel || "";
 
     let root = document.body;
     if (sel) {
         try {
-            const scoped = document.querySelector(sel);
-            if (scoped) root = scoped;
-        } catch (_) { /* invalid selector → fall back to body */ }
+            root = document.querySelector(sel);
+        } catch (_) {
+            return { invalidSelector: true };
+        }
     }
     if (!root) return "";
 

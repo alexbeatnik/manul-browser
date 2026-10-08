@@ -3,6 +3,8 @@ package scorer
 import (
 	"reflect"
 	"testing"
+
+	"github.com/alexbeatnik/manul-browser/core/pkg/dom"
 )
 
 func TestSignificantWords_FiltersStopWordsAndShortWords(t *testing.T) {
@@ -27,5 +29,26 @@ func TestSignificantWords_CountsRunesNotBytes(t *testing.T) {
 	want = []string{"на", "головну"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("SignificantWords = %v, want %v", got, want)
+	}
+}
+
+// MatchesQuery accepts word overlap; ContainsQuery is the stricter question a
+// wait asks — is the thing itself still here.
+func TestContainsQuery_WantsThePhraseNotAWordOfIt(t *testing.T) {
+	sentence := dom.ElementSnapshot{Tag: "p", VisibleText: "Elements (e.g., checkbox, input field) change."}
+	sentence.Normalize()
+	if !MatchesQuery("A checkbox", &sentence) {
+		t.Fatal("precondition: the sentence is a word-overlap match")
+	}
+	if ContainsQuery("A checkbox", &sentence) {
+		t.Error("a sentence that mentions checkboxes is not 'A checkbox'")
+	}
+
+	row := dom.ElementSnapshot{Tag: "div", VisibleText: "  A   checkbox "}
+	row.Normalize()
+	field := dom.ElementSnapshot{Tag: "input", HTMLId: "user-name"}
+	field.Normalize()
+	if !ContainsQuery("a checkbox", &row) || !ContainsQuery("User name", &field) {
+		t.Error("the phrase itself, or the id it spells, must match")
 	}
 }

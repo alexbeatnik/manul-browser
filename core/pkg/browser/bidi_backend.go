@@ -152,6 +152,8 @@ func (b *BiDiBrowser) Close() error { return nil }
 type BiDiPage struct {
 	conn      *bidi.Conn
 	contextID string
+	// mocks is nil until the first MOCK: no request is blocked before then.
+	mocks *mockTable
 }
 
 // ContextID exposes the browsing-context id this page drives.
@@ -245,6 +247,88 @@ func (p *BiDiPage) SetFileInput(ctx context.Context, id int, xpath string, fileP
 
 func (p *BiDiPage) Screenshot(ctx context.Context) ([]byte, error) {
 	return bidi.CaptureScreenshot(ctx, p.conn, p.contextID)
+}
+
+func (p *BiDiPage) Mock(ctx context.Context, rule MockRule) error {
+	if p.mocks == nil {
+		// Listen, then subscribe, then intercept: each step can produce an
+		// event the one before it has to be ready for, and a blocked request
+		// nobody hears about is a page that never finishes loading.
+		sub := p.conn.Subscribe()
+		if err := bidi.SubscribeEvents(ctx, p.conn, []string{bidi.BeforeRequestSent}, []string{p.contextID}); err != nil {
+			sub.Close()
+			return fmt.Errorf("browser: subscribe %s: %w", bidi.BeforeRequestSent, err)
+		}
+		intercept, err := bidi.AddIntercept(ctx, p.conn, p.contextID)
+		if err != nil {
+			sub.Close()
+			return err
+		}
+		// Older Firefox has no cache control over BiDi; the mock still works
+		// for everything not already cached.
+		_ = bidi.BypassCache(ctx, p.conn, p.contextID)
+		p.mocks = &mockTable{}
+		go p.answerBlocked(sub, intercept)
+	}
+	p.mocks.set(rule)
+	return nil
+}
+
+// answerBlocked gives every request blocked by intercept its mock, or sends it
+// on its way, until the connection closes.
+func (p *BiDiPage) answerBlocked(sub *bidi.Subscription, intercept string) {
+	defer sub.Close()
+	for ev := range sub.C() {
+		if ev.Method != bidi.BeforeRequestSent {
+			continue
+		}
+		var blocked struct {
+			IsBlocked  bool     `json:"isBlocked"`
+			Intercepts []string `json:"intercepts"`
+			Request    struct {
+				ID      string `json:"request"`
+				URL     string `json:"url"`
+				Method  string `json:"method"`
+				Headers []struct {
+					Name  string `json:"name"`
+					Value struct {
+						Value string `json:"value"`
+					} `json:"value"`
+				} `json:"headers"`
+			} `json:"request"`
+		}
+		if err := json.Unmarshal(ev.Params, &blocked); err != nil || !blocked.IsBlocked {
+			continue
+		}
+		// The connection is shared by every page of this Firefox; a request
+		// blocked for another page's intercept is that page's to answer.
+		ours := false
+		for _, id := range blocked.Intercepts {
+			ours = ours || id == intercept
+		}
+		if !ours {
+			continue
+		}
+		// Off this goroutine, which has to keep draining the subscription.
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), mockAnswerTimeout)
+			defer cancel()
+			header := func(name string) string {
+				for _, h := range blocked.Request.Headers {
+					if strings.EqualFold(h.Name, name) {
+						return h.Value.Value
+					}
+				}
+				return ""
+			}
+			req := blocked.Request
+			if a := p.mocks.answer(req.Method, req.URL, header); a != nil {
+				_ = bidi.ProvideResponse(ctx, p.conn, req.ID, a.Status, a.Headers, a.Body)
+				return
+			}
+			_ = bidi.ContinueRequest(ctx, p.conn, req.ID)
+		}()
+	}
 }
 
 func (p *BiDiPage) WaitForResponse(ctx context.Context, urlPattern string, timeout time.Duration) error {

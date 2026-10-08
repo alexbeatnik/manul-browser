@@ -116,6 +116,7 @@ func LaunchFirefox(ctx context.Context, opts LaunchOptions) (*FirefoxProcess, er
 		}
 		return nil, fmt.Errorf("start firefox: %w", err)
 	}
+	tieToEngine(cmd)
 
 	fp := &FirefoxProcess{
 		cmd:         cmd,

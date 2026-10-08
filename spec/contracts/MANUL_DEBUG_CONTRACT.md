@@ -5,13 +5,14 @@
 >
 > **Wire protocol stability.** This file is the authoritative byte-level spec
 > for the stdin/stdout debug protocol: pause marker, explain-next marker,
-> command tokens, 1-based step index. The What-If REPL added below is
+> command tokens, 1-based step index. 0.2.1 adds one command, `vars`, and one
+> marker for its answer; nothing that existed changed. The What-If REPL below is
 > **terminal-only** and introduces no new markers, so no pipe-mode driver
 > needs to change.
 
 ```json
 {
-  "version": "0.2.0",
+  "version": "0.2.1",
   "generatedFrom": "pkg/runtime/debug.go :: shouldPause(), debugPrompt(), debugPromptTTY(), debugPromptPipe(), injectDebugModal(), debugHighlight(), explainStep(), buildExplainNextResult(), explainNextPayload; pkg/runtime/whatif.go :: WhatIfResult, evaluateWhatIf(), runWhatIfREPL(), pickWhatIfStep(), takeWhatIfReplacement(), isWhatIfSystemStep(); pkg/runtime/runtime.go :: runCommands() replacement loop; pkg/config/config.go :: DebugMode, BreakLines, ExplainMode",
 
   "config": {
@@ -64,7 +65,7 @@
     "pipe": {
       "function": "debugPromptPipe()",
       "transport": "Reads command tokens as stdin lines (1 MB line cap). Emits NUL-delimited markers on stdout.",
-      "commands": ["next", "continue", "debug-stop", "abort", "highlight", "highlight <xpath>", "explain-next", "explain", "explain-next <json-override>", "what-if (rejected)"]
+      "commands": ["next", "continue", "debug-stop", "abort", "highlight", "highlight <xpath>", "explain-next", "explain", "explain-next <json-override>", "vars", "what-if (rejected)"]
     }
   },
 
@@ -78,12 +79,19 @@
       "format": "\\x00MANUL_EXPLAIN_NEXT\\x00<json>\\n",
       "payload": "explainNextPayload (see explainNext.fields)"
     },
+    "varsMarker": {
+      "format": "\\x00MANUL_DEBUG_VARS\\x00<json>\\n",
+      "payload": "A flat JSON object of every runtime variable as it stands at this pause, name → string value, the most specific scope winning. {} when there are none.",
+      "emittedOn": "The 'vars' command. The pause marker is re-emitted after it, as after every non-terminal command.",
+      "since": "0.2.1. An engine without it treats 'vars' as any unknown token: it re-emits the pause marker and nothing else, so a driver may always ask and should simply not expect an answer."
+    },
     "commandSemantics": {
       "next":         "Pause again at the next step (appends a one-shot breakStep at idx+1). Empty line == next.",
       "continue":     "Clear step breakpoints and resume (debugContinue).",
       "debug-stop":   "Clear ALL breakpoints (lines + steps) and resume to completion.",
       "abort":        "Stop the mission (ErrDebugStop).",
       "highlight":    "Scroll the current highlight into view (no arg) or highlight the given xpath.",
+      "vars":         "Emit a vars marker with the runtime variables. Read-only; stays paused.",
       "explain-next": "Emit an explain marker for the current step, or for a step override via 'explain-next {\"step\":\"...\"}'. Read-only.",
       "what-if":      "Rejected in pipe mode: stdin is reserved for control tokens, so an interactive REPL cannot read from it. The engine logs a notice, re-emits the pause marker, and stays paused. Use explain-next instead."
     }

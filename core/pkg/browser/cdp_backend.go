@@ -36,7 +36,7 @@ func (b *CDPBrowser) FirstPage(ctx context.Context) (Page, error) {
 	if err != nil {
 		return nil, fmt.Errorf("browser: dial target %q: %w", target.WSURL, err)
 	}
-	return &CDPPage{conn: conn}, nil
+	return newCDPPage(ctx, conn)
 }
 
 // PageMatching attaches to the first page-type target whose URL contains
@@ -68,7 +68,7 @@ func (b *CDPBrowser) PageMatching(ctx context.Context, urlSubstr string) (Page, 
 		if err != nil {
 			return nil, fmt.Errorf("browser: dial target %q: %w", t.WSURL, err)
 		}
-		return &CDPPage{conn: conn}, nil
+		return newCDPPage(ctx, conn)
 	}
 	return nil, fmt.Errorf("browser: no page target with URL containing %q (found %d targets)", urlSubstr, len(targets))
 }
@@ -117,7 +117,28 @@ func (b *CDPBrowser) OpenTarget(ctx context.Context, url string) (Page, string, 
 		_ = b.CloseTarget(context.Background(), created.TargetID)
 		return nil, "", fmt.Errorf("browser: dial new target: %w", err)
 	}
-	return &CDPPage{conn: conn}, created.TargetID, nil
+	page, err := newCDPPage(ctx, conn)
+	if err != nil {
+		_ = b.CloseTarget(context.Background(), created.TargetID)
+		return nil, "", err
+	}
+	return page, created.TargetID, nil
+}
+
+// newCDPPage wraps a freshly dialled page connection. Every page gets its
+// dialogs answered from the start — one that does not can hang on the first
+// alert it meets — and is treated as focused, so focus handlers run when the
+// engine focuses a field rather than at the next click.
+func newCDPPage(ctx context.Context, conn *cdp.Conn) (*CDPPage, error) {
+	if err := cdp.AcceptDialogs(ctx, conn); err != nil {
+		_ = conn.Close()
+		return nil, fmt.Errorf("browser: answer dialogs: %w", err)
+	}
+	if err := cdp.EmulateFocus(ctx, conn); err != nil {
+		_ = conn.Close()
+		return nil, fmt.Errorf("browser: emulate focus: %w", err)
+	}
+	return &CDPPage{conn: conn}, nil
 }
 
 // targetWSURL polls /json/list until the freshly-created target exposes its
@@ -164,6 +185,8 @@ func (b *CDPBrowser) Close() error { return nil }
 type CDPPage struct {
 	conn    *cdp.Conn
 	tracker *cdp.FrameTracker
+	// mocks is nil until the first MOCK: no request is paused before then.
+	mocks *mockTable
 }
 
 // ensureTracker lazily enables the Page/Runtime domains and starts tracking
@@ -388,6 +411,40 @@ func (p *CDPPage) SetFileInput(ctx context.Context, id int, xpath string, filePa
 
 func (p *CDPPage) Screenshot(ctx context.Context) ([]byte, error) {
 	return cdp.Screenshot(ctx, p.conn)
+}
+
+func (p *CDPPage) Mock(ctx context.Context, rule MockRule) error {
+	if p.mocks == nil {
+		p.mocks = &mockTable{}
+		cdp.OnRequestPaused(p.conn, p.answerPaused)
+	}
+	p.mocks.set(rule)
+	// Only URLs some rule could match are paused; the rest never leave
+	// Chrome. A rule's pattern is matched against the end of the URL.
+	patterns := p.mocks.patterns()
+	for i := range patterns {
+		patterns[i] = "*" + patterns[i]
+	}
+	return cdp.InterceptRequests(ctx, p.conn, patterns)
+}
+
+// answerPaused gives one paused request its mock, or sends it on its way.
+func (p *CDPPage) answerPaused(req cdp.PausedRequest) {
+	ctx, cancel := context.WithTimeout(context.Background(), mockAnswerTimeout)
+	defer cancel()
+	header := func(name string) string {
+		for k, v := range req.Headers {
+			if strings.EqualFold(k, name) {
+				return v
+			}
+		}
+		return ""
+	}
+	if a := p.mocks.answer(req.Method, req.URL, header); a != nil {
+		_ = cdp.FulfillRequest(ctx, p.conn, req.ID, a.Status, a.Headers, a.Body)
+		return
+	}
+	_ = cdp.ContinueRequest(ctx, p.conn, req.ID)
 }
 
 func (p *CDPPage) WaitForResponse(ctx context.Context, urlPattern string, timeout time.Duration) error {

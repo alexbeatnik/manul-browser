@@ -7,6 +7,7 @@ package cdp
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -49,9 +50,25 @@ type KeyEventParams struct {
 // ── CDP Commands ───────────────────────────────────────────────────────────────
 
 // Navigate instructs the browser to navigate to the given URL.
+//
+// Chrome answers Page.navigate successfully even when it could not load the
+// page: the failure is a field of the reply, and the tab is left on its own
+// error page. Without reading that field a NAVIGATE to a host that does not
+// resolve passed, and every step after it ran against chrome-error://.
 func Navigate(ctx context.Context, c *Conn, url string) error {
-	_, err := c.Call(ctx, "Page.navigate", map[string]interface{}{"url": url})
-	return err
+	raw, err := c.Call(ctx, "Page.navigate", map[string]interface{}{"url": url})
+	if err != nil {
+		return err
+	}
+	var res struct {
+		ErrorText string `json:"errorText"`
+	}
+	// net::ERR_ABORTED is not a page that failed to load: it is a navigation
+	// that became something else, a download or a 204, and left the page be.
+	if json.Unmarshal(raw, &res) == nil && res.ErrorText != "" && res.ErrorText != "net::ERR_ABORTED" {
+		return fmt.Errorf("navigation to %s failed: %s", url, res.ErrorText)
+	}
+	return nil
 }
 
 // Evaluate runs JavaScript in the page context and returns the result.
@@ -401,6 +418,147 @@ func ScrollPage(ctx context.Context, c *Conn, direction, container string) error
 	return err
 }
 
+// AcceptDialogs answers every JavaScript dialog the page opens — alert,
+// confirm, prompt, beforeunload — by accepting it, for as long as the
+// connection lives.
+//
+// A dialog blocks the page's only thread. Nothing was listening for one, so
+// the click that opened it never returned, and neither did anything after it:
+// the session hung with no error and no timeout to end it. Accepting is the
+// answer that lets the step that opened the dialog do what it set out to do;
+// a prompt is accepted with its own default text.
+func AcceptDialogs(ctx context.Context, c *Conn) error {
+	// Listen first, then ask for the events — the other order can miss a
+	// dialog that is already on its way.
+	sub := c.Subscribe()
+	if _, err := c.Call(ctx, "Page.enable", nil); err != nil {
+		sub.Close()
+		return fmt.Errorf("Page.enable: %w", err)
+	}
+	go func() {
+		defer sub.Close()
+		for ev := range sub.C() {
+			if ev.Method != "Page.javascriptDialogOpening" {
+				continue
+			}
+			var dialog struct {
+				DefaultPrompt string `json:"defaultPrompt"`
+			}
+			_ = json.Unmarshal(ev.Params, &dialog)
+			// On the connection's own context: the call that opened the
+			// dialog is blocked on this answer and may outlive ctx. And off
+			// this goroutine, which has to keep draining — a subscription
+			// that falls behind drops events, and a dropped dialog is a hang.
+			go func() {
+				_, _ = c.Call(c.ctx, "Page.handleJavaScriptDialog", map[string]interface{}{
+					"accept":     true,
+					"promptText": dialog.DefaultPrompt,
+				})
+			}()
+		}
+	}()
+	return nil
+}
+
+// EmulateFocus makes the page behave as the focused one whether or not its
+// window is.
+//
+// A headless or background Chrome page is not focused, so element.focus()
+// moves activeElement and fires nothing. The first real mouse press then
+// focuses the page, and every focus handler that was owed runs at once, in
+// the middle of the click: a date picker that should have opened when its
+// field was filled opened under the cursor instead, and took the click meant
+// for the button beneath it.
+func EmulateFocus(ctx context.Context, c *Conn) error {
+	_, err := c.Call(ctx, "Emulation.setFocusEmulationEnabled", map[string]interface{}{"enabled": true})
+	return err
+}
+
+// PausedRequest is a request Chrome is holding until it is told what to do.
+type PausedRequest struct {
+	ID      string
+	Method  string
+	URL     string
+	Headers map[string]string
+}
+
+// OnRequestPaused calls handle for every request Chrome pauses on this
+// connection, until the connection closes. Each call gets its own goroutine:
+// a paused request is waiting on its answer, and the subscription has to keep
+// draining meanwhile. Call it before InterceptRequests, so no pause is missed.
+func OnRequestPaused(c *Conn, handle func(PausedRequest)) {
+	sub := c.Subscribe()
+	go func() {
+		defer sub.Close()
+		for ev := range sub.C() {
+			if ev.Method != "Fetch.requestPaused" {
+				continue
+			}
+			var paused struct {
+				RequestID string `json:"requestId"`
+				Request   struct {
+					URL     string            `json:"url"`
+					Method  string            `json:"method"`
+					Headers map[string]string `json:"headers"`
+				} `json:"request"`
+			}
+			if err := json.Unmarshal(ev.Params, &paused); err != nil || paused.RequestID == "" {
+				continue
+			}
+			go handle(PausedRequest{
+				ID:      paused.RequestID,
+				Method:  paused.Request.Method,
+				URL:     paused.Request.URL,
+				Headers: paused.Request.Headers,
+			})
+		}
+	}()
+}
+
+// InterceptRequests asks Chrome to pause, before it is sent, every request
+// whose URL matches one of urlPatterns ('*' and '?' are wildcards). Calling it
+// again replaces the patterns. The HTTP cache is switched off along with it:
+// a response served from cache never becomes a request, and so is never
+// paused.
+func InterceptRequests(ctx context.Context, c *Conn, urlPatterns []string) error {
+	patterns := make([]map[string]interface{}, 0, len(urlPatterns))
+	for _, p := range urlPatterns {
+		patterns = append(patterns, map[string]interface{}{"urlPattern": p, "requestStage": "Request"})
+	}
+	if _, err := c.Call(ctx, "Fetch.enable", map[string]interface{}{"patterns": patterns}); err != nil {
+		return fmt.Errorf("Fetch.enable: %w", err)
+	}
+	if _, err := c.Call(ctx, "Network.enable", nil); err != nil {
+		return fmt.Errorf("Network.enable: %w", err)
+	}
+	if _, err := c.Call(ctx, "Network.setCacheDisabled", map[string]interface{}{"cacheDisabled": true}); err != nil {
+		return fmt.Errorf("Network.setCacheDisabled: %w", err)
+	}
+	return nil
+}
+
+// FulfillRequest answers a paused request without it reaching the network.
+// headers are name/value pairs.
+func FulfillRequest(ctx context.Context, c *Conn, requestID string, status int, headers [][2]string, body []byte) error {
+	list := make([]map[string]string, 0, len(headers))
+	for _, h := range headers {
+		list = append(list, map[string]string{"name": h[0], "value": h[1]})
+	}
+	_, err := c.Call(ctx, "Fetch.fulfillRequest", map[string]interface{}{
+		"requestId":       requestID,
+		"responseCode":    status,
+		"responseHeaders": list,
+		"body":            base64.StdEncoding.EncodeToString(body),
+	})
+	return err
+}
+
+// ContinueRequest lets a paused request go on to the network unchanged.
+func ContinueRequest(ctx context.Context, c *Conn, requestID string) error {
+	_, err := c.Call(ctx, "Fetch.continueRequest", map[string]interface{}{"requestId": requestID})
+	return err
+}
+
 // SetFileInput sets the file paths on a file input element resolved by ID or XPath.
 func (c *Conn) SetFileInput(ctx context.Context, id int, xpath string, filePaths []string) error {
 	objectID, err := evaluateObjectID(ctx, c, pagejs.FileInput(id, xpath))
@@ -408,24 +566,13 @@ func (c *Conn) SetFileInput(ctx context.Context, id int, xpath string, filePaths
 		return fmt.Errorf("SetFileInput: resolve file input: %w", err)
 	}
 
-	// Get the backend node ID
-	rawRes, err := c.Call(ctx, "DOM.requestNode", map[string]interface{}{
-		"objectId": objectID,
-	})
-	if err != nil {
-		return err
-	}
-
-	var res struct {
-		NodeId int `json:"nodeId"`
-	}
-	if err := json.Unmarshal(rawRes, &res); err != nil {
-		return fmt.Errorf("SetFileInput: unmarshal requestNode: %w", err)
-	}
-
+	// By objectId, not through DOM.requestNode: that only hands out a node id
+	// once the DOM agent has been given the document, which nothing here
+	// does, so it answered 0 and every upload failed with "Could not find
+	// node with given id".
 	_, err = c.Call(ctx, "DOM.setFileInputFiles", map[string]interface{}{
-		"nodeId": res.NodeId,
-		"files":  filePaths,
+		"objectId": objectID,
+		"files":    filePaths,
 	})
 	return err
 }

@@ -144,3 +144,26 @@ func TestHighlightCarriesItsDuration(t *testing.T) {
 		t.Fatal("highlight duration lost")
 	}
 }
+
+// Setting a box and reading it back must walk from the resolved element to
+// the control the same way, or one ticks a box the other cannot find.
+func TestCheckedStateFindsTheControlAsSetCheckedDoes(t *testing.T) {
+	set, read := SetChecked(4, "/label[1]", true), CheckedState(4, "/label[1]")
+	for name, js := range map[string]string{"SetChecked": set, "CheckedState": read} {
+		if !strings.Contains(js, checkable) || !strings.Contains(js, "manulCheckable(el)") {
+			t.Errorf("%s does not resolve its control through the shared walk", name)
+		}
+	}
+	if !strings.Contains(read, `"/label[1]"`) || !strings.Contains(read, "window.__manulReg[4]") {
+		t.Errorf("CheckedState lost its locator:\n%s", read)
+	}
+}
+
+func TestCoveredByAsksAboutThePointOfTheClick(t *testing.T) {
+	js := CoveredBy(9, "/button[1]", 120.5, 48)
+	for _, want := range []string{"elementFromPoint(120.500000, 48.000000)", "window.__manulReg[9]", `"/button[1]"`, "label.control === el"} {
+		if !strings.Contains(js, want) {
+			t.Errorf("missing %q in:\n%s", want, js)
+		}
+	}
+}

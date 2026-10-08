@@ -2,6 +2,7 @@ package bidi
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -119,7 +120,15 @@ func Connect(ctx context.Context, endpoint string) (*Conn, error) {
 // session.status is refused until it has run.
 func NewSession(ctx context.Context, c *Conn) error {
 	raw, err := c.Call(ctx, "session.new", map[string]interface{}{
-		"capabilities": map[string]interface{}{},
+		"capabilities": map[string]interface{}{
+			// Firefox's own default is to dismiss a dialog: a confirm answers
+			// Cancel and the step that opened it does nothing. The CDP side
+			// accepts (cdp.AcceptDialogs), and a hunt must not mean two
+			// different things depending on the browser it runs in.
+			"alwaysMatch": map[string]interface{}{
+				"unhandledPromptBehavior": map[string]interface{}{"default": "accept"},
+			},
+		},
 	})
 	if err != nil {
 		return fmt.Errorf("bidi: session.new: %w", err)
@@ -549,6 +558,67 @@ func DispatchKey(ctx context.Context, c *Conn, contextID, key string, modifiers 
 }
 
 // ── Network ───────────────────────────────────────────────────────────────────
+
+// BeforeRequestSent is the event a blocked request arrives in.
+const BeforeRequestSent = "network.beforeRequestSent"
+
+// AddIntercept asks the browser to block every request made by the page at
+// contextID, and the frames inside it, before it is sent. It returns the
+// intercept's id, which each blocked request's event names. BiDi's own URL
+// patterns cannot say "ends with", so nothing is filtered here: the caller
+// decides request by request.
+func AddIntercept(ctx context.Context, c *Conn, contextID string) (string, error) {
+	raw, err := c.Call(ctx, "network.addIntercept", map[string]interface{}{
+		"phases":   []string{"beforeRequestSent"},
+		"contexts": []string{contextID},
+	})
+	if err != nil {
+		return "", fmt.Errorf("bidi: network.addIntercept: %w", err)
+	}
+	var res struct {
+		Intercept string `json:"intercept"`
+	}
+	if err := json.Unmarshal(raw, &res); err != nil || res.Intercept == "" {
+		return "", fmt.Errorf("bidi: network.addIntercept: bad response %s", string(raw))
+	}
+	return res.Intercept, nil
+}
+
+// BypassCache stops the page at contextID being served from the HTTP cache. A
+// cached response never becomes a request, and so is never blocked.
+func BypassCache(ctx context.Context, c *Conn, contextID string) error {
+	_, err := c.Call(ctx, "network.setCacheBehavior", map[string]interface{}{
+		"cacheBehavior": "bypass",
+		"contexts":      []string{contextID},
+	})
+	return err
+}
+
+// ProvideResponse answers a blocked request without it reaching the network.
+// headers are name/value pairs.
+func ProvideResponse(ctx context.Context, c *Conn, requestID string, status int, headers [][2]string, body []byte) error {
+	list := make([]map[string]interface{}, 0, len(headers))
+	for _, h := range headers {
+		list = append(list, map[string]interface{}{
+			"name":  h[0],
+			"value": map[string]interface{}{"type": "string", "value": h[1]},
+		})
+	}
+	_, err := c.Call(ctx, "network.provideResponse", map[string]interface{}{
+		"request":      requestID,
+		"statusCode":   status,
+		"reasonPhrase": "OK",
+		"headers":      list,
+		"body":         map[string]interface{}{"type": "base64", "value": base64.StdEncoding.EncodeToString(body)},
+	})
+	return err
+}
+
+// ContinueRequest lets a blocked request go on to the network unchanged.
+func ContinueRequest(ctx context.Context, c *Conn, requestID string) error {
+	_, err := c.Call(ctx, "network.continueRequest", map[string]interface{}{"request": requestID})
+	return err
+}
 
 // WaitForResponse waits for a network response whose URL ends with urlPattern,
 // matching the CDP backend's suffix semantics.
