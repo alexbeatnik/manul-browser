@@ -53,10 +53,10 @@ import (
 
 // version is the single source of truth for the engine version. Reported by
 // `manul --version` and emitted in the agent schema, so it is kept WITHOUT a
-// `v` prefix to match the contracts (contracts/*.md `"version": "0.1.2"`). The
-// git module tag adds the prefix Go requires (`go get ...@v0.1.2`). Bump this
+// `v` prefix to match the contracts (contracts/*.md `"version": "0.1.3"`). The
+// git module tag adds the prefix Go requires (`go get ...@v0.1.3`). Bump this
 // together with the tag.
-const version = "0.1.2"
+const version = "0.1.3"
 
 func main() {
 	if len(os.Args) < 2 {
