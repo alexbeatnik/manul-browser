@@ -8,7 +8,7 @@
 
 ```json
 {
-  "version": "0.1.3",
+  "version": "0.1.4",
   "generatedFrom": "pkg/config :: _KEY_MAP, _CFG, get_threshold(), lookup_page_name(); pkg/runtime :: ScopedVariables; pkg/config :: envBool()",
 
   "configFile": {

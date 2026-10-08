@@ -2,7 +2,7 @@
     <img src="images/manul.png" alt="Manul Browser mascot" width="160" />
 </p>
 
-# 😼 Manul Browser Engine 0.1.3 — Deterministic Web & Desktop Automation Runtime
+# 😼 Manul Browser Engine 0.1.4 — Deterministic Web & Desktop Automation Runtime
 
 > **Developer README.** The user-facing tour lives in [README.md](README.md); this file is the
 > engineering manual: project structure, runtime architecture, extension points, configuration,
@@ -267,7 +267,7 @@ the DSL contract + `manul schema` verbs list.
 
 `const version` in `cmd/manul/main.go` is the single source of truth (reported by
 `manul --version` and the agent schema, **no `v` prefix**). Bump it together with:
-the git tag (`v0.1.3` — Go needs the prefix), README badges/notes, and the
+the git tag (`v0.1.4` — Go needs the prefix), README badges/notes, and the
 `"version"` field in every `contracts/MANUL_*_CONTRACT.md`. Keep it in lockstep with the
 binding versions in `bindings/python/manul/__init__.py` and `bindings/node/package.json`.
 
@@ -278,6 +278,31 @@ uploads them. **That upload cannot be undone** — bump the version when the cod
 is the code to ship. A push that leaves the version alone publishes nothing.
 
 ---
+
+## 📜 Release Notes: 0.1.4
+
+One change, to how Chromium is started. Nothing about hunts or their results moves.
+
+- **Chromium picks its own debugging port.** A launch used to pass
+  `--remote-debugging-port=9222`; it now passes port `0`, Chrome takes a free port, and
+  the engine reads the one it chose from `DevToolsActivePort` in the profile directory.
+  Security tools flag a browser started on a fixed debugging port with a separate
+  profile — it is how cookies get stolen over CDP — and one quarantined `manul.exe` for
+  exactly that. A launch no longer has that shape. A port that is set explicitly
+  (`agent.Options.Port`, the `port` argument of the protocol's `open`) is still passed as
+  given.
+- **Parallel Chromium workers** each ask for a free port too, instead of taking
+  9222, 9223, … from the allocator.
+- **Firefox is unchanged**: 9222 by default, and the allocated port for each parallel
+  worker.
+- **`manul run`** reports the endpoint the browser came up on once it is up
+  (`Launched chromium (http://127.0.0.1:41873, …)`) instead of announcing a port
+  beforehand.
+
+**Changes to expect:** a launched Chromium is no longer at `http://127.0.0.1:9222`, so
+anything that assumed that address has to take the endpoint from the session, or set the
+port explicitly. `agent.Connect` with no port still probes 9222 for a running Chrome
+before launching, and will not find one that an earlier `Connect` launched.
 
 ## 📜 Release Notes: 0.1.3
 
