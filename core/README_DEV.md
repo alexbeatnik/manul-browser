@@ -2,7 +2,7 @@
     <img src="images/manul.png" alt="Manul Browser mascot" width="160" />
 </p>
 
-# 😼 Manul Browser Engine 0.1.2 — Deterministic Web & Desktop Automation Runtime
+# 😼 Manul Browser Engine 0.1.3 — Deterministic Web & Desktop Automation Runtime
 
 > **Developer README.** The user-facing tour lives in [README.md](README.md); this file is the
 > engineering manual: project structure, runtime architecture, extension points, configuration,
@@ -267,7 +267,7 @@ the DSL contract + `manul schema` verbs list.
 
 `const version` in `cmd/manul/main.go` is the single source of truth (reported by
 `manul --version` and the agent schema, **no `v` prefix**). Bump it together with:
-the git tag (`v0.1.2` — Go needs the prefix), README badges/notes, and the
+the git tag (`v0.1.3` — Go needs the prefix), README badges/notes, and the
 `"version"` field in every `contracts/MANUL_*_CONTRACT.md`. Keep it in lockstep with the
 binding versions in `bindings/python/manul/__init__.py` and `bindings/node/package.json`.
 
@@ -278,6 +278,48 @@ uploads them. **That upload cannot be undone** — bump the version when the cod
 is the code to ship. A push that leaves the version alone publishes nothing.
 
 ---
+
+## 📜 Release Notes: 0.1.3
+
+A release from driving the engine against real sites in both browsers: values can be
+read back out of fields, two ways to hang a session are gone, and several more steps
+that passed over the wrong thing now fail.
+
+- **A field can be read back.** `EXTRACT` and `read` looked at text only, so a filled
+  input came back as its own label. A target that names a form control — by label,
+  placeholder, aria-label, name, id or test id, or by a caption just before it — now
+  reads what the control holds; a `<select>` answers with the option it shows. An empty
+  field is found and empty. `VERIFY … has value` / `has placeholder` no longer resolve
+  the `<label>` in place of the field, and can see a disabled one.
+- **JavaScript dialogs are accepted**, on both backends. An `alert` used to hang a
+  Chromium session for good; Firefox dismissed dialogs, so `confirm` answered Cancel.
+- **A covered element is not clicked.** A click goes to coordinates; when something else
+  is on top there — an open date picker, a modal backdrop — CLICK, DOUBLE CLICK and RIGHT
+  CLICK wait briefly for it to clear and then fail the step naming it.
+- **`MOCK` is request interception** (Fetch domain over CDP, network intercepts over
+  BiDi) instead of a patch over `window.fetch`: the pattern matches the end of the URL,
+  `*` is a wildcard, any kind of request is covered, and a rule survives navigation.
+- **`nav_timeout` is applied.** It was declared and read by nothing. `NAVIGATE` fails
+  when it runs out on a document that is not parsed yet, and carries on with a warning
+  when it is; `WAIT FOR RESPONSE` waits `nav_timeout` rather than the step timeout.
+  `NAVIGATE` to a host that does not resolve now fails in Chromium as it did in Firefox.
+- **`UPLOAD` works over CDP**, takes a path relative to the hunt, and reports a missing
+  file itself. A relative path used to make Chrome stop answering.
+- **Also fixed:** `WAIT FOR … to disappear` when another sentence shares a word with the
+  target; `CHECK` through a caption not bound to its box, and its retry ticking
+  unrelated boxes; `FOR EACH` over a collection declared with `@var:`; `read` with a
+  selector that matches nothing returning the whole page.
+- **`map`, `FULL SCAN` and `SCAN PAGE`** name a control after its bound `<label>`, not
+  its `name` attribute.
+- **Browsers:** headless Chrome gets a 1366×768 window, as headless Firefox has, and
+  treats its page as focused. On Windows a launched browser dies with the engine however
+  the engine ends.
+- **Debugging:** a paused run answers `vars` with the hunt's variables (debug contract
+  0.2.1).
+
+**Changes to expect:** hunts that passed by clicking a covered element or waiting on a
+partial word match now fail with an explanation; `confirm` answers OK in Firefox; headless
+Chrome lays pages out at desktop width, which invalidates `VERIFY VISUAL` baselines.
 
 ## 📜 Release Notes: 0.1.2
 
