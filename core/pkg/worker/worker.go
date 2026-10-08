@@ -54,8 +54,9 @@ type Options struct {
 	// and Release() on Close.
 	Allocator *PortAllocator
 
-	// LaunchOptions overrides launch flags. Port is always overridden by
-	// Allocator.Acquire(); UserDataDir is left empty (per-worker temp dir).
+	// LaunchOptions overrides launch flags. Port is always overridden: Firefox
+	// gets the port from Allocator.Acquire(), Chromium gets 0 and picks a free
+	// one itself. UserDataDir is left empty (per-worker temp dir).
 	LaunchOptions browser.LaunchOptions
 }
 
@@ -71,18 +72,7 @@ func NewWorker(ctx context.Context, opts Options) (*Worker, error) {
 		return nil, fmt.Errorf("worker: acquire port: %w", err)
 	}
 
-	launchOpts := opts.LaunchOptions
-	launchOpts.Port = port
-	// If the engine config requests headless, force it on every worker;
-	// callers can still set LaunchOptions.Headless directly.
-	if opts.Config.Headless {
-		launchOpts.Headless = true
-	}
-	if launchOpts.Browser == "" {
-		launchOpts.Browser = opts.Config.Browser
-	}
-
-	proc, err := browser.Launch(ctx, launchOpts)
+	proc, err := browser.Launch(ctx, workerLaunchOptions(opts, port))
 	if err != nil {
 		opts.Allocator.Release(port)
 		return nil, fmt.Errorf("worker: launch browser: %w", err)
@@ -124,6 +114,27 @@ func NewWorker(ctx context.Context, opts Options) (*Worker, error) {
 		allocator: opts.Allocator,
 		port:      port,
 	}, nil
+}
+
+// workerLaunchOptions resolves what a Worker launches its browser with. port
+// is the one acquired from the allocator.
+func workerLaunchOptions(opts Options, port int) browser.LaunchOptions {
+	launchOpts := opts.LaunchOptions
+	// If the engine config requests headless, force it on every worker;
+	// callers can still set LaunchOptions.Headless directly.
+	if opts.Config.Headless {
+		launchOpts.Headless = true
+	}
+	if launchOpts.Browser == "" {
+		launchOpts.Browser = opts.Config.Browser
+	}
+	// Chromium is asked for a free port and reports the one it took; only
+	// Firefox has to be told which to listen on.
+	launchOpts.Port = 0
+	if engine, _ := browser.NormalizeEngine(launchOpts.Browser); engine == browser.EngineFirefox {
+		launchOpts.Port = port
+	}
+	return launchOpts
 }
 
 // AdoptWorker wraps an existing Page in a Worker without launching a browser

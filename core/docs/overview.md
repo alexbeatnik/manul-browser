@@ -157,10 +157,10 @@ Because Manul Browser is pure Go, it can run hunts in parallel using native goro
 
 ```
 WorkerPool (4 workers)
-  ├── Worker 0 → Chrome (port 9222) → Page → Runtime → Hunt A
-  ├── Worker 1 → Chrome (port 9223) → Page → Runtime → Hunt B
-  ├── Worker 2 → Chrome (port 9224) → Page → Runtime → Hunt C
-  └── Worker 3 → Chrome (port 9225) → Page → Runtime → Hunt D
+  ├── Worker 0 → Chrome (own free port) → Page → Runtime → Hunt A
+  ├── Worker 1 → Chrome (own free port) → Page → Runtime → Hunt B
+  ├── Worker 2 → Chrome (own free port) → Page → Runtime → Hunt C
+  └── Worker 3 → Chrome (own free port) → Page → Runtime → Hunt D
 ```
 
 Each `Worker` owns exactly one `ChromeProcess`, one `cdp.Conn`, one `browser.Page`, and one `runtime.Runtime`. This isolation is enforced by design:

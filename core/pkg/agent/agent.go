@@ -47,9 +47,10 @@ import (
 type Options struct {
 	// Headless runs the browser without a visible window. Default: false.
 	Headless bool
-	// Port is the CDP debug port for a Launch-managed Chrome. 0 → 9222.
+	// Port is the debug port for a Launch-managed browser. 0 → Chromium picks
+	// a free port; Firefox uses 9222.
 	// Ignored by Attach. Connect uses it to both probe for an existing Chrome
-	// and, failing that, to Launch one.
+	// (0 → probes 9222) and, failing that, to Launch one.
 	Port int
 	// CDPURL is an explicit CDP HTTP endpoint (e.g. "http://127.0.0.1:9222").
 	// Used by Connect: when set it takes precedence over Port for the
