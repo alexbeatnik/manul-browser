@@ -281,7 +281,8 @@ is the code to ship. A push that leaves the version alone publishes nothing.
 
 ## 📜 Release Notes: 0.1.4
 
-One change, to how Chromium is started. Nothing about hunts or their results moves.
+Two changes, to how Chromium is started and to how the binaries are built. Nothing about
+hunts or their results moves.
 
 - **Chromium picks its own debugging port.** A launch used to pass
   `--remote-debugging-port=9222`; it now passes port `0`, Chrome takes a free port, and
@@ -298,6 +299,9 @@ One change, to how Chromium is started. Nothing about hunts or their results mov
 - **`manul run`** reports the endpoint the browser came up on once it is up
   (`Launched chromium (http://127.0.0.1:41873, …)`) instead of announcing a port
   beforehand.
+- **Release binaries keep their symbol table.** They were built with `-ldflags "-s -w"`;
+  one VirusTotal engine called the stripped Windows binary malware, and the same code
+  built without those flags scans clean. Each binary is about 3 MB larger for it.
 
 **Changes to expect:** a launched Chromium is no longer at `http://127.0.0.1:9222`, so
 anything that assumed that address has to take the endpoint from the session, or set the

@@ -92,7 +92,7 @@ class ManulBinaryHook(BuildHookInterface):
                 "no engine binary found in manul/_bin/.\n"
                 "Build one first, e.g.\n"
                 "  cd core && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 \\\n"
-                "      go build -trimpath -ldflags='-s -w' \\\n"
+                "      go build -trimpath \\\n"
                 "      -o ../bindings/python/manul/_bin/manul ./cmd/manul\n"
                 "then set MANUL_TARGET=linux/amd64. Set MANUL_ALLOW_PURE_WHEEL=1 "
                 "to build a binary-less wheel on purpose."

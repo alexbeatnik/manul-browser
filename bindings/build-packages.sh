@@ -70,9 +70,10 @@ for target in $TARGETS; do
   goos=${target%/*}; goarch=${target#*/}
   name=manul; [ "$goos" = windows ] && name=manul.exe
   mkdir -p "dist/bin/${goos}_${goarch}"
-  # The same flags as the release archives: no build-machine paths, no symbols.
+  # The same flags as the release archives: no build-machine paths, symbols
+  # left in (see release.yml for why).
   ( cd core && CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" \
-      go build -trimpath -ldflags '-s -w' -o "$root/dist/bin/${goos}_${goarch}/$name" ./cmd/manul )
+      go build -trimpath -o "$root/dist/bin/${goos}_${goarch}/$name" ./cmd/manul )
 done
 
 # ── PyPI ─────────────────────────────────────────────────────────────────────

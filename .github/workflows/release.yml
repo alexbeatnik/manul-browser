@@ -143,9 +143,10 @@ jobs:
 
       - name: Build every target
         working-directory: core
-        # -trimpath so the binary carries no build-machine paths, -s -w to drop
-        # the symbol table: nothing here reads a Go stack trace out of a release
-        # build, and it is a third off the download.
+        # -trimpath so the binary carries no build-machine paths. The symbol
+        # table stays in: -s -w took a third off the download, and the stripped
+        # Windows binary was the one a VirusTotal engine (Bkav Pro) called
+        # W32.Malware — the same code with its symbols scans clean.
         run: |
           set -euo pipefail
           mkdir -p ../dist
@@ -155,7 +156,7 @@ jobs:
             if [ "$goos" = "windows" ]; then name="manul.exe"; fi
             echo "::group::$target"
             CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" \
-              go build -trimpath -ldflags "-s -w" -o "../dist/$name" ./cmd/manul
+              go build -trimpath -o "../dist/$name" ./cmd/manul
 
             stage="../dist/stage"
             mkdir -p "$stage"
