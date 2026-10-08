@@ -541,7 +541,7 @@ Manul Browser is alpha-stage and solo-developed. If deterministic, explainable b
 - Embeddable `pkg/agent` API (`Read`/`ReadText`/`Step`/`Run`/`Map`) with typed failure reasons and plain-language rendering for LLM drivers
 - Strongly-typed extension API (`CALL GO`, `RegisterCustomControl`); race-detector-safe CDP transport
 
-**Version:** `0.1.3` — `manul --version` and the contracts report `0.1.3` (no prefix); the git module tag carries the `v` prefix Go requires: `go get github.com/alexbeatnik/manul-browser/core@v0.1.3`. The engine is a module in a subdirectory, so that request resolves to the tag `core/v0.1.3`, not `v0.1.3` — the plain `v0.1.3` tag belongs to the binary and wheel release.
+**Version:** `0.1.4` — `manul --version` and the contracts report `0.1.4` (no prefix); the git module tag carries the `v` prefix Go requires: `go get github.com/alexbeatnik/manul-browser/core@v0.1.4`. The engine is a module in a subdirectory, so that request resolves to the tag `core/v0.1.4`, not `v0.1.4` — the plain `v0.1.4` tag belongs to the binary and wheel release.
 
 ## License
 

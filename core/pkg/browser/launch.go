@@ -36,7 +36,9 @@ func NormalizeEngine(name string) (string, error) {
 type LaunchOptions struct {
 	// Browser selects the engine: "chromium" (default) or "firefox".
 	Browser string
-	// Port for the browser's remote debugging protocol. Default: 9222.
+	// Port for the browser's remote debugging protocol. 0 (the default) lets
+	// Chromium pick a free port, reported by Process.Endpoint; Firefox uses
+	// 9222.
 	Port int
 	// UserDataDir is the browser profile directory.
 	// If empty, a unique temp directory is created per run and cleaned up on Close.
@@ -63,7 +65,7 @@ type ChromeOptions = LaunchOptions
 func DefaultLaunchOptions() LaunchOptions {
 	return LaunchOptions{
 		Browser:    EngineChromium,
-		Port:       9222,
+		Port:       0,
 		DisableGPU: true,
 		Headless:   false,
 	}

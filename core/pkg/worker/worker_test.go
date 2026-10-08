@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alexbeatnik/manul-browser/core/pkg/browser"
 	"github.com/alexbeatnik/manul-browser/core/pkg/config"
 	"github.com/alexbeatnik/manul-browser/core/pkg/dom"
 	"github.com/alexbeatnik/manul-browser/core/pkg/dsl"
@@ -38,6 +39,39 @@ func mockPageWithButton(label string) *runtime.MockPage {
 				IsVisible:   true,
 			},
 		},
+	}
+}
+
+// A Chromium worker is launched on port 0 — Chrome picks a free one — and only
+// Firefox is handed the port the allocator acquired.
+func TestWorkerLaunchOptions_Port(t *testing.T) {
+	const allocated = 9230
+	cases := []struct {
+		name          string
+		launchBrowser string
+		configBrowser string
+		want          int
+	}{
+		{"default engine", "", "", 0},
+		{"chromium", "chromium", "", 0},
+		{"chromium from config", "", "chrome", 0},
+		{"firefox", "firefox", "", allocated},
+		{"firefox from config", "", "firefox", allocated},
+		{"launch options win over config", "chromium", "firefox", 0},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			cfg := config.Default()
+			cfg.Browser = c.configBrowser
+			got := workerLaunchOptions(Options{
+				Config: cfg,
+				// A caller-set port is overridden either way.
+				LaunchOptions: browser.LaunchOptions{Browser: c.launchBrowser, Port: 9555},
+			}, allocated)
+			if got.Port != c.want {
+				t.Fatalf("Port = %d, want %d", got.Port, c.want)
+			}
+		})
 	}
 }
 

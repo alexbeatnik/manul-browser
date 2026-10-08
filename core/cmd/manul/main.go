@@ -53,10 +53,10 @@ import (
 
 // version is the single source of truth for the engine version. Reported by
 // `manul --version` and emitted in the agent schema, so it is kept WITHOUT a
-// `v` prefix to match the contracts (contracts/*.md `"version": "0.1.3"`). The
-// git module tag adds the prefix Go requires (`go get ...@v0.1.3`). Bump this
+// `v` prefix to match the contracts (contracts/*.md `"version": "0.1.4"`). The
+// git module tag adds the prefix Go requires (`go get ...@v0.1.4`). Bump this
 // together with the tag.
-const version = "0.1.3"
+const version = "0.1.4"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -571,12 +571,12 @@ func runSequential(ctx context.Context, cfg config.Config, hunts []*dsl.Hunt, op
 			logger.Error("%v", err)
 			return len(hunts)
 		}
-		logger.Info("Launching %s (port %d, profile %s)…", engine, opts.Port, opts.UserDataDir)
 		proc, err := browser.Launch(ctx, opts)
 		if err != nil {
 			logger.Error("launch %s: %v", engine, err)
 			return len(hunts)
 		}
+		logger.Info("Launched %s (%s, profile %s)", engine, proc.Endpoint(), opts.UserDataDir)
 		var closeOnce sync.Once
 		closeBrowser := func() {
 			closeOnce.Do(func() {
