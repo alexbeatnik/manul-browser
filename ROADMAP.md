@@ -56,12 +56,13 @@ A custom control whose handler triggers a `CALL HOST` — an invoke inside an
 invoke — is untested. The design should support it (the exchange is strictly
 nested), but "should" is doing real work in that sentence.
 
-### 6. `manul map` label quality
+### 6. ~~`manul map` label quality~~ — done
 
-On a fixture with `<label for="email">Email address</label>`, `map` reported the
-element as `email` — the id, not the label a person would say. Possibly correct
-by design, possibly a gap in the map's label resolution. Worth one look, because
-`map` is what an LLM sees.
+It was a gap. `map`, `FULL SCAN` and `SCAN PAGE` named a control after its bound
+`<label>` only when it was a checkbox or radio; a labelled text field came out
+under its `name` attribute (`my-text` for "Text input", `custname` for
+"Customer name") and a `<select>` under the text of its own options. All three
+now read the bound label first, for every form control.
 
 ---
 
@@ -216,6 +217,15 @@ What is still not covered:
 Deliberately not carried over — the `GlobalContext` seeds each runtime directly,
 including across pool goroutines, so the env-var serialisation has no job. Listed
 here only so nobody re-adds it thinking it was forgotten.
+
+### 7. A browser that dies with the engine, off Windows
+
+On Windows a launched browser is put in a job object and goes when the engine
+does, however the engine ends. Nothing equivalent exists for Linux or macOS
+here: an engine that is killed outright leaves its browser running and holding
+the debugging port, and the next launch on that port fails with "CDP not
+reachable". Linux's parent-death signal follows the thread that forked, which
+the Go runtime may retire, so it was not reached for casually.
 
 ---
 

@@ -96,6 +96,16 @@ Every agent command keeps the argument names and result shape it already has in
 
 Calling `open` twice in a session is `already_open`.
 
+**`read` with a `label` that names a form control answers with what the control
+holds** — an input's value, the option a `<select>` shows — rather than the
+text around it, so a value written by `FILL` can be read back. Such a control
+is `found` even when empty: `{"value":"","found":true,"reason":"ok"}` is a
+field with nothing in it, which is not the same answer as a label that matched
+nothing.
+
+**`read` with a `selector` that matches nothing answers `{"text":""}`**, not
+the text of the whole page. A selector that is not valid CSS is `bad_request`.
+
 **A hunt run by `path` keeps its location.** `run` and `run-suite` resolve a
 hunt's `@import:` and `MOCK` files relative to the `.hunt` file, as `manul run
 <file>` does. `run` with `source` has no file to be relative to, so those

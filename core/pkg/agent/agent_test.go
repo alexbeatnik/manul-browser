@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -81,6 +82,47 @@ func TestRead_NotFoundIsCleanResult(t *testing.T) {
 	}
 	if v.Found {
 		t.Errorf("expected Found=false, got %+v", v)
+	}
+}
+
+// emptyFieldPage answers the extraction probe the way the page does for a form
+// control that holds nothing.
+type emptyFieldPage struct{ *runtime.MockPage }
+
+func (p emptyFieldPage) CallProbe(context.Context, string, any) ([]byte, error) {
+	return []byte(`{"field":true,"value":""}`), nil
+}
+
+// An empty field is there and empty. Found=false would tell a caller that had
+// just cleared it that the field itself was gone.
+func TestRead_EmptyFieldIsFound(t *testing.T) {
+	page := emptyFieldPage{&runtime.MockPage{}}
+	sess := &Session{rt: runtime.New(config.Default(), page, utils.NewLogger(nil)), page: page}
+
+	v, err := sess.Read(context.Background(), "Email")
+	if err != nil {
+		t.Fatalf("Read failed: %v", err)
+	}
+	if !v.Found || v.Text != "" || v.Reason != ReasonOK {
+		t.Errorf("expected a found, empty value, got %+v", v)
+	}
+}
+
+// badSelectorPage answers the page-text probe the way the page does for a
+// selector that does not parse.
+type badSelectorPage struct{ *runtime.MockPage }
+
+func (p badSelectorPage) CallProbe(context.Context, string, any) ([]byte, error) {
+	return []byte(`{"invalidSelector":true}`), nil
+}
+
+func TestReadText_UnparseableSelectorIsAnError(t *testing.T) {
+	page := badSelectorPage{&runtime.MockPage{}}
+	sess := &Session{rt: runtime.New(config.Default(), page, utils.NewLogger(nil)), page: page}
+
+	_, err := sess.ReadText(context.Background(), "]]bad[[")
+	if !errors.Is(err, ErrBadSelector) {
+		t.Fatalf("want ErrBadSelector, got %v", err)
 	}
 }
 

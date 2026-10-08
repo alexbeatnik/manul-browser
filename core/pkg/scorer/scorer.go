@@ -292,6 +292,26 @@ func MatchesQuery(query string, el *dom.ElementSnapshot) bool {
 		scoreClassName(q, el) > 0
 }
 
+// ContainsQuery reports whether el carries the query whole: as a phrase inside
+// one of its text signals, or as its id.
+//
+// MatchesQuery is looser on purpose — it accepts word overlap, which is how
+// "CPU of Chrome" finds a table cell. That is the wrong test for whether
+// something is still on the page: 'A checkbox' overlaps every sentence that
+// has the word "checkbox" in it, so a wait for it to disappear never ended.
+func ContainsQuery(query string, el *dom.ElementSnapshot) bool {
+	q := norm(query)
+	if q == "" {
+		return true
+	}
+	for _, s := range el.AllTextSignals() {
+		if strings.Contains(s, q) {
+			return true
+		}
+	}
+	return scoreID(q, el) > 0
+}
+
 // ── Scoring signal functions ──────────────────────────────────────────────────
 
 // scoreExactText returns 1.0 for an exact normalized text match, 0 otherwise.

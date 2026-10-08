@@ -115,13 +115,13 @@
     {
       "id": "map",
       "syntax": "manul map [--cdp <url>] [--tab <url-substr>] [--max-per-group <n>] [--include-unlabeled]",
-      "description": "Agent command. Attaches to an already-running Chrome over CDP (default http://127.0.0.1:9222) and emits a compact, landmark-grouped JSON map of the open page ({url, groups:[{name, elements:[{label, role, editable?}], truncated?}]}), deduped and per-group capped (default 8). Groups are ordered Page → content landmarks → chrome.",
+      "description": "Agent command. Attaches to an already-running Chrome over CDP (default http://127.0.0.1:9222) and emits a compact, landmark-grouped JSON map of the open page ({url, groups:[{name, elements:[{label, role, editable?}], truncated?}]}), deduped and per-group capped (default 8). Groups are ordered Page → content landmarks → chrome. A form control's label is the text of the <label> bound to it when it has one.",
       "positionalArgs": []
     },
     {
       "id": "read",
       "syntax": "manul read '<label>' [--cdp <url>] [--tab <url-substr>] [--selector '<css>'] [--max-chars <n>]",
-      "description": "Agent command. Attaches over CDP and reads off the open page without a full scan. Targeted form resolves a human label and extracts its value → {value, found, reason}. With --selector, returns the sanitized visible text of that CSS region → {text, selector}, optionally truncated to --max-chars.",
+      "description": "Agent command. Attaches over CDP and reads off the open page without a full scan. Targeted form resolves a human label and extracts its value → {value, found, reason}; a label that names a form control reads what the control currently holds, and found is true even when that is empty. With --selector, returns the sanitized visible text of that CSS region → {text, selector}, optionally truncated to --max-chars; a selector that matches nothing gives an empty text, and one that is not valid CSS is an error.",
       "positionalArgs": [
         {
           "name": "label",

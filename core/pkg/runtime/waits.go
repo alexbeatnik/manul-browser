@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alexbeatnik/manul-browser/core/pkg/dom"
 	"github.com/alexbeatnik/manul-browser/core/pkg/dsl"
 	"github.com/alexbeatnik/manul-browser/core/pkg/scorer"
 )
@@ -56,12 +57,16 @@ func (rt *Runtime) waitForElement(ctx context.Context, cmd dsl.Command) error {
 		}
 
 		if time.Now().After(deadline) {
-			if lastErr != nil {
-				return fmt.Errorf("WAIT FOR %q to be %s: timed out after %s: %w",
-					target, state, defaultWaitTimeout, lastErr)
+			awaited := "to be " + state
+			if state == "disappear" {
+				awaited = "to disappear"
 			}
-			return fmt.Errorf("WAIT FOR %q to be %s: timed out after %s",
-				target, state, defaultWaitTimeout)
+			if lastErr != nil {
+				return fmt.Errorf("WAIT FOR %q %s: timed out after %s: %w",
+					target, awaited, defaultWaitTimeout, lastErr)
+			}
+			return fmt.Errorf("WAIT FOR %q %s: timed out after %s",
+				target, awaited, defaultWaitTimeout)
 		}
 
 		select {
@@ -83,9 +88,20 @@ func (rt *Runtime) elementStateSatisfied(ctx context.Context, cmd dsl.Command, t
 	if mode == "" {
 		mode = string(dsl.ModeNone)
 	}
+	// Only an element that carries the target whole can be the one awaited.
+	// The scorer also ranks by word overlap, and one shared word is enough to
+	// clear the bar below: 'A checkbox' stayed "present" for as long as any
+	// paragraph on the page mentioned checkboxes.
+	carrying := make([]dom.ElementSnapshot, 0, len(elements))
+	for i := range elements {
+		if scorer.ContainsQuery(target, &elements[i]) {
+			carrying = append(carrying, elements[i])
+		}
+	}
+
 	// Ranked as if nothing were disabled: a wait reads state, and the scorer
 	// would otherwise hide exactly the element `to be disabled` is waiting on.
-	ranked := restoreDisabled(scorer.Rank(target, cmd.TypeHint, mode, asIfEnabled(elements), 1, nil), elements)
+	ranked := restoreDisabled(scorer.Rank(target, cmd.TypeHint, mode, asIfEnabled(carrying), 1, nil), carrying)
 
 	// The scorer always ranks something, so "the top candidate exists" is not
 	// the same as "the target is present". ThresholdAmbiguous is the same bar

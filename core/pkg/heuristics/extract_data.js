@@ -11,6 +11,99 @@
         return re.test(text);
     };
 
+    // ── Form controls ─────────────────────────────────────────────────────────
+    // What a field holds is not text: it is in none of the nodes the strategies
+    // below read. A filled input used to come back as its own label, or as
+    // whichever nearby sentence happened to contain the word.
+    var FIELDS = 'input, textarea, select, [contenteditable="true"], [role="textbox"], [role="searchbox"]';
+    var NOT_TEXT_INPUTS = ['checkbox', 'radio', 'button', 'submit', 'reset', 'image', 'file', 'hidden'];
+    var isField = function(el) {
+        if (!el || !el.matches || !el.matches(FIELDS)) return false;
+        return el.tagName !== 'INPUT' || NOT_TEXT_INPUTS.indexOf((el.type || '').toLowerCase()) < 0;
+    };
+    // An object, not a string: an empty field is still an answer, and an empty
+    // string is how every other strategy says it found nothing.
+    var fieldValue = function(el) {
+        var v;
+        if (el.tagName === 'SELECT') {
+            // What is shown as selected, not the option's value attribute.
+            v = Array.from(el.selectedOptions).map(function(o) {
+                return o.text.replace(/\s+/g, ' ').trim();
+            }).join(', ');
+        } else if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+            v = el.value;
+        } else {
+            v = (el.innerText || el.textContent || '').trim();
+        }
+        return { field: true, value: v == null ? '' : String(v) };
+    };
+    // "Customer name:" and "Email *" are the names "customer name" and "email".
+    var asName = function(s) {
+        return (s || '').replace(/\s+/g, ' ').trim().toLowerCase().replace(/[\s:*]+$/, '');
+    };
+    var fieldNames = function(el) {
+        var names = ['aria-label', 'placeholder', 'title', 'name', 'id', 'data-qa', 'data-testid', 'data-test']
+            .map(function(attr) { return el.getAttribute(attr); });
+        Array.from(el.labels || []).forEach(function(lbl) {
+            // A wrapping label's text includes its control's own: the options
+            // of a <select>, the content of a <textarea>.
+            var copy = lbl.cloneNode(true);
+            Array.from(copy.querySelectorAll('input, select, textarea')).forEach(function(c) { c.remove(); });
+            names.push(copy.textContent);
+        });
+        var scope = el.getRootNode();
+        (el.getAttribute('aria-labelledby') || '').split(/\s+/).forEach(function(id) {
+            var ref = id && scope.getElementById && scope.getElementById(id);
+            if (ref) names.push(ref.textContent);
+        });
+        return names.map(asName).filter(Boolean);
+    };
+    var collectFields = function(root, out) {
+        Array.from(root.querySelectorAll(FIELDS)).forEach(function(el) {
+            if (isField(el) && el.getClientRects().length > 0) out.push(el);
+        });
+        Array.from(root.querySelectorAll('*')).forEach(function(el) {
+            if (el.shadowRoot) collectFields(el.shadowRoot, out);
+        });
+        return out;
+    };
+    // Text that turns out to be a field's label answers with the field.
+    var textOrField = function(el) {
+        var lbl = el.closest('label');
+        if (lbl && isField(lbl.control)) return fieldValue(lbl.control);
+        return el.innerText.trim();
+    };
+
+    // Strategy 0: a form control the target names outright. Ahead of the text
+    // strategies because they would find the same words in its label.
+    var wanted = asName(target);
+    if (wanted) {
+        var spellings = [wanted, wanted.replace(/ /g, '-'), wanted.replace(/ /g, '_'), wanted.replace(/ /g, '')];
+        var fields = collectFields(document, []);
+        for (var fi = 0; fi < fields.length; fi++) {
+            var named = fieldNames(fields[fi]).some(function(n) { return spellings.indexOf(n) >= 0; });
+            if (named) return fieldValue(fields[fi]);
+        }
+
+        // Strategy 0b: a field with no name of its own, captioned by the
+        // element just before it — "<p>Number</p><input>", an unbound <label>,
+        // or the table cell beside the one holding the field. The caption has
+        // to be the target and nothing else, and to sit beside exactly one
+        // field; anything looser belongs to the text strategies.
+        var captions = Array.from(document.querySelectorAll(ALL_TAGS));
+        for (var pi = 0; pi < captions.length; pi++) {
+            var caption = captions[pi];
+            // textContent is free; innerText costs a layout, so rule out by
+            // length first.
+            if ((caption.textContent || '').length > wanted.length + 200) continue;
+            if (asName(caption.innerText) !== wanted) continue;
+            var beside = caption.nextElementSibling;
+            if (!beside) continue;
+            var held = isField(beside) ? [beside] : collectFields(beside, []);
+            if (held.length === 1) return fieldValue(held[0]);
+        }
+    }
+
     // Gather all <th> text once for column/row word splitting
     var allTables = Array.from(document.querySelectorAll('table'));
     var allThTexts = [];
@@ -160,7 +253,7 @@
                     }
                     return kt.includes(target) || kw;
                 });
-                if (leafKids.length > 0) return leafKids[leafKids.length - 1].innerText.trim();
+                if (leafKids.length > 0) return textOrField(leafKids[leafKids.length - 1]);
                 
                 // If the target matched the parent but no children had the target words,
                 // perhaps a child holds the value we want (like "3.3%"). 
@@ -170,7 +263,7 @@
                     if (lastChildText && lastChildText.length < 50) return lastChildText;
                 }
                 
-                return allEls[ei].innerText.trim();
+                return textOrField(allEls[ei]);
             }
         }
     }

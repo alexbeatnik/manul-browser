@@ -1,6 +1,8 @@
 package runtime
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/alexbeatnik/manul-browser/core/pkg/config"
@@ -254,5 +256,26 @@ func TestConfidenceLabel(t *testing.T) {
 		if got != tc.want {
 			t.Errorf("confidenceLabel(%v) = %q want %q", tc.score, got, tc.want)
 		}
+	}
+}
+
+// The pipe-mode answer to `vars`: one line, its own marker, a flat object. A
+// driver finds it by the marker, so the marker and the newline are the wire.
+func TestDebugVarsMarker(t *testing.T) {
+	got := debugVarsMarker(map[string]string{"total": "$42.00", "note": "line one\nline \"two\""})
+	const prefix = "\x00MANUL_DEBUG_VARS\x00"
+	if !strings.HasPrefix(got, prefix) || !strings.HasSuffix(got, "\n") || strings.Count(got, "\n") != 1 {
+		t.Fatalf("marker line = %q", got)
+	}
+	var vars map[string]string
+	if err := json.Unmarshal([]byte(strings.TrimPrefix(got, prefix)), &vars); err != nil {
+		t.Fatalf("payload: %v", err)
+	}
+	if vars["total"] != "$42.00" || vars["note"] != "line one\nline \"two\"" {
+		t.Errorf("vars = %v", vars)
+	}
+	// No variables is an empty object, not null: a driver indexes into it.
+	if got := debugVarsMarker(nil); got != prefix+"{}\n" {
+		t.Errorf("empty = %q", got)
 	}
 }
