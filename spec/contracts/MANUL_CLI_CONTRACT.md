@@ -8,7 +8,7 @@
 
 ```json
 {
-  "version": "0.1.2",
+  "version": "0.1.3",
   "generatedFrom": "cmd/manul :: main(), _run_hunt_file(), parse_hunt_file(), sync_main(); pkg/config :: _KEY_MAP, global config constants; pkg/scan :: scan_main(); pkg/record :: record_main(); pkg/daemon :: daemon_main()",
   "entryPoints": {
     "console_script": "manul",
