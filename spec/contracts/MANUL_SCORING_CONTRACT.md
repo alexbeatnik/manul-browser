@@ -9,7 +9,7 @@
 
 ```json
 {
-  "version": "0.1.3",
+  "version": "0.1.4",
   "generatedFrom": "pkg/scorer/scorer.go :: DOMScorer, WEIGHTS, SCALE, score_elements(); pkg/dom (snapshot JS) :: SNAPSHOT_JS",
 
   "constants": {

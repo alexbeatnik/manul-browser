@@ -11,7 +11,7 @@
 
 ```json
 {
-  "version": "0.1.3",
+  "version": "0.1.4",
   "generatedFrom": "pkg/report :: StepResult, BlockResult, MissionResult, RunSummary, append_run_history(), load_report_state(), save_report_state(), merge_report_summaries(), recompute_summary(); pkg/report :: generate_report()",
 
   "statusValues": {

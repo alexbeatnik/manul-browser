@@ -12,7 +12,7 @@
 
 ```json
 {
-  "version": "0.1.3",
+  "version": "0.1.4",
   "generatedFrom": "pkg/agent/agent.go :: Options, Session, Launch(), Attach(), (*Session).Close/Read/ReadText/Step/Run/Map, Value, Reason, Cand, StepOutcome, RunOutcome, MapBudget, MapElement, MapGroup, PageMap, TruncateText(), DefaultMaxPerGroup",
   "importPath": "github.com/alexbeatnik/manul-browser/core/pkg/agent",
 

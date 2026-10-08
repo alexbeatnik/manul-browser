@@ -62,7 +62,7 @@ usable. Protocol-level faults (unparseable line, unknown `cmd`) answer with
 **Event** — unsolicited, no `id`:
 
 ```json
-{"event":"ready","protocol":"1.0","engine":"0.1.3"}
+{"event":"ready","protocol":"1.0","engine":"0.1.4"}
 {"event":"log","level":"warn","message":"tab navigated mid-step"}
 ```
 
