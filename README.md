@@ -4,6 +4,8 @@
 
 # Manul Browser
 
+[![Status: Alpha](https://img.shields.io/badge/status-alpha-d97706)](#status)
+
 **Browser automation in plain English — for humans and LLM agents.**
 
 Manul Browser runs `.hunt` files through deterministic DOM heuristics, over
