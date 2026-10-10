@@ -22,8 +22,8 @@ local implementation in the binding.
 
 Neither predecessor is in the working tree, and nothing outside this paragraph
 refers to them. Their history is still an ancestor of `main`, so a file can be
-read back without a network round-trip: `git show 9249843:legacy/python/...`
-(`9249843` grafted it in; `b5d85d7` is the final upstream Python commit).
+read back without a network round-trip: `git show 5e0c5db:legacy/python/...`
+(`5e0c5db` grafted it in; `c894906` is the final upstream Python commit).
 
 ## Commands
 
