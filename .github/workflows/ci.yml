@@ -158,6 +158,15 @@ jobs:
         # they need neither Chrome nor a compiled binary.
         os: [ubuntu-latest, windows-latest]
         python-version: ['3.9', '3.13']
+        # ubuntu-latest is Ubuntu 26.04 now, and setup-python has no build of
+        # 3.9 for it. The floor of the range is still tested on Linux, on the
+        # last image that carries it.
+        exclude:
+          - os: ubuntu-latest
+            python-version: '3.9'
+        include:
+          - os: ubuntu-24.04
+            python-version: '3.9'
     defaults:
       run:
         working-directory: bindings/python
