@@ -18,7 +18,7 @@
 
 ```json
 {
-  "version": "0.1.4",
+  "version": "0.1.5",
   "generatedFrom": "pkg/dsl :: classify_step(), detect_mode(), parse_contextual_hint(); pkg/runtime :: run_mission(); cmd/manul :: parse_hunt_file(); pkg/runtime :: _ActionsMixin; pkg/scorer :: DOMScorer contextual proximity rules; pkg/dom :: SNAPSHOT_JS geometry export; pkg/dsl :: parse_import_directive(), resolve_imports(), expand_use_directives()",
   "casePolicy": {
     "canonical": "ALL_UPPERCASE",
@@ -65,7 +65,7 @@
       "uiText": "DOUBLE CLICK the ''",
       "snippet": "DOUBLE CLICK the '${1:target}'",
       "regex": null,
-      "description": "Double-clicks a resolved element. Detected by the 'double' + 'click' verbs (case-insensitive). A covered target fails the step, as for CLICK. Interaction mode: clickable.",
+      "description": "Double-clicks a resolved element. Detected by the 'double' + 'click' verbs (case-insensitive). A covered target fails the step, as for CLICK. The snapshot cache is dropped afterwards, so the next step sees what the double click opened. Interaction mode: clickable.",
       "category": "interaction",
       "interactionMode": "clickable"
     },
@@ -145,7 +145,7 @@
       "uiText": "SCROLL DOWN",
       "snippet": "SCROLL DOWN${1: inside the ${2:container}}",
       "regex": "\\bSCROLL\\b",
-      "description": "Scrolls the main page down by one viewport height, or scrolls a container to the bottom when 'inside the <container>' is appended.",
+      "description": "Scrolls the main page down by one viewport height, or scrolls a container to the bottom when 'inside the <container>' is appended. The container is resolved like any other target and may be a {placeholder}; one that is not on the page fails the step with failure_reason not_found rather than scrolling whatever ranked first.",
       "category": "navigation"
     },
     {
@@ -154,7 +154,7 @@
       "uiText": "WAIT 2",
       "snippet": "WAIT ${1:seconds}",
       "regex": "\\bWAIT\\b",
-      "description": "Hard sleep for N seconds. Only matched when other WAIT variants (WAIT FOR RESPONSE, WAIT FOR element) do not match first.",
+      "description": "Hard sleep for N seconds. Only matched when other WAIT variants (WAIT FOR RESPONSE, WAIT FOR element) do not match first. N may be a {placeholder}; anything that is not a number by the time the step runs fails it. The snapshot cache is dropped afterwards: what was read before the wait says nothing about the page after it.",
       "category": "wait"
     },
     {
@@ -163,7 +163,7 @@
       "uiText": "WAIT FOR '' to be visible",
       "snippet": "WAIT FOR '${1:target}' to ${2|be visible,be hidden,disappear|}",
       "regex": "^\\s*(?:\\d+\\.\\s*)?WAIT\\s+FOR\\s+(?P<quote>[\"'])(?P<target>.+?)(?P=quote)\\s+TO\\s+(?:(?:BE\\s+(?P<state_be>VISIBLE|HIDDEN))|(?P<state_disappear>DISAPPEAR))\\s*$",
-      "description": "Explicit wait for a quoted element to reach a desired state. States: visible (the default), hidden / disappear, enabled, disabled. Polls every 250ms for up to 15s, invalidating the snapshot cache each time so the wait can see the change it is waiting for. Presence is judged at ThresholdAmbiguous — the same bar the rest of the engine uses to call a target resolved — because the scorer always ranks something and 'a top candidate exists' is not 'the target is present'. Only an element that carries the target whole can be the one awaited: as a phrase in its text, label, placeholder, aria-label, title, name, value or test id, or as its id. Sharing a word with the target is not enough, or 'A checkbox' would stay present for as long as any sentence on the page mentioned checkboxes.",
+      "description": "Explicit wait for a quoted element to reach a desired state. States: visible (the default), hidden / disappear, enabled, disabled. Polls every 250ms for up to 15s, invalidating the snapshot cache each time so the wait can see the change it is waiting for. A state other than these fails the step at once. Presence is judged at ThresholdAmbiguous — the same bar the rest of the engine uses to call a target resolved — because the scorer always ranks something and 'a top candidate exists' is not 'the target is present'. Only an element that carries the target whole can be the one awaited: as a phrase in its text, label, placeholder, aria-label, title, name, value or test id, or as its id. Sharing a word with the target is not enough, or 'A checkbox' would stay present for as long as any sentence on the page mentioned checkboxes.",
       "timeout": "15s",
       "pollInterval": "250ms",
       "category": "wait"
@@ -185,7 +185,7 @@
       "uiText": "WAIT FOR RESPONSE \"\"",
       "snippet": "WAIT FOR RESPONSE \"${1:url_pattern}\"",
       "regex": "\\bWAIT\\s+FOR\\s+RESPONSE\\b",
-      "description": "Blocks until a network response whose URL ends with the pattern arrives (suffix match, on both the CDP and the BiDi backend), for at most nav_timeout; the step fails when none does.",
+      "description": "Blocks until a network response whose URL ends with the pattern arrives (suffix match, on both the CDP and the BiDi backend), for at most nav_timeout; the step fails when none does. Only responses that arrive after the step has started are seen: one that the previous step triggered and that had already come back by then is not.",
       "category": "wait"
     },
     {
@@ -203,7 +203,7 @@
       "uiText": "VERIFY that '' is present",
       "snippet": "VERIFY that '${1:target}' is ${2|present,NOT present,ENABLED,DISABLED,checked,NOT checked|}",
       "regex": "\\bVERIFY\\b",
-      "description": "Asserts that an element or text is present, not present, enabled, disabled, checked, or not checked. Fails the mission on mismatch. State is read off the element whether or not it is disabled — 'is disabled' finds the disabled control, and a read-only checkbox still reports 'is checked'. A text check that could not read the page at all fails rather than concluding the text is absent.",
+      "description": "Asserts that an element or text is present, not present, enabled, disabled, checked, or not checked. Fails the mission on mismatch. State is read off the element whether or not it is disabled — 'is disabled' finds the disabled control, and a read-only checkbox still reports 'is checked'. A text check that could not read the page at all fails rather than concluding the text is absent. A text check polls for up to the step timeout until it is satisfied: 'is present' until the text appears, 'is NOT present' until it is gone — so a negated check passes on the first look when the text is absent, and waits for text that is still disappearing.",
       "category": "assertion"
     },
     {
@@ -275,7 +275,7 @@
       "uiText": "RIGHT CLICK ''",
       "snippet": "RIGHT CLICK '${1:target}'",
       "regex": "\\bRIGHT\\s+CLICK\\b",
-      "description": "Right-clicks a resolved element to open a context menu. A covered target fails the step, as for CLICK.",
+      "description": "Right-clicks a resolved element to open a context menu. A covered target fails the step, as for CLICK. The snapshot cache is dropped afterwards, so the next step can target an item of the menu it opened.",
       "category": "interaction"
     },
     {
@@ -412,7 +412,7 @@
       "uiText": "IF button 'Save' exists:",
       "snippet": "IF ${1:condition}:\n        ${2:action}",
       "regex": "^\\s*(?:\\d+\\.\\s*)?IF\\b.+:\\s*$",
-      "description": "Block-style conditional branching. Body lines are indented by 4 extra spaces. Supports ELIF and ELSE branches, in the mission body and inside [SETUP] / [TEARDOWN] alike. Nesting supported. Conditions: element exists, text present, variable comparison/contains/truthy; their keywords are case-insensitive ('is NOT present').",
+      "description": "Block-style conditional branching. Body lines are indented by 4 extra spaces. Supports ELIF and ELSE branches, in the mission body and inside [SETUP] / [TEARDOWN] alike. Nesting supported. Conditions: element exists, text present, variable comparison/contains/truthy; their keywords are case-insensitive ('is NOT present') and read outside the quotes, so a label or a compared value may contain them. The target may be in single or double quotes and may be a {placeholder}. 'not exists' and 'does not exist' are the same negation. An element counts as existing only when it carries the target itself, not merely because it ranked first.",
       "category": "control_flow"
     },
     {
@@ -438,8 +438,8 @@
       "label": "REPEAT",
       "uiText": "REPEAT 3 TIMES:",
       "snippet": "REPEAT ${1:N} TIMES:\n        ${2:action}",
-      "regex": "^\\s*(?:\\d+\\.\\s*)?REPEAT\\s+\\d+\\s+TIMES\\s*:\\s*$",
-      "description": "Fixed-count loop. Body lines are indented by 4 extra spaces. The counter variable is {i} unless the header names another with 'REPEAT N TIMES as {name}:', and counts from 0. Nesting supported.",
+      "regex": "^\\s*(?:\\d+\\.\\s*)?REPEAT\\s+(?:\\d+|\\{\\w+\\})\\s+TIMES(?:\\s+as\\s+\\{\\w+\\})?\\s*:\\s*$",
+      "description": "Fixed-count loop. Body lines are indented by 4 extra spaces. The counter variable is {i} unless the header names another with 'REPEAT N TIMES as {name}:', and counts from 0. N may be a {placeholder} set while the hunt runs; a count that is not a number by then fails the step instead of looping zero times. Nesting supported.",
       "category": "control_flow"
     },
     {
@@ -448,7 +448,7 @@
       "uiText": "FOR EACH {item} IN {items}:",
       "snippet": "FOR EACH {${1:var}} IN {${2:collection}}:\n        ${3:action}",
       "regex": "^\\s*(?:\\d+\\.\\s*)?FOR\\s+EACH\\s+\\{?\\w+\\}?\\s+IN\\s+\\{?\\w+\\}?\\s*:\\s*$",
-      "description": "Iterate over comma-separated values from a variable. On each iteration the loop variable is set to the next value. Nesting supported. A collection that is not the name of a variable is taken as the list itself, which is also what a collection declared with @var: is by the time the loop runs: @var: values are substituted into the line at parse time.",
+      "description": "Iterate over comma-separated values from a variable. On each iteration the loop variable is set to the next value. Nesting supported. A collection that is not the name of a variable is taken as the list itself, which is also what a collection declared with @var: is by the time the loop runs: @var: values are substituted into the line at parse time, unless the hunt assigns to the name or is data-driven (see @var:).",
       "category": "control_flow"
     },
     {
@@ -457,7 +457,7 @@
       "uiText": "WHILE button 'Next' exists:",
       "snippet": "WHILE ${1:condition}:\n        ${2:action}",
       "regex": "^\\s*(?:\\d+\\.\\s*)?WHILE\\b.+:\\s*$",
-      "description": "Repeat while condition is true. Uses same conditions as IF blocks. Safety limit: 100 iterations. Nesting supported.",
+      "description": "Repeat while condition is true. Uses same conditions as IF blocks. The condition is evaluated against the page as it is at each pass, not against a cached snapshot. Safety limit: 100 iterations. Nesting supported.",
       "category": "control_flow"
     }
   ],
@@ -534,7 +534,7 @@
       "label": "@var:",
       "uiText": "@var: {key} = value",
       "snippet": "@var: {${1:key}} = ${2:value}",
-      "description": "Declares a static variable pre-populated into runtime memory before any step runs. Available as {key} placeholder in all steps."
+      "description": "Declares a variable pre-populated into runtime memory before any step runs. Available as {key} placeholder in all steps. A value may use variables declared above it; they are resolved once, in file order. The value is written into each line at parse time unless the hunt can change it: a name the hunt assigns to anywhere (SET {key} = …, … into {key}, FOR EACH {key} IN …, REPEAT … as {key}) stays a placeholder that the runtime resolves, starting from the declared value, and in a hunt with @data: every name does, so a column of the data file overrides the declaration of the same name."
     },
     {
       "id": "script",
@@ -579,7 +579,7 @@
       "openTag": "[SETUP]",
       "closeTag": "[END SETUP]",
       "snippet": "[SETUP]\n    PRINT \"${1:Preparing setup}\"\n    CALL GO ${2:module}.${3:function}${4: with args: \"${5:arg}\"}${6: into {${7:variable}}}\n[END SETUP]",
-      "description": "Block of PRINT and CALL GO lines executed BEFORE the browser launches. If any line fails, the mission is marked as broken and browser steps are skipped. Teardown is not called when setup fails. Target functions must be synchronous."
+      "description": "Block of PRINT and CALL GO lines executed BEFORE the browser launches. If any line fails, the mission is marked as broken and browser steps are skipped. Teardown still runs when setup fails. Target functions must be synchronous."
     },
     {
       "id": "teardown",
@@ -587,7 +587,7 @@
       "openTag": "[TEARDOWN]",
       "closeTag": "[END TEARDOWN]",
       "snippet": "[TEARDOWN]\n    PRINT \"${1:Cleaning up}\"\n    CALL GO ${2:module}.${3:function}${4: with args: \"${5:arg}\"}\n[END TEARDOWN]",
-      "description": "Cleanup block executed after the mission body in a finally block. It runs only when [SETUP] succeeded. Failure is logged but does not override the mission result."
+      "description": "Cleanup block executed after the mission body in a finally block. It runs whether [SETUP] and the mission passed or failed — a setup that got halfway still has something to clean up. Failure is logged but does not override the mission result."
     }
   ],
   "interactionModes": [

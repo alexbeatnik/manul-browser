@@ -232,6 +232,12 @@ class Transport:
                     "message": f"{type(exc).__name__}: {exc}",
                 },
             })
+            # The engine is answered either way, so it is not left waiting on a
+            # reply that will never come. But Ctrl+C and sys.exit() are not a
+            # handler failing: they are the program being told to stop, and
+            # turning them into a failed step kept it running.
+            if not isinstance(exc, Exception):
+                raise
         else:
             self._write(reply)
 

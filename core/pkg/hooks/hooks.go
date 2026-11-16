@@ -29,6 +29,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/alexbeatnik/manul-browser/core/pkg/serve"
@@ -40,6 +41,11 @@ import (
 // report or closing a database handle, and short enough that a wedged script
 // cannot hang a CI run indefinitely.
 const shutdownGrace = 10 * time.Second
+
+// handshakeTimeout is how long a script gets to declare what it provides and
+// announce ready. Declaring is a handful of lines written at start-up; the
+// allowance is for a slow interpreter and heavy imports, not for work.
+var handshakeTimeout = 60 * time.Second
 
 // Host is a running hook script and the reverse-call server bound to it.
 type Host struct {
@@ -93,11 +99,25 @@ func Start(ctx context.Context, script string, opts serve.Options) (*Host, error
 		h.log = utils.NewLoggerTo(io.Discard, nil)
 	}
 
+	// The handshake reads the script's stdout, and a read cannot be cancelled.
+	// A script that neither announces ready nor exits — one waiting on its own
+	// input, say — is killed when its time is up, which ends the read.
+	var timedOut atomic.Bool
+	watchdog := time.AfterFunc(handshakeTimeout, func() {
+		timedOut.Store(true)
+		h.terminate()
+	})
 	peer := serve.NewPeer(stdout, stdin, opts)
-	if err := peer.Handshake(ctx); err != nil {
+	err = peer.Handshake(ctx)
+	watchdog.Stop()
+	if err != nil {
 		// The script is still running and still holds the pipes; tearing it down
 		// here keeps a failed handshake from leaving an orphan behind.
 		h.terminate()
+		if timedOut.Load() {
+			return nil, fmt.Errorf("hook script %s did not announce ready within %s",
+				filepath.Base(path), handshakeTimeout)
+		}
 		return nil, fmt.Errorf("hook script %s: %w", filepath.Base(path), err)
 	}
 

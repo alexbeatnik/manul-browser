@@ -2,8 +2,10 @@ package browser
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -85,5 +87,56 @@ func TestLaunchChrome_FreePort(t *testing.T) {
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("GET %s/json/version: %s", cp.Endpoint(), resp.Status)
+	}
+}
+
+// --user-data-dir can name a profile someone uses. Its preferences are kept,
+// with the automation settings laid over them.
+func TestWriteAutomationPrefs_KeepsAnExistingProfile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "Default", "Preferences")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	existing := `{"homepage":"https://example.com","profile":{"name":"Work","password_manager_enabled":true}}`
+	if err := os.WriteFile(path, []byte(existing), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := writeAutomationPrefs(dir); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var prefs map[string]any
+	if err := json.Unmarshal(raw, &prefs); err != nil {
+		t.Fatal(err)
+	}
+	profile, _ := prefs["profile"].(map[string]any)
+	if prefs["homepage"] != "https://example.com" || profile["name"] != "Work" {
+		t.Errorf("the profile's own settings were lost: %s", raw)
+	}
+	if profile["password_manager_enabled"] != false {
+		t.Errorf("the automation setting was not applied: %s", raw)
+	}
+}
+
+// A file that cannot be read as preferences is left exactly as it was.
+func TestWriteAutomationPrefs_LeavesUnreadablePrefsAlone(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "Default", "Preferences")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("{half"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeAutomationPrefs(dir); err == nil {
+		t.Fatal("want an error")
+	}
+	if raw, _ := os.ReadFile(path); string(raw) != "{half" {
+		t.Errorf("file was rewritten: %s", raw)
 	}
 }

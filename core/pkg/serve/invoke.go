@@ -94,7 +94,10 @@ func (s *Server) invoke(ctx context.Context, page browser.Page, req invokeReques
 	}
 
 	for {
-		line, ok := s.readLine()
+		line, ok, err := s.readLine()
+		if err != nil {
+			return nil, fmt.Errorf("invoke %s: %w", req.Kind, err)
+		}
 		if !ok {
 			return nil, fmt.Errorf("invoke %s: client closed the stream while a handler was pending", req.Kind)
 		}

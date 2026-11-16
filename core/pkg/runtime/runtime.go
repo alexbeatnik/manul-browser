@@ -469,7 +469,23 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 		rt.logger.ActionDetail("📦", "Attached to app window: %s", appURL)
 
 	case dsl.CmdWait:
-		err = rt.page.Wait(ctx, time.Duration(cmd.WaitSeconds*float64(time.Second)))
+		seconds := cmd.WaitSeconds
+		if cmd.WaitExpr != "" {
+			// What stood for the number was not one at parse time. A variable
+			// has a value by now; anything else is a typo, and used to be a
+			// wait of no time at all that passed.
+			resolved := strings.TrimSpace(rt.resolveVariables(cmd.WaitExpr))
+			n, perr := strconv.ParseFloat(resolved, 64)
+			if perr != nil || n < 0 {
+				err = fmt.Errorf("WAIT: %q is not a number of seconds", resolved)
+				break
+			}
+			seconds = n
+		}
+		err = rt.page.Wait(ctx, time.Duration(seconds*float64(time.Second)))
+		// Waiting is how a hunt lets the page change. What was read before
+		// the wait says nothing about the page after it.
+		rt.invalidateSnapshot()
 
 	case dsl.CmdWaitFor:
 		err = rt.waitForElement(ctx, cmd)
@@ -879,6 +895,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 				err = e
 			} else {
 				err = rt.page.DoubleClick(ctx, x, y)
+				err = rt.settleAfterPointer(ctx, err)
 			}
 		case dsl.CmdRightClick:
 			x, y, e := rt.clickPoint(ctx, winner, targetPath)
@@ -886,6 +903,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 				err = e
 			} else {
 				err = rt.page.RightClick(ctx, x, y)
+				err = rt.settleAfterPointer(ctx, err)
 			}
 		case dsl.CmdHover:
 			x, y, e := rt.page.GetElementCenter(ctx, winner.ID, winner.XPath)
@@ -938,8 +956,18 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 					rt.invalidateSnapshot()
 				}
 			} else {
-				// Custom dropdown: Click then search for the option text
-				_ = rt.page.Click(ctx, winner.Rect.Left+winner.Rect.Width/2, winner.Rect.Top+winner.Rect.Height/2)
+				// Custom dropdown: Click then search for the option text.
+				// Where to click is measured now, not taken from the snapshot:
+				// the scroll just above moved the page, and the rectangle the
+				// snapshot recorded is where the dropdown used to be.
+				ox, oy, openErr := rt.clickPoint(ctx, winner, targetPath)
+				if openErr == nil {
+					openErr = rt.page.Click(ctx, ox, oy)
+				}
+				if openErr != nil {
+					err = fmt.Errorf("select %q: open %q: %w", val, targetPath, openErr)
+					break
+				}
 				rt.invalidateSnapshot()
 				if waitErr := rt.page.Wait(ctx, 300*time.Millisecond); waitErr != nil {
 					err = waitErr
@@ -947,8 +975,11 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 				}
 
 				// Re-probe to find the option that appeared
-				raw, _ := rt.page.CallProbe(ctx, heuristics.BuildSnapshotProbe(), nil)
-				elements, _ := heuristics.ParseProbeResult(raw)
+				elements, probeErr := rt.loadSnapshot(ctx)
+				if probeErr != nil {
+					err = fmt.Errorf("select %q: %w", val, probeErr)
+					break
+				}
 
 				// Exclude the container itself and hidden elements from option search
 				var candidates []dom.ElementSnapshot
@@ -965,13 +996,15 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 					opt := rankedOpt[0].Element
 					rt.logger.Info("Selected option %q (Tag=%s ID=%d)", val, opt.Tag, opt.ID)
 					_ = rt.page.ScrollIntoView(ctx, opt.ID, opt.XPath)
-					cx, cy, _ := rt.page.GetElementCenter(ctx, opt.ID, opt.XPath)
-					err = rt.page.Click(ctx, cx, cy)
-					if err == nil {
-						rt.invalidateSnapshot()
+					cx, cy, centerErr := rt.page.GetElementCenter(ctx, opt.ID, opt.XPath)
+					if centerErr != nil {
+						err = fmt.Errorf("select %q: center calc: %w", val, centerErr)
+						break
 					}
+					err = rt.page.Click(ctx, cx, cy)
+					rt.invalidateSnapshot()
 				} else {
-					err = fmt.Errorf("could not find option %q after clicking %q", val, winner.Tag)
+					err = fmt.Errorf("could not find option %q after opening %q", val, targetPath)
 				}
 			}
 		case dsl.CmdUploadFile:
@@ -1070,20 +1103,33 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 		containerID := ""
 		if cmd.ScrollContainer != "" {
 			res.TargetRequired = true
-			res.TargetQuery = cmd.ScrollContainer
-			if isGenericListContainer(cmd.ScrollContainer) {
+			container := rt.resolveVariables(cmd.ScrollContainer)
+			res.TargetQuery = container
+			if isGenericListContainer(container) {
 				containerID = string(core.ScrollStrategyGenericList)
 				res.ProbeMetadata = map[string]any{"scroll_strategy": "dropdown-list"}
 			} else {
-				elements, _ := rt.loadSnapshot(ctx)
-				res.CandidatesConsidered = len(elements)
-				ranked := scorer.Rank(cmd.ScrollContainer, "", "none", elements, 1, nil)
-				if len(ranked) > 0 {
-					appendRankedCandidates(&res, ranked, 1)
-					res.WinnerXPath = ranked[0].Element.XPath
-					res.WinnerScore = ranked[0].Explain.Score.Total
-					containerID = ranked[0].Element.XPath
+				elements, errSnapshot := rt.loadSnapshot(ctx)
+				if errSnapshot != nil {
+					err = errSnapshot
+					break
 				}
+				res.CandidatesConsidered = len(elements)
+				ranked := scorer.Rank(container, "", "none", elements, 1, nil)
+				// The ranking always has a first place. A container that is
+				// not on the page used to scroll whatever came out on top —
+				// or, with nothing ranked, the page itself — and pass.
+				if len(ranked) == 0 || ranked[0].Explain.Score.Total < ThresholdAmbiguous ||
+					!scorer.MatchesQuery(container, &ranked[0].Element) {
+					appendRankedCandidates(&res, ranked, 1)
+					err = fmt.Errorf("scroll container not found: %q", container)
+					res.FailureReason = explain.ReasonNotFound
+					break
+				}
+				appendRankedCandidates(&res, ranked, 1)
+				res.WinnerXPath = ranked[0].Element.XPath
+				res.WinnerScore = ranked[0].Explain.Score.Total
+				containerID = ranked[0].Element.XPath
 			}
 		}
 
@@ -1183,7 +1229,12 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 			} else {
 				lastProbeErr = errProbe
 			}
-			if present || time.Now().After(deadline) {
+			// Satisfied is what ends the wait, and for a negated VERIFY that
+			// is the text being gone. Ending on "present" either way made
+			// `is NOT present` sit out the whole timeout whenever it was
+			// true, and fail on the first look whenever the text had not
+			// finished disappearing.
+			if (errProbe == nil && present != cmd.VerifyNegated) || time.Now().After(deadline) {
 				break
 			}
 			if waitErr := rt.page.Wait(ctx, 200*time.Millisecond); waitErr != nil {
@@ -1381,6 +1432,17 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 
 	case dsl.CmdRepeat:
 		count := cmd.RepeatCount
+		if cmd.RepeatCountExpr != "" {
+			// Not a number at parse time: a variable that has a value by now,
+			// or a typo. Either way not "zero times, and green".
+			resolved := strings.TrimSpace(rt.resolveVariables(cmd.RepeatCountExpr))
+			n, perr := strconv.Atoi(resolved)
+			if perr != nil || n < 0 {
+				err = fmt.Errorf("REPEAT: %q is not a number of times", resolved)
+				break
+			}
+			count = n
+		}
 		for i := 0; i < count; i++ {
 			if cmd.RepeatVar != "" {
 				rt.vars.Set(cmd.RepeatVar, fmt.Sprintf("%d", i), LevelRow)
@@ -1394,6 +1456,9 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 	case dsl.CmdWhile:
 		limit := 100
 		for i := 0; i < limit; i++ {
+			// A WHILE is a polling loop: each pass asks about the page as it
+			// is now, not as the previous pass left it in the cache.
+			rt.invalidateSnapshot()
 			matched, cerr := rt.evaluateCondition(ctx, cmd.WhileCondition)
 			if cerr != nil {
 				err = cerr
@@ -1569,83 +1634,69 @@ func (rt *Runtime) evaluateCondition(ctx context.Context, cond string) (bool, er
 		return false, nil
 	}
 
-	// 1. Handle element existence: (button|link|field|element|checkbox) 'Target' [not] exists
-	if strings.Contains(lower, "exists") {
-		neg := strings.Contains(lower, "not exists")
-		// Simple parsing for now, actual implementation should use regex
-		parts := strings.Fields(cond)
-		if len(parts) >= 2 {
-			target := ""
-			// Extract quoted target
-			start := strings.Index(cond, "'")
-			end := strings.LastIndex(cond, "'")
-			if start != -1 && end != -1 && start < end {
-				target = cond[start+1 : end]
-			}
-
-			elements, err := rt.loadSnapshot(ctx)
-			if err != nil {
-				return false, err
-			}
-			ranked := scorer.Rank(target, "", "clickable", elements, 1, nil)
-			found := len(ranked) > 0 && ranked[0].Explain.Score.Total > 0.2
-			if neg {
-				return !found, nil
-			}
-			return found, nil
-		}
-	}
-
-	// 2. Handle text presence: text 'Target' is [not] present
-	if strings.Contains(lower, "is present") || strings.Contains(lower, "is not present") {
-		neg := strings.Contains(lower, "is not present")
-		start := strings.Index(cond, "'")
-		end := strings.LastIndex(cond, "'")
-		target := ""
-		if start != -1 && end != -1 && start < end {
-			target = cond[start+1 : end]
-		}
-
-		elements, err := rt.loadSnapshot(ctx)
-		if err != nil {
-			return false, err
-		}
-		ranked := scorer.Rank(target, "", "none", elements, 1, nil)
-		found := len(ranked) > 0 && ranked[0].Explain.Score.Total > 0.2
-		if neg {
-			return !found, nil
-		}
-		return found, nil
-	}
-
-	// 3. Handle variable comparisons: {var} == 'val', $var != 'val'
+	// 1. Variable comparisons: {var} == 'val', $var != 'val', {var} contains
+	// 'val', or a bare {var} for truthiness. Looked at first: what a variable
+	// is compared with is free text, and `{status} == 'exists'` is not a
+	// question about an element.
 	if strings.HasPrefix(cond, "{") || strings.HasPrefix(cond, "$") {
-		// Resolve variables first
 		resolved := rt.resolveVariables(cond)
-		if strings.Contains(resolved, " == ") {
-			parts := strings.SplitN(resolved, " == ", 2)
+		for _, op := range []string{" == ", " != ", " contains "} {
+			// The operator is looked for in the condition as written, so a
+			// value that happens to contain one cannot be mistaken for it.
+			if !strings.Contains(dsl.MaskQuoted(cond), op) {
+				continue
+			}
+			parts := strings.SplitN(resolved, op, 2)
+			if len(parts) != 2 {
+				continue
+			}
 			v1 := strings.TrimSpace(parts[0])
 			v2 := strings.Trim(strings.TrimSpace(parts[1]), "'\"")
-			return v1 == v2, nil
-		}
-		if strings.Contains(resolved, " != ") {
-			parts := strings.SplitN(resolved, " != ", 2)
-			v1 := strings.TrimSpace(parts[0])
-			v2 := strings.Trim(strings.TrimSpace(parts[1]), "'\"")
-			return v1 != v2, nil
-		}
-		if strings.Contains(resolved, " contains ") {
-			parts := strings.SplitN(resolved, " contains ", 2)
-			v1 := strings.TrimSpace(parts[0])
-			v2 := strings.Trim(strings.TrimSpace(parts[1]), "'\"")
-			return strings.Contains(v1, v2), nil
+			switch op {
+			case " == ":
+				return v1 == v2, nil
+			case " != ":
+				return v1 != v2, nil
+			default:
+				return strings.Contains(v1, v2), nil
+			}
 		}
 		// Truthy check for {var}
 		val := strings.TrimSpace(resolved)
 		return val != "" && val != "false" && val != "0" && val != "null", nil
 	}
 
-	return false, fmt.Errorf("unknown condition format: %q", cond)
+	// The rest are questions about the page. Their keywords are looked for
+	// outside the quotes: a label is free text, and 'Item exists already' or
+	// 'Gift is present' would otherwise pick the branch.
+	keywords := strings.ToLower(dsl.MaskQuoted(cond))
+	target := rt.resolveVariables(dsl.FirstQuoted(cond))
+
+	mode := ""
+	switch {
+	case strings.Contains(keywords, "exist"):
+		// 2. (button|link|field|element|checkbox) 'Target' [not] exists
+		mode = "clickable"
+	case strings.Contains(keywords, "is present") || strings.Contains(keywords, "is not present"):
+		// 3. text 'Target' is [not] present
+		mode = "none"
+	default:
+		return false, fmt.Errorf("unknown condition format: %q", cond)
+	}
+	if strings.TrimSpace(target) == "" {
+		return false, fmt.Errorf("condition names no target: %q", cond)
+	}
+	negated := strings.Contains(keywords, "not exist") || strings.Contains(keywords, "n't exist") ||
+		strings.Contains(keywords, "is not present")
+
+	elements, err := rt.loadSnapshot(ctx)
+	if err != nil {
+		return false, err
+	}
+	ranked := scorer.Rank(target, "", mode, elements, 1, nil)
+	found := len(ranked) > 0 && ranked[0].Explain.Score.Total > 0.2 &&
+		scorer.MatchesQuery(target, &ranked[0].Element)
+	return found != negated, nil
 }
 
 func (rt *Runtime) handleMock(ctx context.Context, cmd dsl.Command) error {
@@ -1658,14 +1709,20 @@ func (rt *Runtime) handleMock(ctx context.Context, cmd dsl.Command) error {
 
 	// Resolve mock file path: hunt dir → CWD
 	huntDir := ""
-	if rt.sourcePath != "" {
+	if rt.sourcePath != "" && !strings.HasPrefix(rt.sourcePath, "<") {
+		// "<stdin>" and "<agent>" name where a script came from, not a file.
 		huntDir = filepath.Dir(rt.sourcePath)
 	}
 	candidates := []string{}
 	if huntDir != "" {
 		candidates = append(candidates, filepath.Join(huntDir, mockFile))
 	}
-	candidates = append(candidates, filepath.Join(huntDir, "..", mockFile))
+	if huntDir != "" {
+		// The directory above the hunt, for a suite that keeps its mocks
+		// beside its hunts folder. Without a hunt path this was the parent of
+		// the working directory, which nobody asked to be searched.
+		candidates = append(candidates, filepath.Join(huntDir, "..", mockFile))
+	}
 	candidates = append(candidates, mockFile)
 
 	var resolved string
@@ -2652,6 +2709,18 @@ func (rt *Runtime) tryClickVisibleDropdownOption(ctx context.Context, targetPath
 		return false, err
 	}
 	return strings.TrimSpace(string(raw)) == "true", nil
+}
+
+// settleAfterPointer finishes a double or right click: the page is given a
+// moment to react, and what was known about it is thrown away. Both exist to
+// change the page — a context menu, an inline editor — and the step that
+// follows used to look for what they opened in the snapshot taken before.
+func (rt *Runtime) settleAfterPointer(ctx context.Context, err error) error {
+	if err != nil {
+		return err
+	}
+	rt.invalidateSnapshot()
+	return rt.page.Wait(ctx, 300*time.Millisecond)
 }
 
 func (rt *Runtime) loadSnapshot(ctx context.Context) ([]dom.ElementSnapshot, error) {

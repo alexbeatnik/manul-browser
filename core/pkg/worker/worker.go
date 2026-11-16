@@ -180,7 +180,14 @@ func (w *Worker) Page() browser.Page { return w.page }
 // next one starts as it would in a sequential run, which builds a new Runtime
 // per file — otherwise a value left behind at row scope shadows the next
 // file's own @var, and which file inherits it depends on scheduling.
+//
+// The mocks are the one part of that the Runtime does not hold: a rule lives
+// on the page, which the worker keeps for every hunt it runs. They are dropped
+// here by hand, or a hunt answers requests from the file before it.
 func (w *Worker) resetRuntime() {
+	if p, ok := w.page.(interface{ ClearMocks() }); ok {
+		p.ClearMocks()
+	}
 	w.runtime = runtime.New(w.cfg, w.page, w.logger)
 }
 

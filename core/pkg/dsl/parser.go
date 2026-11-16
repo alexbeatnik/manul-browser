@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -155,6 +156,10 @@ type Command struct {
 
 	// WaitSeconds is the duration in seconds for WAIT commands.
 	WaitSeconds float64
+	// WaitExpr is what stood where the number of seconds belongs when it did
+	// not parse as one — a {variable} the runtime has to resolve, or a typo
+	// it has to report. Empty when WaitSeconds was read.
+	WaitExpr string
 	// WaitForState is the element state for WAIT FOR commands.
 	WaitForState string
 	// WaitResponseURL is the URL pattern for WAIT FOR RESPONSE.
@@ -178,6 +183,10 @@ type Command struct {
 
 	// RepeatCount is the iteration count for REPEAT commands.
 	RepeatCount int
+	// RepeatCountExpr is what stood where the count belongs when it did not
+	// parse as a number, for the runtime to resolve or report. Empty when
+	// RepeatCount was read.
+	RepeatCountExpr string
 	// RepeatVar is the loop variable for REPEAT commands (default "i").
 	RepeatVar string
 	// ForEachVar is the loop variable for FOR EACH commands.
@@ -254,6 +263,11 @@ type Hunt struct {
 	Exports []string
 	// Vars holds @var declarations and runtime SET values.
 	Vars map[string]string
+	// LazyVars names the @var: declarations that are left as {placeholders}
+	// for the runtime to resolve instead of being written into each line at
+	// parse time: the ones the hunt itself assigns to, and all of them when
+	// the hunt is data-driven. See lazyVarNames.
+	LazyVars map[string]bool
 	// ScriptAliases maps @script: aliases to their full dotted paths.
 	ScriptAliases map[string]string
 	// Imports contains parsed @import directives.
@@ -387,6 +401,8 @@ func parseLines(hunt *Hunt, lines []string) error {
 	}
 	var stack []stackFrame
 
+	hunt.LazyVars = lazyVarNames(lines)
+
 	appendCmd := func(cmd Command) *Command {
 		if len(stack) == 0 {
 			if inSetup {
@@ -498,6 +514,10 @@ func parseLines(hunt *Hunt, lines []string) error {
 		}
 
 		expanded := applyVars(hunt, trimmed)
+		if needsCountAtParseTime(upper) {
+			// The one place a value has to be known before the hunt runs.
+			expanded = expandBraces(trimmed, hunt.Vars, nil)
+		}
 
 		if strings.HasPrefix(upper, "ELIF ") || strings.HasPrefix(upper, "ELSE IF ") || upper == "ELSE:" || upper == "ELSE" {
 			var lastCmd *Command
@@ -619,7 +639,10 @@ func parseDirective(hunt *Hunt, line string) error {
 			return nil
 		}
 		varName := strings.Trim(strings.TrimSpace(value[:eqIdx]), "{}")
-		varValue := strings.TrimSpace(value[eqIdx+1:])
+		// A value may be built from variables declared above it. Resolved
+		// here, once and in file order, rather than left for whichever order
+		// a later substitution happened to visit the names in.
+		varValue := expandBraces(strings.TrimSpace(value[eqIdx+1:]), hunt.Vars, nil)
 		hunt.Vars[varName] = varValue
 	case "script":
 		// @script: {alias} = path
@@ -674,12 +697,94 @@ func parseImportLine(value string) (ImportSpec, error) {
 	return imp, nil
 }
 
-// applyVars replaces {var} references with their current values.
+// applyVars writes the value of every @var: declared so far into s, in place
+// of its {name} — except the lazy ones, which stay as placeholders for the
+// runtime (see lazyVarNames).
 func applyVars(hunt *Hunt, s string) string {
-	for name, val := range hunt.Vars {
-		s = strings.ReplaceAll(s, "{"+name+"}", val)
+	if hunt.LazyVars["*"] {
+		return s
 	}
-	return s
+	return expandBraces(s, hunt.Vars, hunt.LazyVars)
+}
+
+// expandBraces replaces each {name} in s that vars defines and skip does not
+// name. It reads s once, left to right: a value that itself contains {braces}
+// is not expanded again, so the result does not depend on the order a map
+// happens to be walked in.
+func expandBraces(s string, vars map[string]string, skip map[string]bool) string {
+	if len(vars) == 0 || !strings.Contains(s, "{") {
+		return s
+	}
+	var b strings.Builder
+	for i := 0; i < len(s); {
+		if s[i] == '{' {
+			if end := strings.IndexByte(s[i+1:], '}'); end >= 0 {
+				name := s[i+1 : i+1+end]
+				if val, ok := vars[name]; ok && !skip[name] {
+					b.WriteString(val)
+					i += end + 2
+					continue
+				}
+			}
+		}
+		b.WriteByte(s[i])
+		i++
+	}
+	return b.String()
+}
+
+// Places a hunt writes a variable: SET {x} = …, … into {x}, … to {x},
+// FOR EACH {x} IN …, REPEAT … as {x}.
+var (
+	assignedBySet     = regexp.MustCompile(`(?i)^SET\s+\{([^{}]+)\}\s*=`)
+	assignedByInto    = regexp.MustCompile(`(?i)\sinto\s+\{([^{}]+)\}\s*$`)
+	assignedByCallTo  = regexp.MustCompile(`(?i)^CALL\s.*\sto\s+\{([^{}]+)\}\s*$`)
+	assignedByRepeat  = regexp.MustCompile(`(?i)^REPEAT\s.*\sas\s+\{([^{}]+)\}\s*:?\s*$`)
+	assignedByForEach = regexp.MustCompile(`(?i)^FOR\s+EACH\s+\{([^{}]+)\}\s+IN\s`)
+	dataDirective     = regexp.MustCompile(`(?i)^@data(?:_?file)?\s*:\s*\S`)
+)
+
+// lazyVarNames decides which @var: declarations must not be written into the
+// lines at parse time.
+//
+// Substituting at parse time is what lets `REPEAT {n} TIMES` know its count,
+// but it also freezes the value: a line that says {count} after
+// `SET {count} = 5` had already become the old value, and the SET itself had
+// become `SET 0 = 5` — an assignment to a variable called "0". So a name the
+// hunt assigns to anywhere stays a placeholder everywhere, and the runtime
+// resolves it, starting from the declared value.
+//
+// A data-driven hunt keeps every name lazy, signalled by "*": a column of the
+// data file is meant to override the @var: default of the same name, and the
+// columns are not known until the file is read.
+func lazyVarNames(lines []string) map[string]bool {
+	lazy := map[string]bool{}
+	for _, raw := range lines {
+		line := stripListNumber(stripInlineComment(strings.TrimSpace(raw)))
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if dataDirective.MatchString(line) {
+			lazy["*"] = true
+			continue
+		}
+		for _, re := range []*regexp.Regexp{assignedBySet, assignedByInto, assignedByCallTo, assignedByRepeat, assignedByForEach} {
+			if m := re.FindStringSubmatch(line); m != nil {
+				lazy[strings.TrimSpace(m[1])] = true
+			}
+		}
+	}
+	return lazy
+}
+
+// needsCountAtParseTime reports whether a line holds a number the parser reads
+// itself — the count of a REPEAT, the seconds of a plain WAIT.
+func needsCountAtParseTime(upper string) bool {
+	if strings.HasPrefix(upper, "REPEAT ") {
+		return true
+	}
+	return strings.HasPrefix(upper, "WAIT ") &&
+		!strings.HasPrefix(upper, "WAIT FOR ") && !strings.HasPrefix(upper, "WAIT UNTIL ")
 }
 
 // parseCommand parses a single DSL line at the given line number.
@@ -943,6 +1048,10 @@ func parseCommandLine(line string) Command {
 		if waitFields := strings.Fields(rest); len(waitFields) > 0 {
 			if n, err := strconv.ParseFloat(waitFields[0], 64); err == nil {
 				cmd.WaitSeconds = n
+			} else {
+				// Not a number yet, or not a number at all: the runtime finds
+				// out which, instead of this being a wait of no time.
+				cmd.WaitExpr = strings.Fields(strings.TrimSpace(line[5:]))[0]
 			}
 		}
 
@@ -1048,6 +1157,8 @@ func parseCommandLine(line string) Command {
 		if len(fields) >= 1 {
 			if n, err := strconv.Atoi(fields[0]); err == nil {
 				cmd.RepeatCount = n
+			} else {
+				cmd.RepeatCountExpr = fields[0]
 			}
 		}
 		for i := 1; i+1 < len(fields); i++ {
@@ -1540,4 +1651,26 @@ func isStepHeader(line, upper string) bool {
 		return false
 	}
 	return parseCommandLine(line).Type == CmdUnknown
+}
+
+// MaskQuoted is maskQuoted for callers outside the parser: s with the contents
+// of every quoted span overwritten, so a keyword search cannot match inside a
+// label.
+func MaskQuoted(s string) string { return maskQuoted(s) }
+
+// FirstQuoted returns the contents of the first quoted span in s — single or
+// double quotes, an apostrophe inside a word not ending it — or "" when there
+// is none.
+func FirstQuoted(s string) string {
+	masked := maskQuoted(s)
+	for i := 0; i < len(masked); i++ {
+		if q := masked[i]; (q == '\'' || q == '"') && (i == 0 || !isWordByte(masked[i-1])) {
+			for j := i + 1; j < len(masked); j++ {
+				if masked[j] == q && (j+1 == len(masked) || !isWordByte(masked[j+1])) {
+					return s[i+1 : j]
+				}
+			}
+		}
+	}
+	return ""
 }

@@ -32,8 +32,11 @@ import (
 const ProtocolVersion = "1.0"
 
 // maxLineBytes caps one request line, matching the extension protocol's 1 MB
-// safety cap so a long hunt source cannot trip ErrTooLong.
+// safety cap. A longer line is refused as a bad request; the session goes on.
 const maxLineBytes = 1024 * 1024
+
+// errLineTooLong is what readLine reports for a line over maxLineBytes.
+var errLineTooLong = fmt.Errorf("request line is longer than %d bytes", maxLineBytes)
 
 // Error codes carried in a response's error.code.
 const (
@@ -95,7 +98,7 @@ type Server struct {
 	// loop is otherwise blocked on. Dispatch is serial, so the two never
 	// compete — while a handler waits, the client is waiting too, and the only
 	// line it can legitimately send is that handler's reply.
-	sc        *bufio.Scanner
+	in        *lineReader
 	invokeSeq int
 
 	// invokeMu serialises reverse calls. A stdio session never contends for it —
@@ -120,9 +123,7 @@ func NewPeer(in io.Reader, out io.Writer, opts Options) *Server {
 	if opts.Logger == nil {
 		opts.Logger = utils.NewLoggerTo(io.Discard, nil)
 	}
-	sc := bufio.NewScanner(in)
-	sc.Buffer(make([]byte, 4096), maxLineBytes)
-	return &Server{opts: opts, out: json.NewEncoder(out), sc: sc}
+	return &Server{opts: opts, out: json.NewEncoder(out), in: newLineReader(in)}
 }
 
 // Handshake reads a peer's declarations until it announces `ready`.
@@ -136,11 +137,11 @@ func (s *Server) Handshake(ctx context.Context) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		line, ok := s.readLine()
+		line, ok, err := s.readLine()
+		if err != nil {
+			return fmt.Errorf("reading hook declarations: %w", err)
+		}
 		if !ok {
-			if err := s.sc.Err(); err != nil {
-				return fmt.Errorf("reading hook declarations: %w", err)
-			}
 			return errors.New("the hook script exited before it announced ready")
 		}
 		if line == "" {
@@ -187,10 +188,7 @@ func Serve(ctx context.Context, in io.Reader, out io.Writer, opts Options) error
 		opts.Logger = utils.NewLoggerTo(io.Discard, nil)
 	}
 
-	sc := bufio.NewScanner(in)
-	sc.Buffer(make([]byte, 4096), maxLineBytes)
-
-	s := &Server{opts: opts, out: json.NewEncoder(out), sc: sc}
+	s := &Server{opts: opts, out: json.NewEncoder(out), in: newLineReader(in)}
 	defer func() {
 		if s.sess != nil {
 			_ = s.sess.Close()
@@ -210,9 +208,21 @@ func Serve(ctx context.Context, in io.Reader, out io.Writer, opts Options) error
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		line, ok := s.readLine()
+		line, ok, err := s.readLine()
+		if errors.Is(err, errLineTooLong) {
+			// One request the engine will not read is that request's problem.
+			// It used to end the session: the reader could not get past the
+			// line, so the loop returned and took the browser with it.
+			if err := s.fail(nil, CodeBadRequest, err.Error()); err != nil {
+				return err
+			}
+			continue
+		}
+		if err != nil {
+			return err
+		}
 		if !ok {
-			return sc.Err()
+			return nil
 		}
 		if line == "" {
 			continue
@@ -229,15 +239,66 @@ func Serve(ctx context.Context, in io.Reader, out io.Writer, opts Options) error
 }
 
 // readLine returns the next trimmed input line, or ok=false at end of input.
+// A line over maxLineBytes is skipped whole and reported as errLineTooLong;
+// the stream is left at the start of the line after it.
 //
 // A UTF-8 BOM ahead of the first request is common enough from shell pipelines
 // and Windows editors that rejecting it would only ever look like a bug in the
 // client.
-func (s *Server) readLine() (string, bool) {
-	if !s.sc.Scan() {
-		return "", false
+func (s *Server) readLine() (line string, ok bool, err error) {
+	raw, ok, err := s.in.next()
+	if err != nil || !ok {
+		return "", false, err
 	}
-	return strings.TrimSpace(strings.TrimPrefix(s.sc.Text(), "\ufeff")), true
+	return strings.TrimSpace(strings.TrimPrefix(raw, "\ufeff")), true, nil
+}
+
+// lineReader reads newline-delimited input without a hard ceiling on what it
+// can get past. bufio.Scanner stops for good at a token over its limit, which
+// turned one oversized request into the end of the session.
+type lineReader struct {
+	r *bufio.Reader
+}
+
+func newLineReader(in io.Reader) *lineReader {
+	return &lineReader{r: bufio.NewReaderSize(in, 64*1024)}
+}
+
+// next returns the next line without its terminator. ok is false at a clean
+// end of input.
+func (l *lineReader) next() (line string, ok bool, err error) {
+	var buf []byte
+	tooLong := false
+	for {
+		chunk, readErr := l.r.ReadSlice('\n')
+		if !tooLong {
+			buf = append(buf, chunk...)
+			if len(buf) > maxLineBytes {
+				// Keep reading to the end of the line, but stop keeping it.
+				tooLong, buf = true, nil
+			}
+		}
+		switch {
+		case readErr == nil:
+			if tooLong {
+				return "", false, errLineTooLong
+			}
+			return strings.TrimRight(string(buf), "\r\n"), true, nil
+		case errors.Is(readErr, bufio.ErrBufferFull):
+			continue
+		case errors.Is(readErr, io.EOF):
+			if tooLong {
+				return "", false, errLineTooLong
+			}
+			if len(buf) == 0 {
+				return "", false, nil
+			}
+			// A last line with no newline is still a line.
+			return string(buf), true, nil
+		default:
+			return "", false, readErr
+		}
+	}
 }
 
 func (s *Server) emitReady() error {

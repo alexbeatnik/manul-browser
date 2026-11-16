@@ -753,3 +753,196 @@ func TestWaitForResponse_IsGivenNavTimeout(t *testing.T) {
 		t.Errorf("waited %s for the response, want nav_timeout", page.responseTimeout)
 	}
 }
+
+// ── 0.1.5 ────────────────────────────────────────────────────────────────────
+
+// @var: values are written into the lines at parse time, which froze them:
+// `SET {count} = 5` became `SET 0 = 5`, and every later {count} was already 0.
+func TestSet_ReassignsADeclaredVar(t *testing.T) {
+	src := "@var: {count} = 0\n\nSET {count} = 5\nPRINT 'count={count}'\n"
+	res, err := runSource(t, &MockPage{}, src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := res.Results[len(res.Results)-1].ActionValue; got != "count=5" {
+		t.Errorf("printed %q, want count=5", got)
+	}
+}
+
+// A column of the data file overrides the @var: default of the same name.
+func TestDataRow_OverridesADeclaredVar(t *testing.T) {
+	src := "@data: users.csv\n@var: {email} = default@example.com\n\nPRINT 'to {email}'\n"
+	hunt, err := dsl.Parse(strings.NewReader(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt := New(regConfig(), &MockPage{}, utils.NewLoggerTo(nopWriter{}, nil))
+	res, err := rt.RunHunt(context.Background(), hunt, map[string]string{"email": "row@example.com"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := res.Results[0].ActionValue; got != "to row@example.com" {
+		t.Errorf("printed %q, want the row's value", got)
+	}
+
+	// With no such column the declared value still applies.
+	rt = New(regConfig(), &MockPage{}, utils.NewLoggerTo(nopWriter{}, nil))
+	res, err = rt.RunHunt(context.Background(), hunt, map[string]string{"other": "x"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := res.Results[0].ActionValue; got != "to default@example.com" {
+		t.Errorf("printed %q, want the declared default", got)
+	}
+}
+
+// A value is data. Text that arrived from the page and happens to contain a
+// placeholder must not come out with another variable's value in it.
+func TestInterpolate_DoesNotExpandValues(t *testing.T) {
+	sv := NewScopedVariables()
+	sv.Set("scraped", "see {token} and $token", LevelRow)
+	sv.Set("token", "s3cret", LevelRow)
+	if got := sv.Interpolate("got: {scraped}"); got != "got: see {token} and $token" {
+		t.Errorf("got %q", got)
+	}
+	if got := sv.Interpolate("{token} ${token} $token $tokens {nope}"); got != "s3cret s3cret s3cret $tokens {nope}" {
+		t.Errorf("got %q", got)
+	}
+}
+
+// `is NOT present` is satisfied by the text being absent, on the first look.
+// It used to poll until the timeout before passing.
+func TestVerify_NegatedPassesOnTheFirstLook(t *testing.T) {
+	page := &MockPage{Elements: []dom.ElementSnapshot{regEl(1, "p", "hello")}}
+	if _, err := runSource(t, page, "VERIFY that 'Goodbye' is NOT present\n"); err != nil {
+		t.Fatal(err)
+	}
+	if page.ProbeCalls != 1 {
+		t.Errorf("read the page %d times, want once", page.ProbeCalls)
+	}
+
+	_, err := runSource(t, page, "VERIFY that 'hello' is NOT present\n")
+	if err == nil || !strings.Contains(err.Error(), "expected NOT to be") {
+		t.Errorf("present text: want a failure, got %v", err)
+	}
+}
+
+// A right click opens a menu and a double click an editor. The next step has
+// to see them, so neither may leave the earlier snapshot in the cache.
+func TestPointerActions_InvalidateTheSnapshot(t *testing.T) {
+	for _, verb := range []string{"RIGHT CLICK", "DOUBLE CLICK"} {
+		page := &MockPage{Elements: []dom.ElementSnapshot{regEl(1, "button", "Row")}}
+		src := verb + " the 'Row' button\nCLICK the 'Row' button\n"
+		if _, err := runSource(t, page, src); err != nil {
+			t.Fatalf("%s: %v", verb, err)
+		}
+		if page.ProbeCalls != 2 {
+			t.Errorf("%s: %d snapshots for two steps, want 2", verb, page.ProbeCalls)
+		}
+	}
+}
+
+// Waiting is how a hunt lets the page change.
+func TestWait_InvalidatesTheSnapshot(t *testing.T) {
+	page := &MockPage{Elements: []dom.ElementSnapshot{regEl(1, "button", "Next")}}
+	src := "IF button 'Next' exists:\n    WAIT 0\nIF button 'Next' exists:\n    PRINT 'again'\n"
+	if _, err := runSource(t, page, src); err != nil {
+		t.Fatal(err)
+	}
+	if page.ProbeCalls != 2 {
+		t.Errorf("%d snapshots, want one either side of the WAIT", page.ProbeCalls)
+	}
+}
+
+// The scorer always ranks something; a container that is not there must fail
+// the step rather than scroll whatever came out on top.
+func TestScroll_MissingContainerFails(t *testing.T) {
+	page := &MockPage{Elements: []dom.ElementSnapshot{regEl(1, "div", "Results"), regEl(2, "button", "Save")}}
+	if _, err := runSource(t, page, "SCROLL DOWN inside the 'Results'\n"); err != nil {
+		t.Errorf("present container: %v", err)
+	}
+	_, err := runSource(t, page, "SCROLL DOWN inside the 'Chat history'\n")
+	if err == nil || !strings.Contains(err.Error(), "scroll container not found") {
+		t.Errorf("missing container: want not found, got %v", err)
+	}
+}
+
+// What a variable is compared with is free text, not a keyword.
+func TestCondition_ComparedValueIsNotAKeyword(t *testing.T) {
+	rt := New(regConfig(), &MockPage{}, utils.NewLoggerTo(nopWriter{}, nil))
+	ctx := context.Background()
+	rt.vars.Set("status", "exists", LevelRow)
+	rt.vars.Set("note", "is present", LevelRow)
+
+	for cond, want := range map[string]bool{
+		"{status} == 'exists'":      true,
+		"{status} != 'exists'":      false,
+		"{note} contains 'present'": true,
+		"{status} == 'missing'":     false,
+	} {
+		got, err := rt.evaluateCondition(ctx, cond)
+		if err != nil || got != want {
+			t.Errorf("%s → %v, %v; want %v", cond, got, err, want)
+		}
+	}
+}
+
+// Keywords are read outside the quotes, the target from either kind of quote.
+func TestCondition_LabelWordsAndDoubleQuotes(t *testing.T) {
+	page := &MockPage{Elements: []dom.ElementSnapshot{regEl(1, "button", "Item exists already"), regEl(2, "p", "Gift is not present")}}
+	rt := New(regConfig(), page, utils.NewLoggerTo(nopWriter{}, nil))
+	ctx := context.Background()
+
+	for cond, want := range map[string]bool{
+		`button "Item exists already" exists`:       true,
+		`button 'Item exists already' not exists`:   false,
+		`text 'Gift is not present' is present`:     true,
+		`text 'Gift is not present' is NOT present`: false,
+		`button 'Nowhere' does not exist`:           true,
+	} {
+		got, err := rt.evaluateCondition(ctx, cond)
+		if err != nil || got != want {
+			t.Errorf("%s → %v, %v; want %v", cond, got, err, want)
+		}
+	}
+}
+
+// A count that is not a number is an error, not zero passes of a green loop.
+func TestRepeatAndWait_RejectWhatIsNotANumber(t *testing.T) {
+	_, err := runSource(t, &MockPage{}, "REPEAT many TIMES:\n    PRINT 'x'\n")
+	if err == nil || !strings.Contains(err.Error(), "not a number of times") {
+		t.Errorf("REPEAT: got %v", err)
+	}
+	_, err = runSource(t, &MockPage{}, "WAIT abit\n")
+	if err == nil || !strings.Contains(err.Error(), "not a number of seconds") {
+		t.Errorf("WAIT: got %v", err)
+	}
+
+	// A variable set while the hunt runs is a number by the time it is needed.
+	res, err := runSource(t, &MockPage{}, "SET {n} = 3\nREPEAT {n} TIMES:\n    PRINT 'x'\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	printed := 0
+	for _, r := range res.Results {
+		if r.CommandType == string(dsl.CmdPrint) {
+			printed++
+		}
+	}
+	if printed != 3 {
+		t.Errorf("looped %d times, want 3", printed)
+	}
+}
+
+// A state the engine does not know is reported at once, not after 15 seconds.
+func TestWaitFor_UnknownStateFailsImmediately(t *testing.T) {
+	page := &MockPage{Elements: []dom.ElementSnapshot{regEl(1, "button", "Save")}}
+	start := time.Now()
+	_, err := runSource(t, page, "WAIT FOR 'Save' to be sparkly\n")
+	if err == nil || !strings.Contains(err.Error(), "unknown state") {
+		t.Fatalf("got %v", err)
+	}
+	if time.Since(start) > 2*time.Second {
+		t.Errorf("took %s to say so", time.Since(start))
+	}
+}

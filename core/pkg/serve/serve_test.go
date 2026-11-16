@@ -279,3 +279,36 @@ func TestOpenRejectsUnknownMode(t *testing.T) {
 		t.Errorf("code = %v, want %v", errObj["code"], CodeBadRequest)
 	}
 }
+
+// One request the engine will not read is that request's problem. The reader
+// used to stop for good at a line over the limit, which ended the session and
+// closed its browser.
+func TestOversizedLineIsNotFatal(t *testing.T) {
+	huge := `{"id":1,"cmd":"schema","args":{"pad":"` + strings.Repeat("x", maxLineBytes) + `"}}`
+	got := runLines(t, huge, `{"id":2,"cmd":"schema"}`)
+	if len(got) != 3 {
+		t.Fatalf("got %d lines, want ready + refusal + reply", len(got))
+	}
+	if got[1]["ok"] != false {
+		t.Errorf("oversized line: %v", got[1])
+	}
+	if errObj, _ := got[1]["error"].(map[string]any); errObj["code"] != CodeBadRequest {
+		t.Errorf("oversized line: %v", got[1])
+	}
+	if got[2]["ok"] != true || got[2]["id"] != float64(2) {
+		t.Errorf("request after it: %v", got[2])
+	}
+}
+
+// A last request with no newline after it is still a request.
+func TestLastLineWithoutNewline(t *testing.T) {
+	var out bytes.Buffer
+	in := strings.NewReader(`{"id":7,"cmd":"schema"}`)
+	opts := Options{Config: config.Default(), Schema: func() map[string]any { return map[string]any{} }}
+	if err := Serve(context.Background(), in, &out, opts); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), `"id":7`) {
+		t.Errorf("no reply to the unterminated line: %s", out.String())
+	}
+}

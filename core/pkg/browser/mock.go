@@ -68,6 +68,14 @@ func (t *mockTable) set(rule MockRule) {
 	t.rules = append(t.rules, compiled)
 }
 
+// clear drops every rule. Requests the browser still pauses are then all sent
+// on to the network.
+func (t *mockTable) clear() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.rules = nil
+}
+
 // patterns lists the URL patterns of every rule, for a backend that can ask
 // the browser to pause only matching requests.
 func (t *mockTable) patterns() []string {

@@ -428,6 +428,14 @@ func (p *CDPPage) Mock(ctx context.Context, rule MockRule) error {
 	return cdp.InterceptRequests(ctx, p.conn, patterns)
 }
 
+// ClearMocks forgets every MOCK rule given to this page. Interception stays
+// on; with no rule left to match, each paused request goes to the network.
+func (p *CDPPage) ClearMocks() {
+	if p.mocks != nil {
+		p.mocks.clear()
+	}
+}
+
 // answerPaused gives one paused request its mock, or sends it on its way.
 func (p *CDPPage) answerPaused(req cdp.PausedRequest) {
 	ctx, cancel := context.WithTimeout(context.Background(), mockAnswerTimeout)

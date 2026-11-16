@@ -53,10 +53,10 @@ import (
 
 // version is the single source of truth for the engine version. Reported by
 // `manul --version` and emitted in the agent schema, so it is kept WITHOUT a
-// `v` prefix to match the contracts (contracts/*.md `"version": "0.1.4"`). The
-// git module tag adds the prefix Go requires (`go get ...@v0.1.4`). Bump this
+// `v` prefix to match the contracts (contracts/*.md `"version": "0.1.5"`). The
+// git module tag adds the prefix Go requires (`go get ...@v0.1.5`). Bump this
 // together with the tag.
-const version = "0.1.4"
+const version = "0.1.5"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -309,8 +309,17 @@ func cmdRun(args []string) error {
 	}
 	// CLI --workers wins over JSON/env (MANUL_WORKERS). Default 1 = sequential;
 	// >1 routes multi-file/dir runs through runParallel + pkg/worker.WorkerPool.
-	if *workers != 1 {
+	if passed["workers"] {
 		cfg.Workers = *workers
+	}
+	// How the browser is launched is the same question in both modes, so it is
+	// settled here, on the config both read. Left to the sequential path alone,
+	// `--workers 4 --headless` opened four windows.
+	if *headless {
+		cfg.Headless = true
+	}
+	if *executablePath != "" {
+		cfg.ExecutablePath = executablePath
 	}
 	if *tags != "" {
 		cfg.Tags = strings.Split(*tags, ",")
@@ -348,8 +357,18 @@ func cmdRun(args []string) error {
 		logger = utils.NewLogger(nil).WithLevel(logLevel)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	// Ctrl+C cancels the run rather than killing the process: steps stop at
+	// their next browser call, and every deferred Close — the browser of a
+	// sequential run, each worker's in a parallel one — still gets to run.
+	// Browsers are started in their own process group, so a process that
+	// simply died left them running, with their temp profiles on disk.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	go func() {
+		<-ctx.Done()
+		// A second signal is not waited out.
+		stop()
+	}()
 
 	var hunts []*dsl.Hunt
 	parseFailed := 0
@@ -450,10 +469,16 @@ func cmdRun(args []string) error {
 		if tabURLSubstr != "" {
 			logger.Warn("-target is ignored in --workers >1 (each worker spawns its own Chrome)")
 		}
+		if *cdpEndpoint != "" {
+			logger.Warn("--cdp is ignored in --workers >1 (each worker launches its own browser)")
+		}
+		if *userDataDir != "" {
+			logger.Warn("--user-data-dir is ignored in --workers >1 (browsers cannot share a profile; each worker uses a temp one)")
+		}
 		totalFailed = runParallel(ctx, cfg, hunts, opts, logger, gctx)
 	} else {
 		// Sequential execution.
-		totalFailed = runSequential(ctx, cfg, hunts, opts, *cdpEndpoint, *userDataDir, *headless, *executablePath, tabURLSubstr, logger, gctx)
+		totalFailed = runSequential(ctx, cfg, hunts, opts, *cdpEndpoint, *userDataDir, tabURLSubstr, logger, gctx)
 	}
 
 	totalFailed += parseFailed
@@ -551,17 +576,14 @@ func newRuntimeWithStreaming(cfg config.Config, page browser.Page, logger *utils
 // page whose URL contains this substring (case-insensitive). Empty means
 // "first available page", which matches Chrome's most-recently-active
 // tab in practice.
-func runSequential(ctx context.Context, cfg config.Config, hunts []*dsl.Hunt, opts outputOpts, cdpEndpoint, userDataDir string, headless bool, executablePath, tabURLSubstr string, logger *utils.Logger, gctx *lifecycle.GlobalContext) int {
+func runSequential(ctx context.Context, cfg config.Config, hunts []*dsl.Hunt, opts outputOpts, cdpEndpoint, userDataDir, tabURLSubstr string, logger *utils.Logger, gctx *lifecycle.GlobalContext) int {
 	if cdpEndpoint == "" {
 		opts := browser.DefaultLaunchOptions()
 		opts.Browser = cfg.Browser
 		opts.UserDataDir = userDataDir
-		if headless {
-			cfg.Headless = true
-		}
 		opts.Headless = cfg.Headless
-		if executablePath != "" {
-			opts.ExecutablePath = executablePath
+		if cfg.ExecutablePath != nil && *cfg.ExecutablePath != "" {
+			opts.ExecutablePath = *cfg.ExecutablePath
 		}
 		if cfg.Channel != nil && *cfg.Channel != "" {
 			opts.Channel = *cfg.Channel
@@ -577,26 +599,22 @@ func runSequential(ctx context.Context, cfg config.Config, hunts []*dsl.Hunt, op
 			return len(hunts)
 		}
 		logger.Info("Launched %s (%s, profile %s)", engine, proc.Endpoint(), opts.UserDataDir)
-		var closeOnce sync.Once
-		closeBrowser := func() {
-			closeOnce.Do(func() {
-				logger.Debug("Closing %s…", engine)
-				proc.Close()
-			})
-		}
-		defer closeBrowser()
-		sigCh := make(chan os.Signal, 1)
-		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-		go func() {
-			<-sigCh
-			logger.Debug("Signal received, cancelling…")
-			closeBrowser()
+		defer func() {
+			logger.Debug("Closing %s…", engine)
+			proc.Close()
 		}()
 		cfg.CDPEndpoint = proc.Endpoint()
 	}
 
 	var totalFailed int
 	for i, hunt := range hunts {
+		if ctx.Err() != nil {
+			// Interrupted. What has not started does not start, and counts as
+			// not having passed.
+			logger.Warn("interrupted: %d hunt file(s) not run", len(hunts)-i)
+			totalFailed += len(hunts) - i
+			break
+		}
 		filename := filepath.Base(hunt.SourcePath)
 		if len(hunts) > 1 {
 			fmt.Fprintf(os.Stderr, "\n%s\n📜 [%d/%d] %s\n%s\n",

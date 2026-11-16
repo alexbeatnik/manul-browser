@@ -119,3 +119,18 @@ func TestMockTable_AnswersCrossOriginRequestsAndTheirPreflight(t *testing.T) {
 		t.Error("answered a preflight for a URL no rule covers")
 	}
 }
+
+// Cleared between hunts on a shared page: nothing is answered from a rule the
+// previous hunt declared.
+func TestMockTable_Clear(t *testing.T) {
+	var table mockTable
+	table.set(MockRule{Method: "GET", Pattern: "/api/users", Body: []byte("[]")})
+	noHeader := func(string) string { return "" }
+	if table.answer("GET", "https://example.com/api/users", noHeader) == nil {
+		t.Fatal("rule did not answer before clear")
+	}
+	table.clear()
+	if a := table.answer("GET", "https://example.com/api/users", noHeader); a != nil {
+		t.Errorf("answered after clear: %+v", a)
+	}
+}

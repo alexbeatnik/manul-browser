@@ -26,7 +26,7 @@
 
 ```json
 {
-  "version": "0.1.4",
+  "version": "0.1.5",
   "generatedFrom": "pkg/runtime/extensions.go :: RegisterGoCall(), RegisterCustomControl(), GetGoCall(), GetCustomControl(), ResetRuntimeRegistries(), GoCallHandler, GoCallInvocation, CustomControlHandler, CustomControlInvocation; pkg/runtime :: [SETUP]/[TEARDOWN] execution; pkg/runtime/variables.go :: ScopedVariables, Level",
 
   "fileHooks": {

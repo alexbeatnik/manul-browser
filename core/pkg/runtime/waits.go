@@ -41,6 +41,14 @@ func (rt *Runtime) waitForElement(ctx context.Context, cmd dsl.Command) error {
 		state = "visible"
 	}
 
+	switch state {
+	case "visible", "present", "shown", "hidden", "disappear", "invisible", "gone", "enabled", "disabled":
+	default:
+		// No amount of waiting makes a state the engine does not know come
+		// true; polling for the whole timeout only delayed saying so.
+		return fmt.Errorf("WAIT FOR %q: unknown state %q (want visible, hidden, enabled, disabled or disappear)", target, state)
+	}
+
 	deadline := time.Now().Add(defaultWaitTimeout)
 	var lastErr error
 
