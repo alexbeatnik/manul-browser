@@ -2,7 +2,6 @@ package runtime
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 )
 
@@ -89,58 +88,58 @@ func (sv *ScopedVariables) Flatten() map[string]string {
 }
 
 // Interpolate replaces $var, ${var}, or {var} placeholders in a string.
-// It sorts keys by length (longest-first) to avoid partial matches
-// (e.g., replacing $user before $user_id).
+//
+// It reads s once, left to right, and never looks at what it has written: a
+// value is data, not a template. Substituting name by name over the whole
+// string instead expanded placeholders that arrived inside a value — text an
+// EXTRACT had read off the page that happened to contain "{token}" came out
+// with the token in it.
+//
+// A bare $name is the longest run of identifier characters after the dollar,
+// so "$items" is not "$i" followed by "tems".
 func (sv *ScopedVariables) Interpolate(s string) string {
-	flat := sv.Flatten()
-
-	// Get keys and sort by length descending
-	keys := make([]string, 0, len(flat))
-	for k := range flat {
-		keys = append(keys, k)
-	}
-	sort.Slice(keys, func(i, j int) bool {
-		if len(keys[i]) != len(keys[j]) {
-			return len(keys[i]) > len(keys[j])
-		}
-		return keys[i] < keys[j] // map order is random; the result must not be
-	})
-
-	for _, k := range keys {
-		v := flat[k]
-		// Replace braced forms first to avoid partial replacement by bare $k
-		s = strings.ReplaceAll(s, "${"+k+"}", v)
-		s = strings.ReplaceAll(s, "{"+k+"}", v)
-		s = replaceBareVar(s, k, v)
-	}
-	return s
-}
-
-// replaceBareVar substitutes $name where the name ends there. Longest-first
-// ordering keeps $user from eating $user_id only when both are defined; this
-// covers the other half, where the longer name is not a variable at all — a
-// REPEAT loop defines {i}, and "$items" is not "$i" followed by "tems".
-func replaceBareVar(s, name, value string) string {
-	token := "$" + name
-	if !strings.Contains(s, token) {
+	if !strings.ContainsAny(s, "{$") {
 		return s
 	}
-	var b strings.Builder
-	for {
-		i := strings.Index(s, token)
-		if i < 0 {
-			b.WriteString(s)
-			return b.String()
-		}
-		end := i + len(token)
-		b.WriteString(s[:i])
-		if end < len(s) && isIdentByte(s[end]) {
-			b.WriteString(token)
-		} else {
-			b.WriteString(value)
-		}
-		s = s[end:]
+	flat := sv.Flatten()
+	if len(flat) == 0 {
+		return s
 	}
+
+	var b strings.Builder
+	for i := 0; i < len(s); {
+		switch {
+		case s[i] == '$' && i+1 < len(s) && s[i+1] == '{':
+			if end := strings.IndexByte(s[i+2:], '}'); end >= 0 {
+				if v, ok := flat[s[i+2:i+2+end]]; ok {
+					b.WriteString(v)
+					i += end + 3
+					continue
+				}
+			}
+		case s[i] == '$':
+			j := i + 1
+			for j < len(s) && isIdentByte(s[j]) {
+				j++
+			}
+			if v, ok := flat[s[i+1:j]]; ok && j > i+1 {
+				b.WriteString(v)
+				i = j
+				continue
+			}
+		case s[i] == '{':
+			if end := strings.IndexByte(s[i+1:], '}'); end >= 0 {
+				if v, ok := flat[s[i+1:i+1+end]]; ok {
+					b.WriteString(v)
+					i += end + 2
+					continue
+				}
+			}
+		}
+		b.WriteByte(s[i])
+		i++
+	}
+	return b.String()
 }
 
 func isIdentByte(c byte) bool {

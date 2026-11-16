@@ -274,6 +274,14 @@ func (p *BiDiPage) Mock(ctx context.Context, rule MockRule) error {
 	return nil
 }
 
+// ClearMocks forgets every MOCK rule given to this page. The intercept stays
+// in place; with no rule left to match, each blocked request is sent on.
+func (p *BiDiPage) ClearMocks() {
+	if p.mocks != nil {
+		p.mocks.clear()
+	}
+}
+
 // answerBlocked gives every request blocked by intercept its mock, or sends it
 // on its way, until the connection closes.
 func (p *BiDiPage) answerBlocked(sub *bidi.Subscription, intercept string) {

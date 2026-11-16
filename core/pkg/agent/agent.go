@@ -109,7 +109,9 @@ func Launch(ctx context.Context, opts Options) (*Session, error) {
 		return nil, fmt.Errorf("agent: launch browser: %w", err)
 	}
 
-	page, err := browser.Connect(proc.Endpoint()).FirstPage(ctx)
+	page, err := attachPage(ctx, func(ctx context.Context) (browser.Page, error) {
+		return browser.Connect(proc.Endpoint()).FirstPage(ctx)
+	})
 	if err != nil {
 		_ = proc.Close()
 		return nil, fmt.Errorf("agent: attach to launched browser: %w", err)
@@ -140,11 +142,46 @@ func Attach(ctx context.Context, cdpURL, urlSubstr string, opts Options) (*Sessi
 	if cdpURL == "" {
 		return nil, fmt.Errorf("agent: Attach requires a CDP endpoint URL")
 	}
-	page, err := browser.Connect(cdpURL).PageMatching(ctx, urlSubstr)
+	page, err := attachPage(ctx, func(ctx context.Context) (browser.Page, error) {
+		return browser.Connect(cdpURL).PageMatching(ctx, urlSubstr)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("agent: attach: %w", err)
 	}
 	return newSession(opts, page, nil, cdpURL), nil
+}
+
+// attachPage runs attach so that ctx bounds how long attaching may take but
+// not how long the page it returns lives.
+//
+// A page connection is closed when the context it was dialled with ends. That
+// suits a run, which owns its context for as long as it owns the page. It does
+// not suit a Session: ctx here typically scopes the one call that created it,
+// the browser is deliberately left running past that call, and a Session whose
+// browser is alive and whose connection is not answers nothing. Only Close
+// ends a Session.
+func attachPage(ctx context.Context, attach func(context.Context) (browser.Page, error)) (browser.Page, error) {
+	type result struct {
+		page browser.Page
+		err  error
+	}
+	done := make(chan result, 1)
+	go func() {
+		page, err := attach(context.WithoutCancel(ctx))
+		done <- result{page, err}
+	}()
+	select {
+	case r := <-done:
+		return r.page, r.err
+	case <-ctx.Done():
+		// Gave up waiting. Whatever the attempt still produces is not wanted.
+		go func() {
+			if r := <-done; r.page != nil {
+				_ = r.page.Close()
+			}
+		}()
+		return nil, ctx.Err()
+	}
 }
 
 func newSession(opts Options, page browser.Page, proc browser.Process, endpoint string) *Session {

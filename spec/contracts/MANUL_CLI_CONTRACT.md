@@ -8,7 +8,7 @@
 
 ```json
 {
-  "version": "0.1.4",
+  "version": "0.1.5",
   "generatedFrom": "cmd/manul :: main(), _run_hunt_file(), parse_hunt_file(), sync_main(); pkg/config :: _KEY_MAP, global config constants; pkg/scan :: scan_main(); pkg/record :: record_main(); pkg/daemon :: daemon_main()",
   "entryPoints": {
     "console_script": "manul",
@@ -151,7 +151,7 @@
       "default": false,
       "configKey": "headless",
       "envVar": "MANUL_HEADLESS",
-      "description": "Run browser in headless mode.",
+      "description": "Run browser in headless mode. Applies to every browser a run launches, the one of each --workers worker included.",
       "appliesTo": ["run", "scan", "record", "daemon"]
     },
     {
@@ -174,7 +174,7 @@
       "minimum": 1,
       "configKey": "workers",
       "envVar": "MANUL_WORKERS",
-      "description": "Max hunt files to run in parallel. Each worker spawns a separate subprocess with its own browser instance. Forced to 1 when --debug or --break-lines is active.",
+      "description": "Max hunt files to run in parallel. Each worker spawns a separate subprocess with its own browser instance, launched with the run's --headless, --browser, --channel and --executable-path; --cdp, --target and --user-data-dir do not apply to workers and are reported as ignored. Passing --workers 1 overrides a configured value. Forced to 1 when --debug or --break-lines is active. An interrupt (Ctrl+C, SIGTERM) cancels the run in either mode: steps stop, hunts not yet started are counted as failed, and every launched browser is closed and its temp profile removed before the process exits; a second interrupt ends it at once.",
       "appliesTo": ["run"]
     },
     {

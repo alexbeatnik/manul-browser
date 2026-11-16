@@ -820,3 +820,61 @@ DONE.
 		}
 	}
 }
+
+// ── 0.1.5: which @var: values are written in at parse time ───────────────────
+
+// A name the hunt assigns to stays a placeholder everywhere, the assignment
+// included; the others are still substituted.
+func TestParse_AssignedVarStaysAPlaceholder(t *testing.T) {
+	src := `@var: {count} = 0
+@var: {base} = https://example.com
+
+SET {count} = 5
+NAVIGATE to {base}/items/{count}
+EXTRACT the 'Total' into {count}
+`
+	hunt, err := Parse(strings.NewReader(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := hunt.Commands[0].SetVar; got != "count" {
+		t.Errorf("SET writes %q, want count", got)
+	}
+	if got := hunt.Commands[1].URL; got != "https://example.com/items/{count}" {
+		t.Errorf("URL = %q", got)
+	}
+	if got := hunt.Commands[2].ExtractVar; got != "count" {
+		t.Errorf("EXTRACT writes %q, want count", got)
+	}
+}
+
+// A value built from earlier declarations resolves in file order, the same
+// way on every run.
+func TestParse_NestedVarsResolveInDeclarationOrder(t *testing.T) {
+	src := "@var: {host} = example.com\n@var: {base} = https://{host}\n@var: {login} = {base}/login\n\nNAVIGATE to {login}\n"
+	for i := 0; i < 20; i++ {
+		hunt, err := Parse(strings.NewReader(src))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := hunt.Commands[0].URL; got != "https://example.com/login" {
+			t.Fatalf("run %d: URL = %q", i, got)
+		}
+	}
+}
+
+// A data-driven hunt leaves every name for the runtime, since a column may
+// override any of them — except a count the parser has to read itself.
+func TestParse_DataDrivenHuntKeepsVarsLazy(t *testing.T) {
+	src := "@data: rows.csv\n@var: {email} = a@b.c\n@var: {n} = 2\n\nFILL 'Email' field with '{email}'\nREPEAT {n} TIMES:\n    PRINT 'x'\n"
+	hunt, err := Parse(strings.NewReader(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := hunt.Commands[0].Value; got != "{email}" {
+		t.Errorf("FILL value = %q, want the placeholder", got)
+	}
+	if got := hunt.Commands[1].RepeatCount; got != 2 {
+		t.Errorf("REPEAT count = %d, want 2", got)
+	}
+}

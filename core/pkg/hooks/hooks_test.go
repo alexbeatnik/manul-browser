@@ -45,6 +45,11 @@ func runFakeScript(mode string) int {
 		// Exits without ever announcing ready — the handshake must not hang.
 		return 3
 
+	case "stuck":
+		// Neither announces ready nor exits: waits on input that never comes.
+		readReply()
+		return 0
+
 	case "garbage":
 		fmt.Println("this is not JSON")
 		readReply()
@@ -308,5 +313,22 @@ func TestCloseIsSafeTwice(t *testing.T) {
 	}
 	if err := host.Close(); err != nil {
 		t.Fatalf("second Close: %v", err)
+	}
+}
+
+// A script that says nothing and does not exit is killed when its time is up.
+// The handshake reads its stdout, and that read had no way to end.
+func TestHandshakeTimesOutOnASilentScript(t *testing.T) {
+	old := handshakeTimeout
+	handshakeTimeout = 300 * time.Millisecond
+	defer func() { handshakeTimeout = old }()
+
+	start := time.Now()
+	_, err := startScript(t, context.Background(), "stuck")
+	if err == nil || !strings.Contains(err.Error(), "did not announce ready") {
+		t.Fatalf("got %v", err)
+	}
+	if time.Since(start) > 10*time.Second {
+		t.Errorf("took %s to give up", time.Since(start))
 	}
 }

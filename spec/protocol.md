@@ -62,7 +62,7 @@ usable. Protocol-level faults (unparseable line, unknown `cmd`) answer with
 **Event** — unsolicited, no `id`:
 
 ```json
-{"event":"ready","protocol":"1.0","engine":"0.1.4"}
+{"event":"ready","protocol":"1.0","engine":"0.1.5"}
 {"event":"log","level":"warn","message":"tab navigated mid-step"}
 ```
 
@@ -125,6 +125,10 @@ element is something an agent reacts to; the session stays healthy.
 
 A leading UTF-8 BOM on a request line is ignored — shell pipelines and Windows
 editors add one, and rejecting it would only ever look like a client bug.
+
+A request line may be up to 1 MB. A longer one is skipped whole and answered
+with `bad_request` and a null `id` — the engine never read far enough to learn
+which request it was — and the session carries on with the next line.
 
 ### Launch a new browser, or attach to a running one
 
@@ -284,7 +288,9 @@ run aborts, because there is no session yet to serve it:
 
 The handshake must complete before the first hunt starts. Worker goroutines read
 the extension registries without synchronising against late arrivals, so a
-handler declared afterwards may or may not be seen.
+handler declared afterwards may or may not be seen. A peer has 60 seconds to
+announce `ready`; one that has neither done so nor exited by then is killed and
+the run does not start.
 
 **Then it inverts.** Once ready, every line the engine writes is an `invoke` and
 every line the peer writes is a reply — or a nested `page.eval` / `page.url`,

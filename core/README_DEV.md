@@ -2,7 +2,7 @@
     <img src="images/manul.png" alt="Manul Browser mascot" width="160" />
 </p>
 
-# 😼 Manul Browser Engine 0.1.4 — Deterministic Web & Desktop Automation Runtime
+# 😼 Manul Browser Engine 0.1.5 — Deterministic Web & Desktop Automation Runtime
 
 > **Developer README.** The user-facing tour lives in [README.md](README.md); this file is the
 > engineering manual: project structure, runtime architecture, extension points, configuration,
@@ -267,7 +267,7 @@ the DSL contract + `manul schema` verbs list.
 
 `const version` in `cmd/manul/main.go` is the single source of truth (reported by
 `manul --version` and the agent schema, **no `v` prefix**). Bump it together with:
-the git tag (`v0.1.4` — Go needs the prefix), README badges/notes, and the
+the git tag (`v0.1.5` — Go needs the prefix), README badges/notes, and the
 `"version"` field in every `contracts/MANUL_*_CONTRACT.md`. Keep it in lockstep with the
 binding versions in `bindings/python/manul/__init__.py` and `bindings/node/package.json`.
 
@@ -276,6 +276,71 @@ creates the GitHub Release and tags `core/vX.Y.Z`; `publish.yml` builds the PyPI
 packages with `bindings/build-packages.sh`, smoke-tests each on its own platform, and
 uploads them. **That upload cannot be undone** — bump the version when the code on `main`
 is the code to ship. A push that leaves the version alone publishes nothing.
+
+---
+
+## 📜 Release Notes: 0.1.5
+
+A bug-fix release from a review of the whole engine. Hunts that passed keep passing,
+with two exceptions listed last.
+
+**Steps that saw a stale page**
+
+- **`RIGHT CLICK`, `DOUBLE CLICK` and `WAIT` drop the snapshot cache.** The step after
+  a right click looked for the menu item in the snapshot taken before the menu opened,
+  and failed as not found. `WHILE` re-reads the page at every pass.
+- **`SELECT` on a custom dropdown** clicks where the dropdown is after scrolling it into
+  view, not where the snapshot had recorded it, and reports a failed open instead of
+  going on to look for the option.
+
+**Variables**
+
+- **`SET {x} = …` on a name declared with `@var:` works.** Parse-time substitution had
+  turned it into an assignment to a variable named after the old value. A name the hunt
+  assigns to now stays a placeholder for the runtime; so does every name in a hunt with
+  `@data:`, so a column overrides the `@var:` default of the same name.
+- **`@var:` values built from other `@var:`s** resolve in file order, the same on every
+  run, instead of in map order.
+- **A value is not a template.** Text read off the page that contains `{token}` is no
+  longer expanded with the token.
+- **`REPEAT {n} TIMES` and `WAIT {n}`** resolve at run time; a count that is not a number
+  fails the step rather than looping zero times, green.
+
+**Assertions and conditions**
+
+- **`VERIFY … is NOT present`** passes on the first look when the text is absent — it
+  used to wait out the whole timeout — and waits for text that is still disappearing.
+- **`SCROLL … inside '<container>'`** fails as not found when the container is not there.
+- **`IF` / `WHILE` conditions** read their keywords outside the quotes, so
+  `{status} == 'exists'` is a comparison; double-quoted targets and `does not exist` work.
+- **`WAIT FOR … to be <unknown state>`** fails at once instead of after 15 seconds.
+
+**`manul run`**
+
+- **`--headless` and `--executable-path` reach parallel workers.** `--workers 4 --headless`
+  opened four windows. `--cdp` and `--user-data-dir` are reported as ignored there.
+- **Ctrl+C cancels the run and closes every browser**, in both modes. Parallel workers'
+  browsers used to survive the engine, with their temp profiles.
+- **`--workers 1`** overrides `MANUL_WORKERS`.
+- **`MOCK` rules do not leak** from one hunt file into the next on the same worker.
+- **`--user-data-dir` keeps the profile's preferences**; the automation settings are
+  merged over them instead of replacing the file.
+
+**Embedding and bindings**
+
+- **`agent.Launch` / `agent.Attach`**: the context bounds attaching only. A Session used
+  to stop answering once the context it was created with ended, while its browser ran on.
+- **`manul serve`**: a request line over 1 MB is refused as `bad_request`; it used to end
+  the session.
+- **`--hooks`**: a script that never announces `ready` is killed after 60 seconds.
+- **Python**: Ctrl+C inside a handler stops the program instead of failing one step.
+
+**Two things that now fail and did not before** — both were passing for the wrong reason:
+`SCROLL … inside` a container that does not exist, and `REPEAT` / `WAIT` with something
+that is not a number.
+
+The DSL contract said `[TEARDOWN]` runs only when `[SETUP]` succeeded; the engine has
+always run it either way, and the contract now says so.
 
 ---
 

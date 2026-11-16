@@ -12,7 +12,7 @@
 
 ```json
 {
-  "version": "0.1.4",
+  "version": "0.1.5",
   "generatedFrom": "pkg/agent/agent.go :: Options, Session, Launch(), Attach(), (*Session).Close/Read/ReadText/Step/Run/Map, Value, Reason, Cand, StepOutcome, RunOutcome, MapBudget, MapElement, MapGroup, PageMap, TruncateText(), DefaultMaxPerGroup",
   "importPath": "github.com/alexbeatnik/manul-browser/core/pkg/agent",
 
@@ -29,7 +29,7 @@
       { "name": "Port",           "type": "int",             "default": "0 → free port",  "description": "Debug port for a Launch-managed browser. 0 → Chromium picks a free port (--remote-debugging-port=0) and the Session uses the one it reports; Firefox uses 9222. Connect probes 9222 for a running Chrome when it is 0. Ignored by Attach." },
       { "name": "CDPURL",         "type": "string",          "default": "",               "description": "Explicit CDP HTTP endpoint. Ignored by Launch." },
       { "name": "ExecutablePath", "type": "string",          "default": "",               "description": "Override the Chrome binary location (Launch only)." },
-      { "name": "UserDataDir",    "type": "string",          "default": "",               "description": "Override the Chrome profile dir (Launch only). Empty → unique temp profile, removed on Close." },
+      { "name": "UserDataDir",    "type": "string",          "default": "",               "description": "Override the Chrome profile dir (Launch only). Empty → unique temp profile, removed on Close. A profile that already has preferences keeps them: the automation settings are merged over them, and a Preferences file that is not valid JSON fails the launch rather than being replaced." },
       { "name": "Config",         "type": "*config.Config",  "default": "nil → config.Default()", "description": "Engine configuration (see MANUL_CONFIG_CONTRACT.md)." },
       { "name": "Logger",         "type": "*utils.Logger",   "default": "nil → discard",  "description": "Log sink. Nil discards output so an embedding app's stdout/stderr stays clean (and structured agent JSON is not corrupted)." }
     ]
@@ -39,12 +39,12 @@
     {
       "name": "Launch",
       "signature": "Launch(ctx context.Context, opts Options) (*Session, error)",
-      "description": "Spawns a Chrome process owned by Manul Browser, attaches to its first page, and returns a ready Session. Close tears the process (and temp profile) down."
+      "description": "Spawns a Chrome process owned by Manul Browser, attaches to its first page, and returns a ready Session. ctx bounds the launch only: the Session, its browser and its page connection outlive it and end with Close, which tears the process (and temp profile) down."
     },
     {
       "name": "Attach",
       "signature": "Attach(ctx context.Context, cdpURL, urlSubstr string, opts Options) (*Session, error)",
-      "description": "Connects to an already-running Chrome at cdpURL (e.g. http://127.0.0.1:9222). When urlSubstr is non-empty, selects the most-recently-active page whose URL contains it; otherwise the first page. Close leaves Chrome running. Requires a non-empty cdpURL."
+      "description": "Connects to an already-running Chrome at cdpURL (e.g. http://127.0.0.1:9222). When urlSubstr is non-empty, selects the most-recently-active page whose URL contains it; otherwise the first page. ctx bounds attaching only; the page connection outlives it and ends with Close, which leaves Chrome running. Requires a non-empty cdpURL."
     }
   ],
 

@@ -386,10 +386,38 @@ func writeAutomationPrefs(userDataDir string) error {
 		},
 	}
 
+	// A profile that has been used before has preferences of its own, and
+	// --user-data-dir can name one a person works in. Those are kept: the
+	// automation settings are laid over them, not written in their place.
+	path := filepath.Join(defaultDir, "Preferences")
+	if existing, err := os.ReadFile(path); err == nil && len(existing) > 0 {
+		var current map[string]any
+		if err := json.Unmarshal(existing, &current); err != nil {
+			// Not something to guess at, and not something to destroy.
+			return fmt.Errorf("%s is not valid JSON, left untouched: %w", path, err)
+		}
+		prefs = mergePrefs(current, prefs)
+	}
+
 	data, err := json.MarshalIndent(prefs, "", "  ")
 	if err != nil {
 		return err
 	}
 
-	return os.WriteFile(filepath.Join(defaultDir, "Preferences"), data, 0o644)
+	return os.WriteFile(path, data, 0o644)
+}
+
+// mergePrefs lays over onto base, descending into objects both hold so that
+// setting one key of a group leaves the rest of the group alone.
+func mergePrefs(base, over map[string]any) map[string]any {
+	for k, v := range over {
+		if child, ok := v.(map[string]any); ok {
+			if existing, ok := base[k].(map[string]any); ok {
+				base[k] = mergePrefs(existing, child)
+				continue
+			}
+		}
+		base[k] = v
+	}
+	return base
 }

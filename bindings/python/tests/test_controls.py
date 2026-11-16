@@ -189,6 +189,18 @@ def test_handler_failure_fails_the_step_without_killing_the_session():
         assert s.step("CLICK the 'Sign in' button").ok
 
 
+# Ctrl+C inside a handler is the program being told to stop, not a handler
+# failing. It used to be reported as a failed step, and the run carried on.
+def test_keyboard_interrupt_in_a_handler_is_not_swallowed():
+    @manul.custom_control(page="Login Page", target="Username")
+    def handler(ctx):
+        raise KeyboardInterrupt
+
+    with manul.Session(binary=FAKE) as s:
+        with pytest.raises(KeyboardInterrupt):
+            s.step("FILL 'Username' field with 'ada'")
+
+
 # A control registered for another page must not claim the step: it falls
 # through to ordinary DOM resolution, exactly as if nothing were registered.
 def test_control_on_another_page_does_not_claim_the_step():
