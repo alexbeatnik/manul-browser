@@ -1,0 +1,18 @@
+@context: Reusable steps. Another hunt imports these by name and runs them with USE.
+@title: account_library
+@export: LogIn, LogOut
+# An imported @var is a default: the importing hunt, a data row or a global
+# can override it. {site} has no default, so the importing hunt must set it.
+@var: {user} = ada
+@var: {password} = lovelace
+
+STEP LogIn:
+    NAVIGATE to {site}/login.html
+    FILL 'Username' field with '{user}'
+    FILL 'Password' field with '{password}'
+    CLICK the 'Sign in' button
+    VERIFY that 'Welcome, {user}' is present
+
+STEP LogOut:
+    CLICK the 'Logout' button ON HEADER
+    VERIFY that 'Sign in' is present

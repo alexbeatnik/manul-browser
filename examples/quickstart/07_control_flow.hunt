@@ -1,0 +1,40 @@
+@context: IF / ELSE, WHILE, REPEAT and FOR EACH — a body is the indented lines under a header ending in ':'.
+@title: control_flow
+
+@var: {site} = http://localhost:8000
+@var: {wanted} = Manul Plush, Snow Boots
+
+STEP 1: IF — branch on the page or on a variable
+    NAVIGATE to {site}/login.html
+    FILL 'Username' field with 'grace'
+    FILL 'Password' field with 'hopper'
+    CLICK the 'Sign in' button
+    EXTRACT the 'Role' into {role}
+    IF {role} == 'admin':
+        PRINT "full access"
+    ELIF {role} contains 'member':
+        PRINT "member access"
+    ELSE:
+        PRINT "no idea who this is"
+    IF button 'Delete everything' exists:
+        PRINT "this never prints"
+
+STEP 2: WHILE — repeat until the page changes
+    NAVIGATE to {site}/dynamic.html
+    WHILE button 'Load more' exists:
+        CLICK the 'Load more' button
+    VERIFY that 'Feed item 6' is present
+
+STEP 3: REPEAT — a fixed number of times
+    NAVIGATE to {site}/shop.html
+    REPEAT 3 TIMES as {n}:
+        CLICK the 'Add to cart' button NEAR 'Steppe Map'
+        PRINT "added map number {n}"
+    VERIFY that 'Cart: 3' is present
+
+STEP 4: FOR EACH — over a comma-separated list
+    FOR EACH {item} IN {wanted}:
+        CLICK the 'Add to cart' button NEAR '{item}'
+    VERIFY that 'Cart: 5' is present
+
+DONE.

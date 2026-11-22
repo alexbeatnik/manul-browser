@@ -1,0 +1,47 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Slow page</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<header><strong>Manul Quickstart</strong><a href="index.html">Home</a></header>
+<main>
+  <p id="spinner">Loading page...</p>
+  <section>
+    <h2>Report</h2>
+    <button id="build">Build report</button>
+    <p id="report"></p>
+  </section>
+  <section>
+    <h2>Feed</h2>
+    <div id="feed"></div>
+    <button id="more">Load more</button>
+  </section>
+  <section>
+    <h2>Settings</h2>
+    <button id="save">Save settings</button>
+  </section>
+</main>
+<script>
+// Everything here arrives late on purpose: these are the timings a real app has.
+const $ = (id) => document.getElementById(id);
+setTimeout(() => $("spinner").remove(), 1000);
+
+$("build").onclick = () => {
+  $("report").textContent = "Working...";
+  setTimeout(() => { $("report").textContent = "Report ready: 3 orders"; }, 1500);
+};
+
+let shown = 0;
+const loadMore = () => {
+  for (let i = 0; i < 2; i++) { shown++; const p = document.createElement("p"); p.textContent = "Feed item " + shown; $("feed").appendChild(p); }
+  if (shown >= 6) $("more").remove();
+};
+loadMore();
+$("more").onclick = () => setTimeout(loadMore, 300);
+
+$("save").onclick = () => {
+  const t = document.createElement("div");
+  t.className = "toast"; t.textContent = "Settings saved";
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 1500);
+};
+</script>
+</body></html>

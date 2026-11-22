@@ -1,0 +1,17 @@
+@context: The smallest useful hunt — open a page, check it, follow a link.
+@title: first_hunt
+
+# A hunt is plain English, one action per line. Commands are case-insensitive,
+# and the text you mean goes in single quotes, exactly as a person sees it.
+# {site} is a variable; every example declares it once, here at the top.
+@var: {site} = http://localhost:8000
+
+STEP 1: Open the home page
+    NAVIGATE to {site}/index.html
+    VERIFY that 'Welcome to the Manul quickstart site' is present
+
+STEP 2: Follow a link by its text
+    CLICK the 'Login page' link
+    VERIFY that 'Sign in' is present
+
+DONE.

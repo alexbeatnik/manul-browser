@@ -64,6 +64,21 @@ func sharedConn(ctx context.Context, endpoint string) (*bidi.Conn, error) {
 	return c, nil
 }
 
+// newBiDiPage binds a page to its browsing context and asks Firefox, once and
+// for the page's lifetime, to report the responses it receives.
+//
+// Firefox reports a response only for a request that started while a
+// subscription was in place. WAIT FOR RESPONSE used to subscribe when it began,
+// after the click that sent the request, so the response it waited for was
+// never reported and every such wait timed out. WaitForResponse now only
+// listens; the subscription is here.
+func newBiDiPage(ctx context.Context, conn *bidi.Conn, contextID string) (*BiDiPage, error) {
+	if err := bidi.SubscribeEvents(ctx, conn, []string{bidi.ResponseCompleted}, []string{contextID}); err != nil {
+		return nil, fmt.Errorf("browser: subscribe %s: %w", bidi.ResponseCompleted, err)
+	}
+	return &BiDiPage{conn: conn, contextID: contextID}, nil
+}
+
 // FirstPage attaches to the first top-level browsing context.
 func (b *BiDiBrowser) FirstPage(ctx context.Context) (Page, error) {
 	conn, err := sharedConn(ctx, b.endpoint)
@@ -77,7 +92,7 @@ func (b *BiDiBrowser) FirstPage(ctx context.Context) (Page, error) {
 	if len(contexts) == 0 {
 		return nil, fmt.Errorf("browser: no browsing context found")
 	}
-	return &BiDiPage{conn: conn, contextID: contexts[0].ID}, nil
+	return newBiDiPage(ctx, conn, contexts[0].ID)
 }
 
 // PageMatching attaches to the first top-level context whose URL contains the
@@ -98,7 +113,7 @@ func (b *BiDiBrowser) PageMatching(ctx context.Context, urlSubstr string) (Page,
 	needle := strings.ToLower(urlSubstr)
 	for _, c := range contexts {
 		if strings.Contains(strings.ToLower(c.URL), needle) {
-			return &BiDiPage{conn: conn, contextID: c.ID}, nil
+			return newBiDiPage(ctx, conn, c.ID)
 		}
 	}
 	return nil, fmt.Errorf("browser: no page with URL containing %q (found %d contexts)", urlSubstr, len(contexts))
@@ -121,7 +136,11 @@ func (b *BiDiBrowser) OpenTarget(ctx context.Context, url string) (Page, string,
 	if err != nil {
 		return nil, "", fmt.Errorf("browser: create context: %w", err)
 	}
-	page := &BiDiPage{conn: conn, contextID: contextID}
+	page, err := newBiDiPage(ctx, conn, contextID)
+	if err != nil {
+		_ = bidi.CloseContext(context.Background(), conn, contextID)
+		return nil, "", err
+	}
 	if url != "" && url != "about:blank" {
 		if err := bidi.Navigate(ctx, conn, contextID, url); err != nil {
 			_ = bidi.CloseContext(context.Background(), conn, contextID)

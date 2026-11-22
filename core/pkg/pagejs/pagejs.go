@@ -544,6 +544,29 @@ const CurrentURL = "window.location.href"
 // ReadyState is the expression whose value is the document's load state.
 const ReadyState = "document.readyState"
 
+// ArmNavigationWatch marks the current document before an action, so that
+// NavigationState can tell afterwards whether the action is replacing it.
+//
+// readyState alone cannot: the old document stays "complete" until the new
+// one's response arrives, and on a slow server the next step ran on the page
+// that was about to go away. beforeunload fires as the navigation starts,
+// before any request is sent.
+const ArmNavigationWatch = `(() => {
+	window.__manulStay = true;
+	window.__manulLeaving = false;
+	if (!window.__manulWatching) {
+		window.__manulWatching = true;
+		window.addEventListener("beforeunload", () => { window.__manulLeaving = true; });
+	}
+	return 1;
+})()`
+
+// NavigationState is 0 when the armed document is still here and nothing is
+// leaving it, 1 while it is being navigated away from, and 2 once another
+// document has replaced it. It is a number because EvalJS hands strings back
+// unquoted.
+const NavigationState = `(window.__manulStay !== true ? 2 : (window.__manulLeaving === true ? 1 : 0))`
+
 func looksLikeXPath(locator string) bool {
 	locator = strings.TrimSpace(locator)
 	if locator == "" {

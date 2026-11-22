@@ -1,0 +1,26 @@
+@context: When a label appears more than once — NEAR, INSIDE, row with, ON HEADER / ON FOOTER.
+@title: which_element
+
+# Three 'Add to cart' buttons, three 'Edit' buttons, two 'Help' links: the label
+# alone does not say which. A qualifier names the neighbourhood instead.
+@var: {site} = http://localhost:8000
+
+STEP 1: NEAR — the button closest to some text
+    NAVIGATE to {site}/shop.html
+    CLICK the 'Add to cart' button NEAR 'Manul Plush'
+    VERIFY that 'Added Manul Plush' is present
+    VERIFY 'Cart total' field has value '24.50'
+
+STEP 2: INSIDE ... row with — one row of a table
+    CLICK the 'Edit' button INSIDE 'Team' row with 'Grace Hopper'
+    VERIFY that 'Editing Grace Hopper' is present
+    CLICK the 'Remove' button INSIDE 'Team' row with 'Alan Turing'
+    VERIFY that 'Removed Alan Turing' is present
+
+STEP 3: ON HEADER / ON FOOTER — the same link in two places
+    CLICK the 'Help' link ON FOOTER
+    VERIFY that 'Help from the footer' is present
+    CLICK the 'Help' link ON HEADER
+    VERIFY that 'Help from the header' is present
+
+DONE.

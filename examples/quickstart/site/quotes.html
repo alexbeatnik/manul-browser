@@ -1,0 +1,27 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Quote of the day</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<header><strong>Manul Quickstart</strong><a href="index.html">Home</a></header>
+<main>
+  <h1>Quote of the day</h1>
+  <blockquote id="quote">…</blockquote>
+  <p id="author"></p>
+  <button id="next">Next quote</button>
+</main>
+<script>
+// The page knows nothing but this URL, which is what lets a hunt MOCK it.
+const $ = (id) => document.getElementById(id);
+let n = 0;
+async function load() {
+  const res = await fetch("api/quotes.json", { cache: "no-store" });
+  const quotes = await res.json();
+  const q = quotes[n++ % quotes.length];
+  $("quote").textContent = q.text;
+  $("author").textContent = "— " + q.author;
+}
+load();
+// A static server answers at once; the delay gives the click time to return
+// before the request goes out, the way a slow API would.
+$("next").onclick = () => setTimeout(load, 800);
+</script>
+</body></html>

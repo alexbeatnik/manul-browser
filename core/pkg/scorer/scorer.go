@@ -230,9 +230,21 @@ func Rank(query, typeHint, mode string, elements []dom.ElementSnapshot, topN int
 	// Sort: highest raw score first; DOM order as deterministic tie-breaker.
 	// RawScore is unclamped so that small differences in proximity/semantics
 	// are preserved even when Total confidence hits 1.0.
+	//
+	// On a tie a descendant beats its ancestor. A wrapper whose only content
+	// is the target scores exactly what the target does, and DOM order alone
+	// put the wrapper first: DRAG 'Card' took the column holding the card and
+	// pressed the mouse on empty column. Descendants first, otherwise
+	// document order, is post-order — a total order, so the sort stays sound.
 	sort.SliceStable(all, func(i, j int) bool {
 		if all[i].bd.RawScore != all[j].bd.RawScore {
 			return all[i].bd.RawScore > all[j].bd.RawScore
+		}
+		if IsXPathAncestor(all[j].elem.XPath, all[i].elem.XPath) {
+			return true
+		}
+		if IsXPathAncestor(all[i].elem.XPath, all[j].elem.XPath) {
+			return false
 		}
 		return all[i].idx < all[j].idx // earlier in DOM wins on tie
 	})
@@ -347,8 +359,13 @@ func scoreNormText(q string, el *dom.ElementSnapshot) float64 {
 }
 
 // scoreLabel returns how well the element's associated <label> text matches.
+//
+// This and the attribute scorers below score nothing for an empty query. Pass 3
+// ranks the controls beside a caption with one, and strings.Contains(x, "") is
+// true: every field with a label of its own got +0.5 for it, so the zip-code
+// field across the form beat the unlabelled quantity box under 'Qty.'.
 func scoreLabel(q string, el *dom.ElementSnapshot) float64 {
-	if el.NormLabelText == "" {
+	if el.NormLabelText == "" || q == "" {
 		return 0.0
 	}
 	if el.NormLabelText == q {
@@ -378,7 +395,7 @@ func scoreLabel(q string, el *dom.ElementSnapshot) float64 {
 
 // scorePlaceholder returns how well the element's placeholder attribute matches.
 func scorePlaceholder(q string, el *dom.ElementSnapshot) float64 {
-	if el.NormPlaceholder == "" {
+	if el.NormPlaceholder == "" || q == "" {
 		return 0.0
 	}
 	if el.NormPlaceholder == q {
@@ -392,7 +409,7 @@ func scorePlaceholder(q string, el *dom.ElementSnapshot) float64 {
 
 // scoreAria returns how well the element's aria-label matches.
 func scoreAria(q string, el *dom.ElementSnapshot) float64 {
-	if el.NormAriaLabel == "" {
+	if el.NormAriaLabel == "" || q == "" {
 		return 0.0
 	}
 	if el.NormAriaLabel == q {
@@ -406,7 +423,7 @@ func scoreAria(q string, el *dom.ElementSnapshot) float64 {
 
 // scoreDataQA returns how well the element's data-qa / data-testid matches.
 func scoreDataQA(q string, el *dom.ElementSnapshot) float64 {
-	if el.NormDataQA == "" {
+	if el.NormDataQA == "" || q == "" {
 		return 0.0
 	}
 	if el.NormDataQA == q {
@@ -420,7 +437,7 @@ func scoreDataQA(q string, el *dom.ElementSnapshot) float64 {
 
 // scoreID returns how well the element's html id attribute matches.
 func scoreID(q string, el *dom.ElementSnapshot) float64 {
-	if el.NormHTMLId == "" {
+	if el.NormHTMLId == "" || q == "" {
 		return 0.0
 	}
 	normalized := el.NormHTMLId
@@ -725,6 +742,12 @@ func wordOverlap(q, s string) float64 {
 		}
 	}
 	return clamp(float64(hits)/float64(len(qWords)), 0, 1)
+}
+
+// IsXPathAncestor reports whether the element at xpath anc contains the one at
+// xpath desc, judged by the snapshot's absolute paths.
+func IsXPathAncestor(anc, desc string) bool {
+	return anc != "" && len(desc) > len(anc)+1 && strings.HasPrefix(desc, anc) && desc[len(anc)] == '/'
 }
 
 // xpathParts splits an XPath string into its non-empty path components.

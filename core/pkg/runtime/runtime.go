@@ -33,6 +33,12 @@ const (
 	ThresholdPass3Total     = 0.12
 	ThresholdPass3Proximity = 0.18
 	ThresholdPass3Gap       = 0.04
+	// ThresholdPass3NearerGap is how much nearer to the label pass 3's winner
+	// has to be than the runner-up when their scores are too close to tell
+	// apart. Fields of one kind score alike except for proximity, which weighs
+	// little, so a form's fields stacked under their captions never cleared
+	// the score gap: the one under 'Name:' and the one under 'Country:' below it.
+	ThresholdPass3NearerGap = 0.05
 )
 
 // Runtime executes Manul Browser DSL hunts against a live browser page.
@@ -133,6 +139,9 @@ func (rt *Runtime) RunHunt(ctx context.Context, hunt *dsl.Hunt, rowVars ...map[s
 
 	for k, v := range hunt.Vars {
 		rt.vars.Set(k, v, LevelMission)
+	}
+	for k, v := range hunt.ImportVars {
+		rt.vars.Set(k, v, LevelImport)
 	}
 
 	if len(rowVars) > 0 && rowVars[0] != nil {
@@ -534,11 +543,20 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 			}
 		}
 		key, modifiers := splitKeyChord(chord)
+		rt.armNavigationWatch(ctx)
 		if dispatchErr := rt.page.DispatchKey(ctx, key, modifiers); dispatchErr != nil {
 			err = fmt.Errorf("PRESS %s: %w", chord, dispatchErr)
 			break
 		}
+		// Enter in a field submits its form. The results page came in under
+		// the steps that followed, still loading, and a CLICK measured a link
+		// that the page's images then pushed out from under the pointer.
+		if waitErr := rt.page.Wait(ctx, 300*time.Millisecond); waitErr != nil {
+			err = waitErr
+			break
+		}
 		rt.invalidateSnapshot()
+		rt.settleNavigation(ctx)
 
 	case dsl.CmdPrint:
 		text := rt.resolveVariables(cmd.PrintText)
@@ -762,7 +780,11 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 			appendRankedCandidates(&res, ranked, 5)
 			break
 		}
-		if selectionIsAmbiguous(ranked) {
+		// Pass 2 found one control of the kind asked for that carries the
+		// target itself — a checkbox whose class is chkAgree for 'Agree'. Its
+		// score is low because the class is all that matches, not because
+		// anything else competes, so the confidence floor does not apply.
+		if selectionIsAmbiguous(ranked) && !(strings.HasSuffix(resolutionStrategy, "restrictive-pass2") && len(ranked) == 1) {
 			runnerUp := 0.0
 			if len(ranked) > 1 {
 				runnerUp = ranked[1].Explain.Score.Total
@@ -770,8 +792,13 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 			err = fmt.Errorf("target resolution too ambiguous (confidence %.3f, runner-up %.3f)", best.Explain.Score.Total, runnerUp)
 			res.FailureReason = explain.ReasonAmbiguous
 			// Attach the top candidates so callers can surface "you almost
-			// matched X (0.18)" without a follow-up scan.
+			// matched X (0.18)" without a follow-up scan — and how they were
+			// found, which is the first thing to ask about a refusal.
 			appendRankedCandidates(&res, ranked, 5)
+			res.ProbeMetadata = map[string]any{
+				"resolution_strategy": resolutionStrategy,
+				"interaction_mode":    string(mode),
+			}
 			break
 		}
 		appendRankedCandidates(&res, ranked, 5)
@@ -844,6 +871,13 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 				val = rt.resolveVariables(cmd.SetValue)
 			}
 			res.ActionValue = val
+			// Setting a value on a heading or a table cell raises nothing, so
+			// the step used to pass with the field it meant left untouched.
+			if !winner.IsInteractive(string(dsl.ModeInput)) && winner.Tag != "select" {
+				err = fmt.Errorf("target not found: %q is <%s>, not a field that takes text", targetPath, winner.Tag)
+				res.FailureReason = explain.ReasonNotFound
+				break
+			}
 			err = rt.page.SetInputValue(ctx, winner.ID, winner.XPath, val)
 			if err == nil {
 				rt.logger.ActionDetail("⌨️", "Typed %q → %q", val, winner.Name)
@@ -875,6 +909,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 				err = e
 			} else {
 				// Perform interaction
+				rt.armNavigationWatch(ctx)
 				err = rt.page.Click(ctx, x, y)
 				if err == nil {
 					// A click may trigger navigation or AJAX update.
@@ -883,7 +918,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 						break
 					}
 					rt.invalidateSnapshot()
-					_ = rt.waitForLoad(ctx)
+					rt.settleNavigation(ctx)
 					if stickyErr := rt.reconcileStickyCheckboxStates(ctx); stickyErr != nil {
 						err = stickyErr
 					}
@@ -937,6 +972,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 
 			// Detect if it's a native select or custom dropdown
 			if winner.Tag == "select" {
+				rt.armNavigationWatch(ctx)
 				raw, evalErr := rt.page.EvalJS(ctx, pagejs.SelectOption(winner.XPath, val))
 				if evalErr != nil {
 					err = evalErr
@@ -953,7 +989,14 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 					// of believing it succeeded.
 					err = fmt.Errorf("option %q not found in the dropdown%s", val, formatOptions(outcome.Options))
 				default:
+					// A sort or filter dropdown often reloads the page on
+					// change, exactly as a click on a link would.
+					if waitErr := rt.page.Wait(ctx, 300*time.Millisecond); waitErr != nil {
+						err = waitErr
+						break
+					}
 					rt.invalidateSnapshot()
+					rt.settleNavigation(ctx)
 				}
 			} else {
 				// Custom dropdown: Click then search for the option text.
@@ -1189,8 +1232,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 				rt.logger.ActionWarn(fmt.Sprintf("VERIFY SOFTLY skipped: probe error: %v", errProbe))
 				break
 			}
-			pageText := strings.ToLower(string(raw))
-			satisfied = strings.Contains(pageText, strings.ToLower(target))
+			satisfied = strings.Contains(foldSpace(string(raw)), foldSpace(target))
 		}
 		if cmd.VerifyNegated {
 			satisfied = !satisfied
@@ -1224,8 +1266,8 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 			raw, errProbe := rt.page.CallProbe(ctx, heuristics.BuildVisibleTextProbe(), nil)
 			if errProbe == nil {
 				probed = true
-				pageText = strings.ToLower(string(raw))
-				present = strings.Contains(pageText, strings.ToLower(target))
+				pageText = foldSpace(string(raw))
+				present = strings.Contains(pageText, foldSpace(target))
 			} else {
 				lastProbeErr = errProbe
 			}
@@ -1497,6 +1539,11 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 				break
 			}
 		}
+
+	case dsl.CmdUnknown:
+		// A line no verb matched. "command UNKNOWN not yet implemented" read
+		// as a missing feature, and named neither the line nor its number.
+		err = fmt.Errorf("line %d is not a command: %q", cmd.LineNum, cmd.Raw)
 
 	default:
 		err = fmt.Errorf("runtime: command %q not yet implemented", cmd.Type)
@@ -1807,6 +1854,45 @@ func (rt *Runtime) waitForLoad(ctx context.Context) error {
 	return rt.page.WaitForLoad(limited)
 }
 
+// foldSpace lowercases s and collapses every run of whitespace, line breaks
+// and no-break spaces included, into one space. VERIFY compares text the way
+// a person reads it: two spans on one line read "Shopping cart (1)" while the
+// page's innerText says "Shopping cart\n(1)".
+func foldSpace(s string) string {
+	return strings.Join(strings.Fields(strings.ToLower(s)), " ")
+}
+
+// armNavigationWatch marks the document before an action that may navigate,
+// for settleNavigation to look at afterwards.
+func (rt *Runtime) armNavigationWatch(ctx context.Context) {
+	_, _ = rt.page.EvalJS(ctx, pagejs.ArmNavigationWatch)
+}
+
+// settleNavigation waits, no longer than nav_timeout, for a navigation the
+// last action set off to land, and for the new document to load.
+//
+// A SELECT whose change handler reloads the page waited for nothing, and the
+// FILL after it typed into the old document: on a slow server it was still
+// there, "complete", until the response came and replaced it — empty field,
+// green step. An evaluation that fails is a document in transit, so it counts
+// as still leaving; one that answers nothing useful (no watch armed) as not.
+func (rt *Runtime) settleNavigation(ctx context.Context) {
+	limited, cancel := rt.withNavTimeout(ctx)
+	defer cancel()
+	for {
+		raw, err := rt.page.EvalJS(limited, pagejs.NavigationState)
+		if err == nil && strings.TrimSpace(string(raw)) != "1" {
+			break
+		}
+		select {
+		case <-limited.Done():
+			return
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+	_ = rt.page.WaitForLoad(limited)
+}
+
 // withNavTimeout bounds ctx by nav_timeout. Zero means no limit, which is
 // also what a Runtime built from an empty Config gets.
 func (rt *Runtime) withNavTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
@@ -1875,13 +1961,26 @@ func (rt *Runtime) autoAnnotateNavigate(ctx context.Context, url string) {
 	rt.logger.ActionDetail("📍", "Auto-Nav: %s", pageName)
 }
 
+// defaultControlHint is the type a restrictive mode asks for when the step
+// itself named none.
+var defaultControlHint = map[dsl.InteractionMode]string{
+	dsl.ModeInput:    "field",
+	dsl.ModeSelect:   "dropdown",
+	dsl.ModeCheckbox: "checkbox",
+}
+
 func resolveRestrictiveCandidates(targetPath, typeHint string, mode dsl.InteractionMode, elements []dom.ElementSnapshot, anchor *scorer.AnchorContext, logger *utils.Logger) ([]scorer.RankedCandidate, string) {
 	// A type hint alone clears the confidence bar, so pass 1 also has to match
 	// the target — otherwise the first input on the page wins before the label
 	// passes below ever get to look for the right one.
+	//
+	// And it has to be a control of this mode. A table header 'Qty.' matches
+	// its own text perfectly, so it took pass 1, and FILL typed into the <th>
+	// instead of the quantity field the label passes would have found under it.
 	selfRanked := scorer.Rank(targetPath, typeHint, string(mode), elements, 5, anchor)
 	if len(selfRanked) > 0 && selfRanked[0].Explain.Score.Total >= ThresholdHighConfidence &&
-		scorer.MatchesQuery(targetPath, &selfRanked[0].Element) {
+		scorer.MatchesQuery(targetPath, &selfRanked[0].Element) &&
+		selfRanked[0].Element.IsInteractive(string(mode)) {
 		return selfRanked, "restrictive-pass1"
 	}
 
@@ -1893,6 +1992,15 @@ func resolveRestrictiveCandidates(targetPath, typeHint string, mode dsl.Interact
 	bestScore := -1.0
 	var bestRanked []scorer.RankedCandidate
 	bestStrategy := "restrictive-anchor"
+
+	// Pass 3 looks for a control of this mode beside a label, so it asks for
+	// one by type even when the step named none. FILL and TYPE never carry a
+	// hint, and without one a field right under its column header scored just
+	// short of the bar.
+	controlHint := typeHint
+	if controlHint == "" {
+		controlHint = defaultControlHint[mode]
+	}
 
 	for _, anchorCandidate := range anchorRanked {
 		// Only something that carries the target text can stand in as its label.
@@ -1915,10 +2023,23 @@ func resolveRestrictiveCandidates(targetPath, typeHint string, mode dsl.Interact
 			FrameIndex: anchorCandidate.Element.FrameIndex,
 			Words:      scorer.SignificantWords(anchorCandidate.Element.VisibleText),
 		}
+		// The text and its control in one element, the way a wrapping <label>
+		// holds them: <div><input type=checkbox> Agree to the <a>Terms</a></div>.
+		// Nothing labels that checkbox, and measured from the middle of the
+		// text it was too far off for the proximity passes below.
+		if inside := controlsInside(anchorCandidate.Element, elements, mode); len(inside) == 1 {
+			candidateScore := anchorCandidate.Explain.Score.Total + 0.2
+			if candidateScore > bestScore {
+				bestScore = candidateScore
+				bestRanked = scorer.Rank("", controlHint, string(mode), inside, 1, newAnchor)
+				bestStrategy = "restrictive-pass3-inside"
+			}
+			continue
+		}
 		if mode == dsl.ModeCheckbox {
 			rowScoped := checkboxCandidatesInSameRow(anchorCandidate.Element, elements)
 			if len(rowScoped) > 0 {
-				rowRanked := scorer.Rank("", typeHint, string(mode), rowScoped, 5, newAnchor)
+				rowRanked := nearbyControls(scorer.Rank("", controlHint, string(mode), rowScoped, 0, newAnchor))
 				if pass3CandidateAcceptable(rowRanked) {
 					candidateScore := rowRanked[0].Explain.Score.Total + anchorCandidate.Explain.Score.Total*0.35 + 0.15
 					if candidateScore > bestScore {
@@ -1930,7 +2051,7 @@ func resolveRestrictiveCandidates(targetPath, typeHint string, mode dsl.Interact
 				}
 			}
 		}
-		rankedFallback := scorer.Rank("", typeHint, string(mode), elements, 5, newAnchor)
+		rankedFallback := nearbyControls(scorer.Rank("", controlHint, string(mode), elements, 0, newAnchor))
 		if !pass3CandidateAcceptable(rankedFallback) {
 			continue
 		}
@@ -2018,6 +2139,29 @@ func (rt *Runtime) resolveContainerDescendants(label string, elements []dom.Elem
 		return nil, fmt.Errorf("inside container not found: %q", label)
 	}
 	return nil, fmt.Errorf("no candidates found inside container %q", label)
+}
+
+// controlsInside returns the controls of mode that sit inside container.
+// For text, that excludes the inputs that take none: IsInteractive counts any
+// <input> as a field, and the 'Remove' checkbox in a cart row became the only
+// "field" inside a cell and took FILL 'Qty.'.
+func controlsInside(container dom.ElementSnapshot, elements []dom.ElementSnapshot, mode dsl.InteractionMode) []dom.ElementSnapshot {
+	var out []dom.ElementSnapshot
+	for _, element := range elements {
+		if mode == dsl.ModeInput && element.Tag == "input" && nonTextInputTypes[strings.ToLower(element.InputType)] {
+			continue
+		}
+		if element.IsInteractive(string(mode)) && scorer.IsXPathAncestor(container.XPath, element.XPath) {
+			out = append(out, element)
+		}
+	}
+	return out
+}
+
+// nonTextInputTypes are the <input> types that take no typed text.
+var nonTextInputTypes = map[string]bool{
+	"checkbox": true, "radio": true, "submit": true, "button": true,
+	"image": true, "reset": true, "hidden": true, "file": true,
 }
 
 func checkboxCandidatesInSameRow(anchor dom.ElementSnapshot, elements []dom.ElementSnapshot) []dom.ElementSnapshot {
@@ -2899,6 +3043,25 @@ func selectionIsAmbiguous(ranked []scorer.RankedCandidate) bool {
 	return best < ThresholdHighConfidence && best-ranked[1].Explain.Score.Total < ThresholdRunnerUpGap
 }
 
+// nearbyControls keeps the five best candidates that are near enough to the
+// label for pass 3 to consider them at all. Ranked by score alone, a search
+// box across the page outranked the field beside the caption on the strength
+// of its placeholder, and pass 3 then gave up because the winner was not near.
+func nearbyControls(ranked []scorer.RankedCandidate) []scorer.RankedCandidate {
+	var out []scorer.RankedCandidate
+	for _, r := range ranked {
+		if r.Explain.Score.ProximityScore >= ThresholdPass3Proximity {
+			r.Explain.Rank = len(out) + 1
+			r.Explain.Chosen = len(out) == 0
+			out = append(out, r)
+			if len(out) == 5 {
+				break
+			}
+		}
+	}
+	return out
+}
+
 func pass3CandidateAcceptable(ranked []scorer.RankedCandidate) bool {
 	if len(ranked) == 0 {
 		return false
@@ -2910,7 +3073,9 @@ func pass3CandidateAcceptable(ranked []scorer.RankedCandidate) bool {
 	if len(ranked) == 1 {
 		return true
 	}
-	return best.Total-ranked[1].Explain.Score.Total >= ThresholdPass3Gap
+	runnerUp := ranked[1].Explain.Score
+	return best.Total-runnerUp.Total >= ThresholdPass3Gap ||
+		best.ProximityScore-runnerUp.ProximityScore >= ThresholdPass3NearerGap
 }
 
 // focusTarget gives keyboard focus to the element a PRESS … ON '<target>' names.

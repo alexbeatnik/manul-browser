@@ -156,6 +156,9 @@ func (e *ElementSnapshot) AllTextSignals() []string {
 		e.NormAriaLabel,
 		e.NormPlaceholder,
 		e.NormLabelText,
+		// What the probe computed as the name — for a link that is only a
+		// picture, the picture's alt, which no other signal carries.
+		norm(e.AccessibleName),
 		e.NormDataQA,
 		norm(e.Title),
 		norm(e.DataTestID),

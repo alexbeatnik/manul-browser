@@ -277,7 +277,11 @@ func TestGetTree_ReturnsNestedContexts(t *testing.T) {
 	}
 }
 
-func TestWaitForResponse_MatchesSuffixAndUnsubscribes(t *testing.T) {
+// WaitForResponse only listens: the page subscribed when it opened, because
+// Firefox reports no response to a request that began before the subscription
+// — and the request a wait is for was usually sent by the step before it. An
+// unsubscribe here would cancel the page's subscription for good.
+func TestWaitForResponse_ListensWithoutResubscribing(t *testing.T) {
 	m := startMockBrowser(t, nil)
 	c, ctx := dialMock(t, m)
 
@@ -285,11 +289,30 @@ func TestWaitForResponse_MatchesSuffixAndUnsubscribes(t *testing.T) {
 	go func() {
 		done <- WaitForResponse(ctx, c, "ctx-1", "/api/cart", 5*time.Second)
 	}()
-	waitForMethod(t, m, "session.subscribe")
+	// Events sent before the wait has its channel would have nowhere to go.
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		c.subsMu.Lock()
+		n := len(c.eventSubs)
+		c.subsMu.Unlock()
+		if n > 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the wait never started listening")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 
-	// A non-matching response must not end the wait.
-	m.events <- json.RawMessage(`{"type":"event","method":"network.responseCompleted","params":{"response":{"url":"https://x.test/other"}}}`)
-	m.events <- json.RawMessage(`{"type":"event","method":"network.responseCompleted","params":{"response":{"url":"https://x.test/api/cart"}}}`)
+	// Neither a non-matching response nor another tab's matching one ends it.
+	m.events <- json.RawMessage(`{"type":"event","method":"network.responseCompleted","params":{"context":"ctx-1","response":{"url":"https://x.test/other"}}}`)
+	m.events <- json.RawMessage(`{"type":"event","method":"network.responseCompleted","params":{"context":"ctx-2","response":{"url":"https://x.test/api/cart"}}}`)
+	select {
+	case err := <-done:
+		t.Fatalf("ended early: %v", err)
+	case <-time.After(200 * time.Millisecond):
+	}
+	m.events <- json.RawMessage(`{"type":"event","method":"network.responseCompleted","params":{"context":"ctx-1","response":{"url":"https://x.test/api/cart"}}}`)
 
 	select {
 	case err := <-done:
@@ -300,20 +323,10 @@ func TestWaitForResponse_MatchesSuffixAndUnsubscribes(t *testing.T) {
 		t.Fatal("matching response never ended the wait")
 	}
 
-	methods := m.methods()
-	var subscribed, unsubscribed bool
-	for _, mth := range methods {
-		switch mth {
-		case "session.subscribe":
-			subscribed = true
-		case "session.unsubscribe":
-			unsubscribed = true
+	for _, mth := range m.methods() {
+		if mth == "session.subscribe" || mth == "session.unsubscribe" {
+			t.Errorf("the wait sent %s", mth)
 		}
-	}
-	// BiDi sends no events until asked, and keeps sending them until told to
-	// stop — both halves matter.
-	if !subscribed || !unsubscribed {
-		t.Fatalf("subscribe/unsubscribe missing: %v", methods)
 	}
 }
 

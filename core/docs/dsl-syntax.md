@@ -58,6 +58,10 @@ DONE.
 
 Imported blocks are referenced via `USE BlockName` or `CALL BlockName`.
 
+The path is relative to the importing file, or absolute. An `@var:` in the
+imported file is a default: it sits at the import level, the lowest, so the
+importing hunt's own `@var:`, a data row or a global overrides it.
+
 ---
 
 ## Navigation

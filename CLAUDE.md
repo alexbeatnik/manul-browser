@@ -112,6 +112,20 @@ command itself. `cdp.Navigate` reads the field so both do.
 point receives it, and the step used to pass. `clickPoint` asks the page first
 (`pagejs.CoveredBy`) and fails the step if something else would get the click.
 
+**A page that is leaving still says `complete`.** After a click, a sort
+dropdown's change or Enter in a form, the old document keeps
+`readyState === "complete"` until the new one's response arrives, so polling
+readyState returns at once and the next step runs on the page that is going.
+On a slow server FILL then typed into it and passed. `armNavigationWatch`
+before the action and `settleNavigation` after it watch `beforeunload` instead,
+which fires before the request is sent.
+
+**An empty query matches everything.** Pass 3 ranks the controls beside a
+caption with `""`, and `strings.Contains(x, "")` is true — every labelled field
+got the label bonus, and the zip-code field beat the quantity box under 'Qty.'.
+A scorer that compares the query against an attribute returns 0 for an empty
+query.
+
 **Snapshot caching hides change.** The cache makes resolution cheap within a
 step. Any polling loop must call `invalidateSnapshot()` each iteration or it
 will never see what it is waiting for.
@@ -143,7 +157,12 @@ including the caller's own tab during a background `Lookup`.
 channel; without `session.subscribe` for the event name, nothing arrives.
 Subscribe locally *first*, then ask the browser — the other order drops
 anything that happens in between, which for `WAIT FOR RESPONSE` means waiting
-out the timeout for a response that already came.
+out the timeout for a response that already came. Network events have a
+further catch: Firefox reports a response only for a request that *began*
+while subscribed. The request a wait is for was sent by the step before it, so
+a subscription made by the wait never heard back — every `WAIT FOR RESPONSE`
+on Firefox timed out. A BiDi page subscribes to `network.responseCompleted`
+when it opens (`newBiDiPage`), and the wait only listens.
 
 ## Local environment
 

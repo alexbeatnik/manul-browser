@@ -1,0 +1,25 @@
+@context: Write a flow once, use it everywhere — @import and USE, plus [SETUP] and [TEARDOWN].
+@title: reusable_steps
+@import: LogIn, LogOut from 'lib/account.hunt'
+
+@var: {site} = http://localhost:8000
+# Overrides the library's own default of 'ada'.
+@var: {user} = grace
+@var: {password} = hopper
+
+[SETUP]
+    PRINT "runs before the first step"
+[END SETUP]
+
+STEP 1: Log in with the shared block
+    USE LogIn
+    VERIFY 'Role' field has value 'member'
+
+STEP 2: And out again
+    USE LogOut
+
+[TEARDOWN]
+    PRINT "runs last, even when a step failed"
+[END TEARDOWN]
+
+DONE.

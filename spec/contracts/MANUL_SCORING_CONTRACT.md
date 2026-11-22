@@ -35,7 +35,7 @@
       "6. _score_proximity() — contextual: NEAR (Euclidean), ON HEADER/FOOTER (region), INSIDE (subtree), default (xpath depth)",
       "7. _calculate_penalties() — disabled/hidden multipliers",
       "8. Final = (Σ weighted channels) × penalty × SCALE",
-      "9. Sort descending by score"
+      "9. Sort descending by score. On a tie a descendant ranks above its own ancestor, so a wrapper holding nothing but the target does not stand in for it; otherwise document order decides"
     ],
     "contextualBoost": "When a contextual qualifier (NEAR/ON HEADER/ON FOOTER/INSIDE) is active AND has effective resolved data, proximity channel weight increases from 0.10 to 1.5."
   },
@@ -126,7 +126,8 @@
     "rule": "Before an action command acts on its winner, the winner must match the target in at least one query-dependent signal: text, label, placeholder, aria-label, data-qa, id or class names. A partial match counts. A winner with none fails the step with failure_reason not_found and the ranked candidates attached.",
     "why": "The ranking always has a first place, and tag semantics plus a type hint outscore the confidence threshold by themselves — \"the 'Delete account' button\" scored 0.30 against every button on a page with no such button.",
     "appliesTo": ["click", "double_click", "right_click", "hover", "fill", "type", "check", "uncheck", "select", "upload", "drag (source and destination)", "custom dropdown option", "highlight", "press … on <target>", "verify … has text/value/placeholder", "verify visual"],
-    "exempt": "A control found by its position next to a matching label (restrictive pass 3): there the label carries the match and the control is ranked with an empty query."
+    "exempt": "A control found by its position next to a matching label (restrictive pass 3): there the label carries the match and the control is ranked with an empty query, which scores no label, placeholder, aria-label, data-qa or id: those describe the control itself, not the caption it sits beside.",
+    "restrictivePasses": "FILL, TYPE, SELECT and CHECK take the best match outright only if it is a control of their kind. Otherwise a match is a caption, and the control is the only one of that kind inside it if there is exactly one, else the nearest one beside it, taken when it scores clearly above the runner-up or sits clearly nearer the caption. A single control of the right kind that carries the target itself, if only in its class name, is not refused for a low score."
   },
 
   "domScorer": {
@@ -168,7 +169,8 @@
     "visibilityChecks": [
       "element.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })",
       "Fallback: offsetWidth > 0 && offsetHeight > 0",
-      "Exception: hidden input[type='file|checkbox|radio'] are KEPT"
+      "Exception: hidden input[type='file|checkbox|radio'] are KEPT",
+      "Exception: a <select> below opacity 0.01 is KEPT and counted visible: it is the native control laid transparent over a styled facade, and what a click on that facade reaches"
     ],
     "fields": [
       { "key": "id",                  "type": "int",      "description": "Stable runtime ID (manulIdCounter per page load)." },
@@ -182,7 +184,8 @@
       { "key": "input_type",          "type": "string",   "description": "@type for <input>, lowercased." },
       { "key": "data_qa",             "type": "string",   "description": "data-qa or data-testid attribute." },
       { "key": "html_id",             "type": "string",   "description": "id attribute, or 'for' attribute on <label> elements." },
-      { "key": "icon_classes",        "type": "string",   "description": "Space-separated icon class names from <i>, <svg>, [class*='icon']." },
+      { "key": "icon_classes",        "type": "string",   "description": "Space-separated icon class names from <i>, <svg>, [class*='icon'] inside the element, leaving out those inside a link or button of their own: they name that control, not the container around it." },
+      { "key": "accessible_name",     "type": "string",   "description": "aria-label, the text of every <label for> the field has, title or alt; for a link or button with none of those, the alt text of the images inside it. A text signal like the visible text, so <a><img alt='Cart'></a> is the 'Cart' link." },
       { "key": "aria_label",          "type": "string",   "description": "aria-label, title, or aria-labelledby resolved text." },
       { "key": "placeholder",         "type": "string",   "description": "placeholder / data-placeholder / aria-placeholder (lowercased)." },
       { "key": "role",                "type": "string",   "description": "ARIA role attribute." },

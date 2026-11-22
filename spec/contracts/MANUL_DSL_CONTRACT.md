@@ -55,7 +55,7 @@
       "uiText": "CLICK the ''",
       "snippet": "CLICK the '${1:target}'${2: button}",
       "regex": null,
-      "description": "Clicks a resolved element. Detected by the 'click' verb (case-insensitive). Element type hint (button, link, element) after the target is optional but recommended for scoring accuracy. The click is dispatched at the centre of the element, so it would go to whatever is on top of it there. When that is not the element, something inside it, something it is inside, or the <label> it belongs to, the engine waits up to about 1.5s for it to clear and then fails the step naming what is in the way (for example an open date picker or a modal backdrop) — nothing is clicked. Interaction mode: clickable.",
+      "description": "Clicks a resolved element. Detected by the 'click' verb (case-insensitive). Element type hint (button, link, element) after the target is optional but recommended for scoring accuracy. The click is dispatched at the centre of the element, so it would go to whatever is on top of it there. When that is not the element, something inside it, something it is inside, or the <label> it belongs to, the engine waits up to about 1.5s for it to clear and then fails the step naming what is in the way (for example an open date picker or a modal backdrop) — nothing is clicked. After the click the engine waits for any navigation it set off: it marks the document first, and if the page starts to leave it (beforeunload) waits, for at most nav_timeout, until another document has replaced it and finished loading. Until then the old document still reports readyState 'complete', so the next step would run on a page that is about to go. Interaction mode: clickable.",
       "category": "interaction",
       "interactionMode": "clickable"
     },
@@ -75,7 +75,7 @@
       "uiText": "CHECK the checkbox for ''",
       "snippet": "CHECK the checkbox for '${1:target}'",
       "regex": null,
-      "description": "Checks a checkbox element. Detected by the 'check' verb (case-insensitive). The target may be the box itself, its <label>, or a caption beside it in the same cell, row or block. Afterwards the state is read off the control that was acted on; only if the page cannot report it is the box looked up again by name, and a retry never touches a checkbox that does not carry the target. Interaction mode: clickable.",
+      "description": "Checks a checkbox element. Detected by the 'check' verb (case-insensitive). The target may be the box itself, its <label>, or a caption beside it in the same cell, row or block, or text in the same element as the box (<div><input type=checkbox> Agree to the <a>Terms</a></div>). Afterwards the state is read off the control that was acted on; only if the page cannot report it is the box looked up again by name, and a retry never touches a checkbox that does not carry the target. Interaction mode: clickable.",
       "category": "interaction",
       "interactionMode": "clickable"
     },
@@ -95,7 +95,7 @@
       "uiText": "FILL '' field with ''",
       "snippet": "FILL '${1:target}' field with '${2:value}'",
       "regex": null,
-      "description": "Types text into a resolved input/textarea element. Detected by the 'fill' verb (case-insensitive). Element type hint (field, input) is optional but recommended. Interaction mode: input.",
+      "description": "Types text into a resolved input/textarea element. Detected by the 'fill' verb (case-insensitive). Element type hint (field, input) is optional but recommended. The element typed into must be a field that takes text (an input, textarea, editable element, or a <select>): a caption, heading or table header that matches the target is how the field beside or below it is found, and a step that resolves to no field fails with failure_reason not_found instead of passing with the value written nowhere. Interaction mode: input.",
       "category": "interaction",
       "interactionMode": "input"
     },
@@ -105,7 +105,7 @@
       "uiText": "TYPE '' into ''",
       "snippet": "TYPE '${1:value}' into '${2:target}'",
       "regex": null,
-      "description": "Types text into a resolved element. Detected by the 'type' verb (case-insensitive). Interaction mode: input.",
+      "description": "Types text into a resolved element. Detected by the 'type' verb (case-insensitive). The element must be a field that takes text, as for FILL. Interaction mode: input.",
       "category": "interaction",
       "interactionMode": "input"
     },
@@ -115,7 +115,7 @@
       "uiText": "SELECT '' from the '' dropdown",
       "snippet": "SELECT '${1:option}' from the '${2:target}' dropdown",
       "regex": null,
-      "description": "Selects an option from a native <select> or custom dropdown. Detected by the 'select' or 'choose' verbs (case-insensitive). Element type hint (dropdown) is optional but recommended. On a native <select> the option is matched against both its label and its value, whitespace-normalised and case-insensitively; the option is set through the native value setter and followed by input and change events. An option that matches nothing fails the step with failure_reason not_found, and the error lists the options the page does have. A custom dropdown follows the same rule: after it is opened, an option no element in the list matches fails the step rather than clicking whatever ranked first. Interaction mode: select.",
+      "description": "Selects an option from a native <select> or custom dropdown. Detected by the 'select' or 'choose' verbs (case-insensitive). Element type hint (dropdown) is optional but recommended. On a native <select> the option is matched against both its label and its value, whitespace-normalised and case-insensitively; the option is set through the native value setter and followed by input and change events, and a change that reloads the page is waited for as after a CLICK. An option that matches nothing fails the step with failure_reason not_found, and the error lists the options the page does have. A custom dropdown follows the same rule: after it is opened, an option no element in the list matches fails the step rather than clicking whatever ranked first. Interaction mode: select.",
       "category": "interaction",
       "interactionMode": "select"
     },
@@ -185,7 +185,7 @@
       "uiText": "WAIT FOR RESPONSE \"\"",
       "snippet": "WAIT FOR RESPONSE \"${1:url_pattern}\"",
       "regex": "\\bWAIT\\s+FOR\\s+RESPONSE\\b",
-      "description": "Blocks until a network response whose URL ends with the pattern arrives (suffix match, on both the CDP and the BiDi backend), for at most nav_timeout; the step fails when none does. Only responses that arrive after the step has started are seen: one that the previous step triggered and that had already come back by then is not.",
+      "description": "Blocks until a network response whose URL ends with the pattern arrives (suffix match, on both the CDP and the BiDi backend), for at most nav_timeout; the step fails when none does. Only responses that arrive after the step has started are seen: one that the previous step triggered and that had already come back by then is not, while one it triggered that is still on its way is. Firefox reports a response only for a request that began while the session was subscribed, so a BiDi page subscribes to network.responseCompleted when it opens rather than when the wait starts.",
       "category": "wait"
     },
     {
@@ -203,7 +203,7 @@
       "uiText": "VERIFY that '' is present",
       "snippet": "VERIFY that '${1:target}' is ${2|present,NOT present,ENABLED,DISABLED,checked,NOT checked|}",
       "regex": "\\bVERIFY\\b",
-      "description": "Asserts that an element or text is present, not present, enabled, disabled, checked, or not checked. Fails the mission on mismatch. State is read off the element whether or not it is disabled — 'is disabled' finds the disabled control, and a read-only checkbox still reports 'is checked'. A text check that could not read the page at all fails rather than concluding the text is absent. A text check polls for up to the step timeout until it is satisfied: 'is present' until the text appears, 'is NOT present' until it is gone — so a negated check passes on the first look when the text is absent, and waits for text that is still disappearing.",
+      "description": "Asserts that an element or text is present, not present, enabled, disabled, checked, or not checked. Fails the mission on mismatch. State is read off the element whether or not it is disabled — 'is disabled' finds the disabled control, and a read-only checkbox still reports 'is checked'. Text compares the way it reads: case-insensitively, with every run of whitespace, line breaks and no-break spaces included, counted as one space on both sides, so two spans shown on one line as 'Shopping cart (1)' match although the page's innerText breaks them apart. A text check that could not read the page at all fails rather than concluding the text is absent. A text check polls for up to the step timeout until it is satisfied: 'is present' until the text appears, 'is NOT present' until it is gone — so a negated check passes on the first look when the text is absent, and waits for text that is still disappearing.",
       "category": "assertion"
     },
     {
@@ -266,7 +266,7 @@
       "uiText": "PRESS Escape",
       "snippet": "PRESS ${1:Key}${2: on '${3:target}'}",
       "regex": "^\\s*(?:\\d+\\.\\s*)?PRESS\\b",
-      "description": "Presses any key or key combination globally (e.g. PRESS Escape, PRESS Control+A), or on a specific resolved element when 'on <target>' is appended. A chord holds its modifiers (Control/Ctrl, Alt/Option, Meta/Cmd, Shift) around the last key. With 'on <target>' the target is focused first — a field if one matches, otherwise anything clickable — and a target nothing matches fails the step instead of pressing the key wherever focus happens to be.",
+      "description": "Presses any key or key combination globally (e.g. PRESS Escape, PRESS Control+A), or on a specific resolved element when 'on <target>' is appended. A chord holds its modifiers (Control/Ctrl, Alt/Option, Meta/Cmd, Shift) around the last key. With 'on <target>' the target is focused first — a field if one matches, otherwise anything clickable — and a target nothing matches fails the step instead of pressing the key wherever focus happens to be. A key that sets off a navigation, such as Enter in a form field, is waited for as after a CLICK.",
       "category": "keyboard"
     },
     {
@@ -562,7 +562,7 @@
       "label": "@import:",
       "uiText": "@import: Login, Logout from lib/auth.hunt",
       "snippet": "@import: ${1:BlockName} from ${2:source.hunt}",
-      "description": "Imports named STEP blocks from another .hunt file. Supports named imports (@import: Login, Logout from lib.hunt), wildcard (@import: * from lib.hunt), aliases (@import: Login as AuthLogin from lib.hunt), and package-style sources (@import: Login from @my-lib). Imported blocks are available for USE directives. @var: declarations from the source file are inherited at LEVEL_IMPORT (lowest priority)."
+      "description": "Imports named STEP blocks from another .hunt file. Supports named imports (@import: Login, Logout from lib.hunt), wildcard (@import: * from lib.hunt) and aliases (@import: Login as AuthLogin from lib.hunt). The source is a path relative to the importing file's directory, or an absolute path. Imported blocks are available for USE directives. @var: declarations from the source file, and from whatever it imports in turn, are inherited at LEVEL_IMPORT (lowest priority): they stay {placeholders} in the imported steps, so the importing hunt's own @var:, a data row or a global overrides them. When two imports declare the same name, the first keeps it. A count the parser reads itself (REPEAT {n} TIMES, WAIT {n}) is the exception, written in from the source file's own value."
     },
     {
       "id": "export",

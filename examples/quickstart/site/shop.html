@@ -1,0 +1,44 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Shop</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<header><strong>Manul Quickstart</strong><a href="index.html">Home</a><a href="#" id="help-top">Help</a><span id="cart">Cart: 0</span></header>
+<main>
+  <h1>Shop</h1>
+  <section class="cards">
+    <div class="card"><h3>Manul Plush</h3><p>24.50</p><button data-price="24.50">Add to cart</button></div>
+    <div class="card"><h3>Steppe Map</h3><p>12.00</p><button data-price="12.00">Add to cart</button></div>
+    <div class="card"><h3>Snow Boots</h3><p>89.99</p><button data-price="89.99">Add to cart</button></div>
+  </section>
+  <section>
+    <label for="total">Cart total</label><input id="total" value="0.00" readonly>
+  </section>
+  <section id="team" aria-label="Team">
+    <h2>Team</h2>
+    <table>
+      <tr><th>Name</th><th>Role</th><th></th></tr>
+      <tr><td>Ada Lovelace</td><td>admin</td><td><button>Edit</button> <button>Remove</button></td></tr>
+      <tr><td>Grace Hopper</td><td>member</td><td><button>Edit</button> <button>Remove</button></td></tr>
+      <tr><td>Alan Turing</td><td>member</td><td><button>Edit</button> <button>Remove</button></td></tr>
+    </table>
+  </section>
+  <p id="status"></p>
+</main>
+<footer><a href="#" id="help-bottom">Help</a><span>Version 1.0</span></footer>
+<script>
+const $ = (id) => document.getElementById(id);
+let count = 0, total = 0;
+document.querySelectorAll(".card button").forEach((b) => b.onclick = () => {
+  count++; total += parseFloat(b.dataset.price);
+  $("cart").textContent = "Cart: " + count;
+  $("total").value = total.toFixed(2);
+  $("status").textContent = "Added " + b.parentElement.querySelector("h3").textContent;
+});
+document.querySelectorAll("#team button").forEach((b) => b.onclick = () => {
+  const name = b.closest("tr").cells[0].textContent;
+  if (b.textContent === "Remove") { b.closest("tr").remove(); $("status").textContent = "Removed " + name; }
+  else $("status").textContent = "Editing " + name;
+});
+$("help-top").onclick = (e) => { e.preventDefault(); $("status").textContent = "Help from the header"; };
+$("help-bottom").onclick = (e) => { e.preventDefault(); $("status").textContent = "Help from the footer"; };
+</script>
+</body></html>

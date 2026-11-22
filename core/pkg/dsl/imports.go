@@ -42,8 +42,17 @@ func resolveImports(hunt *Hunt, visited map[string]bool) error {
 		baseDir = "."
 	}
 
+	if hunt.ImportVars == nil {
+		hunt.ImportVars = make(map[string]string)
+	}
+
 	for _, imp := range hunt.Imports {
-		importPath := filepath.Join(baseDir, imp.Source)
+		// filepath.Join does not stop at an absolute second argument: it
+		// would put C:\lib\auth.hunt or /lib/auth.hunt under baseDir.
+		importPath := imp.Source
+		if !filepath.IsAbs(importPath) {
+			importPath = filepath.Join(baseDir, importPath)
+		}
 
 		// Resolve to absolute path for reliable cycle detection.
 		absImportPath, err := filepath.Abs(importPath)
@@ -60,7 +69,7 @@ func resolveImports(hunt *Hunt, visited map[string]bool) error {
 			return fmt.Errorf("import %q: file not found: %s", imp.Source, importPath)
 		}
 
-		imported, err := ParseFile(importPath)
+		imported, err := parseLibrary(importPath)
 		if err != nil {
 			return fmt.Errorf("import %q: %w", imp.Source, err)
 		}
@@ -75,6 +84,11 @@ func resolveImports(hunt *Hunt, visited map[string]bool) error {
 			return fmt.Errorf("import %q: %w", imp.Source, err)
 		}
 
+		// The imported file's @var: values, then those it imported in turn.
+		// Whichever import declared a name first keeps it.
+		inheritVars(hunt.ImportVars, imported.Vars)
+		inheritVars(hunt.ImportVars, imported.ImportVars)
+
 		// Extract STEP blocks by their label.
 		stepBlocks := extractStepBlocks(imported.Commands)
 
@@ -82,12 +96,6 @@ func resolveImports(hunt *Hunt, visited map[string]bool) error {
 			// Wildcard import: import all step blocks.
 			for name, cmds := range stepBlocks {
 				hunt.Blueprints[name] = cmds
-			}
-			// Also import file-level vars.
-			for k, v := range imported.Vars {
-				if _, exists := hunt.Vars[k]; !exists {
-					hunt.Vars[k] = v
-				}
 			}
 		} else {
 			// Named imports: only import specified blocks.
@@ -119,6 +127,15 @@ func resolveImports(hunt *Hunt, visited map[string]bool) error {
 		}
 	}
 	return nil
+}
+
+// inheritVars copies into dst every variable of src that dst does not have.
+func inheritVars(dst, src map[string]string) {
+	for k, v := range src {
+		if _, exists := dst[k]; !exists {
+			dst[k] = v
+		}
+	}
 }
 
 // extractStepBlocks groups commands by their StepBlock label.

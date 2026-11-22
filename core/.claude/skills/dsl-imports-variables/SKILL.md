@@ -28,18 +28,23 @@ h.Expand()                 // inline USE/CALL + interpolate variables
 ```
 
 - Named imports: only the listed STEP blocks are available via `USE`
-- Wildcard (`*`): all STEP blocks + file-level `@var:` declarations are merged
+- Wildcard (`*`): all STEP blocks are available
+- Either way, the imported file's `@var:` declarations (and those it imports in
+  turn) land in `hunt.ImportVars`, and stay `{placeholders}` in its steps
 - Aliases: `@import: Login as Auth from 'shared/auth.hunt'` — blueprint keyed as `"auth"`
 
 ### Resolution algorithm
 
 `ResolveImports(hunt)` performs a DFS with a `visited` map:
 
-1. Compute absolute path of each import relative to `hunt.SourcePath`
+1. Resolve each source relative to `hunt.SourcePath`'s directory, unless it is
+   already absolute (`filepath.Join` would nest it)
 2. Detect cycles — circular import → parse error
-3. Parse the imported file recursively
+3. Parse the imported file recursively with `parseLibrary`, which leaves its
+   `@var:` values out of its steps
 4. Extract STEP blocks via `extractStepBlocks()`
-5. Merge into `hunt.Blueprints` (named) or `hunt.Vars` (wildcard)
+5. Merge blocks into `hunt.Blueprints`, vars into `hunt.ImportVars` (first
+   import to declare a name keeps it)
 
 ### STEP block normalization
 
@@ -70,7 +75,7 @@ Highest priority first:
 | 2 | `LevelStep` | `EXTRACT INTO`, `CALL GO INTO`, command results | One STEP block |
 | 3 | `LevelMission` | `@var:` declarations in the hunt file | Entire hunt |
 | 4 | `LevelGlobal` | `SET` command or runtime globals | Entire hunt |
-| 5 | `LevelImport` | `@var:` from wildcard-imported files | Entire hunt |
+| 5 | `LevelImport` | `@var:` from imported files (`hunt.ImportVars`) | Entire hunt |
 
 `Resolve(name)` walks levels 1→5 and returns the first match.
 

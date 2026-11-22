@@ -1,0 +1,30 @@
+@context: Every kind of form control — text, typing, dropdown, radio, checkbox — and checking their state.
+@title: forms
+
+@var: {site} = http://localhost:8000
+
+STEP 1: Text fields
+    NAVIGATE to {site}/form.html
+    FILL 'Full name' field with 'Ada Lovelace'
+    FILL 'Email' field with 'ada@example.com'
+    # TYPE presses keys one by one, for fields that react to typing.
+    TYPE '+380 44 000 0000' into the 'Phone' field
+    VERIFY 'Full name' field has value 'Ada Lovelace'
+    VERIFY 'Email' field has placeholder 'name@example.com'
+
+STEP 2: Dropdowns, radios and checkboxes
+    SELECT 'Japan' from the 'Country' dropdown
+    VERIFY that 'Free' is checked
+    CLICK the radio button for 'Pro'
+    VERIFY that 'Pro' is checked
+    UNCHECK the checkbox for 'Newsletter'
+    VERIFY that 'Newsletter' is NOT checked
+
+STEP 3: A button that unlocks
+    VERIFY that 'Create account' is disabled
+    CHECK the checkbox for 'I accept the Terms'
+    VERIFY that 'Create account' is enabled
+    CLICK the 'Create account' button
+    VERIFY that 'Thanks, Ada Lovelace! Plan: pro, country: Japan, newsletter: no' is present
+
+DONE.

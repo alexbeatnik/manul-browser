@@ -1,0 +1,25 @@
+@context: Variables — declare with @var, change with SET, read the page with EXTRACT, show with PRINT.
+@title: variables
+
+@var: {site} = http://localhost:8000
+@var: {product} = Snow Boots
+
+STEP 1: Use a variable anywhere a value goes
+    NAVIGATE to {site}/shop.html
+    CLICK the 'Add to cart' button NEAR '{product}'
+    VERIFY that 'Added {product}' is present
+
+STEP 2: Read a value off the page
+    # EXTRACT reads a control's value, or the text an element shows.
+    EXTRACT the 'Cart total' into {total}
+    PRINT "The cart holds {product} for {total}"
+    VERIFY 'Cart total' field has value '{total}'
+
+STEP 3: SET a variable mid-hunt
+    SET {product} = Steppe Map
+    CLICK the 'Add to cart' button NEAR '{product}'
+    VERIFY that 'Cart: 2' is present
+    # Prints every variable and the scope it came from.
+    DEBUG VARS
+
+DONE.
