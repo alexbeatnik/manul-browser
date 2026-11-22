@@ -1,0 +1,11 @@
+@context: Interactive debugging. Run by hand: `manul run hunts/debug.hunt --debug`, or `--break-lines 9`.
+@title: debug_me
+@var: {base_url} = http://localhost:8765
+
+STEP 1: Pause here
+    NAVIGATE to {base_url}/index.html
+    PAUSE
+    FILL 'Username' field with 'ada'
+    DEBUG VARS
+
+DONE.

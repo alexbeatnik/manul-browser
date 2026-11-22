@@ -18,7 +18,7 @@
 
 ```json
 {
-  "version": "0.1.5",
+  "version": "0.1.6",
   "generatedFrom": "pkg/dsl :: classify_step(), detect_mode(), parse_contextual_hint(); pkg/runtime :: run_mission(); cmd/manul :: parse_hunt_file(); pkg/runtime :: _ActionsMixin; pkg/scorer :: DOMScorer contextual proximity rules; pkg/dom :: SNAPSHOT_JS geometry export; pkg/dsl :: parse_import_directive(), resolve_imports(), expand_use_directives()",
   "casePolicy": {
     "canonical": "ALL_UPPERCASE",
@@ -466,7 +466,7 @@
       "id": "near",
       "syntax": "<action> NEAR '<anchor>'",
       "regex": "\\bNEAR\\s+(?P<quote>['\"])(?P<anchor>.+?)(?P=quote)",
-      "description": "Biases candidate ranking by Euclidean distance to a resolved anchor element. Used for repeated buttons, links, and fields located close to a known label or neighboring control.",
+      "description": "Biases candidate ranking by Euclidean distance to a resolved anchor element. Used for repeated buttons, links, and fields located close to a known label or neighboring control. The anchor is resolved among the page's snapshot elements, which include headings (h1–h6) as well as controls, cells and text blocks, so a product title in an <h3> anchors its own card rather than the list around it.",
       "scoring": {
         "kind": "euclidean_distance",
         "proximityWeight": 1.5,
@@ -499,7 +499,7 @@
       "id": "inside_row",
       "syntax": "<action> INSIDE '<container>' row with '<text>'",
       "regex": "\\bINSIDE\\s+(?P<q1>['\"])(?P<target>.+?)(?P=q1)\\s+row\\s+with\\s+(?P<q2>['\"])(?P<row>.+?)(?P=q2)",
-      "description": "Resolves the row text first, climbs to a container boundary such as tr, li, or div[role=row], and restricts candidate scoring to that subtree before normal action scoring continues.",
+      "description": "Resolves the container first and keeps only its descendants, then finds the row text among them, climbs to its table row (tr), and restricts candidate scoring to that row before normal action scoring continues. 'INSIDE 'Users' row with 'John'' is therefore the John row of the Users table, even when another table has a John row too. Without 'row with', INSIDE restricts to the container's descendants alone. The container is the best-ranked of the top five matches that has snapshot elements inside it, so a heading that names a section never stands in for the section.",
       "scoring": {
         "kind": "subtree_membership",
         "proximityWeight": 1.5,

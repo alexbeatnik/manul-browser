@@ -11,8 +11,8 @@
 
 ```json
 {
-  "version": "0.1.5",
-  "generatedFrom": "pkg/report :: StepResult, BlockResult, MissionResult, RunSummary, append_run_history(), load_report_state(), save_report_state(), merge_report_summaries(), recompute_summary(); pkg/report :: generate_report()",
+  "version": "0.1.6",
+  "generatedFrom": "pkg/report :: AppendRunHistory(), GenerateHTML(), RunSummary; pkg/explain :: HuntResult",
 
   "statusValues": {
     "step": ["pass", "fail", "skip", "warning"],
@@ -93,7 +93,7 @@
         "file":        "str — absolute path to .hunt file",
         "name":        "str — file basename",
         "timestamp":   "str — ISO-8601 datetime",
-        "status":      "str — pass | fail | broken | flaky | warning",
+        "status":      "str — pass | fail | flaky | warning. A hunt that never ran (broken) is not recorded here.",
         "duration_ms": "float — rounded to 1 decimal"
       },
       "appendedBy": [
@@ -104,30 +104,21 @@
     },
 
     "reportState": {
-      "file": "reports/manul_report_state.json",
-      "format": "JSON — full RunSummary as dict",
-      "purpose": "Cross-invocation session merging. Repeated runs merge into the same HTML report instead of overwriting.",
-      "ttl": {
-        "default": 1800,
-        "envVar": "MANUL_REPORT_SESSION_TTL_SEC",
-        "unit": "seconds",
-        "behavior": "Sessions older than TTL are discarded; a fresh session starts."
-      }
+      "file": null,
+      "note": "Not implemented. There is no report-session state, no TTL and no merging across invocations; MANUL_REPORT_SESSION_TTL_SEC has no effect."
     },
 
     "htmlReport": {
-      "file": "reports/manul_report.html",
-      "generator": "pkg/report :: generate_report(summary, output_path)",
+      "file": "reports/report_<title>_<YYYYMMDD_HHMMSS>_<seq>.html",
+      "scope": "One file per hunt result — per row for a hunt with @data:. There is no aggregate report.",
+      "generator": "pkg/report :: GenerateHTML(result *explain.HuntResult, outDir string) (string, error)",
       "features": [
         "Self-contained dark-themed HTML (no external dependencies)",
-        "Dashboard stats header (total/passed/failed/broken/flaky/warning)",
-        "Native <details>/<summary> accordions (collapsed by default, auto-expanded on failure)",
-        "Flexbox step layout with step-level status indicators",
-        "Inline base64 screenshots",
-        "Control panel: 'Show Only Failed' checkbox toggle",
-        "Tag filter chips (dynamically collected from all missions' tags)",
-        "Run Session / Merged invocations banner",
-        "data-status and data-tags attributes on mission divs for JS filtering"
+        "PASS/FAIL badge, hunt title and file, a Flaky line when it passed on a retry",
+        "Total / Passed / Failed / Duration stats",
+        "One row per step with its duration and error",
+        "Screenshots linked by relative path (../screenshots/…), not inlined",
+        "A Soft Verify Warnings list when VERIFY SOFTLY failed"
       ]
     },
 
@@ -139,29 +130,13 @@
   },
 
   "functions": {
-    "recompute_summary": {
-      "signature": "(summary: RunSummary) -> RunSummary",
-      "description": "Recalculates aggregate counters (total, passed, failed, etc.) from the missions list. Normalizes the summary in-place and returns it."
+    "AppendRunHistory": {
+      "signature": "AppendRunHistory(reportsDir string, result *explain.HuntResult) error",
+      "description": "Appends one JSON Line to <reportsDir>/run_history.json, creating the directory and the file as needed."
     },
-    "load_report_state": {
-      "signature": "(max_age_seconds: int | None = None) -> RunSummary | None",
-      "description": "Loads report state from reports/manul_report_state.json. Returns None if file is missing, stale (exceeds TTL), or malformed."
-    },
-    "save_report_state": {
-      "signature": "(summary: RunSummary) -> str",
-      "description": "Writes normalised RunSummary to reports/manul_report_state.json. Creates directory if needed. Returns file path."
-    },
-    "merge_report_summaries": {
-      "signature": "(existing: RunSummary | None, current: RunSummary) -> RunSummary",
-      "description": "Merges existing session state with current run results. Replaces duplicate files by name. Preserves session_id from existing when present."
-    },
-    "append_run_history": {
-      "signature": "(mission: MissionResult) -> None",
-      "description": "Appends a single JSON Line to reports/run_history.json using O_APPEND for concurrent-safe writes."
-    },
-    "generate_report": {
-      "signature": "(summary: RunSummary, output_path: str) -> None",
-      "description": "Writes self-contained HTML report to output_path. Uses RunSummary with all MissionResult/BlockResult/StepResult data."
+    "GenerateHTML": {
+      "signature": "GenerateHTML(result *explain.HuntResult, outDir string) (string, error)",
+      "description": "Writes one hunt's HTML report into outDir and returns its path."
     }
   }
 }

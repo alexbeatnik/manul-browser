@@ -196,6 +196,9 @@ func (fp *FirefoxProcess) Close() error {
 	}
 	killProcessTree(fp.cmd)
 	if fp.ownsProfile && fp.profileDir != "" {
+		// Only a profile this launch created identifies its processes alone;
+		// a caller's UserDataDir may be in use by a Firefox we did not start.
+		killProfileStragglers(fp.profileDir)
 		_ = os.RemoveAll(fp.profileDir)
 	}
 	return nil

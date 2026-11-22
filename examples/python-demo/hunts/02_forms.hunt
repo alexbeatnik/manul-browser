@@ -1,0 +1,44 @@
+@context: Every form verb — FILL, TYPE, SELECT, CHECK, UNCHECK, radio, UPLOAD — plus strict VERIFY forms and a custom-control date picker.
+@title: forms
+@tags: regression, forms
+@var: {full_name} = Ada Lovelace
+@var: {email} = ada@example.com
+
+STEP 1: Text inputs
+    NAVIGATE to {base_url}/forms.html
+    FILL 'Full name' field with '{full_name}'
+    FILL 'Email' field with '{email}'
+    TYPE '+380 44 000 0000' into the 'Phone' field
+    FILL 'Bio' field with 'First programmer.'
+    VERIFY 'Full name' field has value '{full_name}'
+    VERIFY 'Search' field has placeholder 'Type to search...'
+    VERIFY 'Email' field has placeholder 'name@example.com'
+
+STEP 2: Choices
+    SELECT 'Japan' from the 'Country' dropdown
+    EXTRACT the 'Country' into {country}
+    VERIFY that 'Free' is checked
+    CLICK the radio button for 'Pro'
+    VERIFY that 'Pro' is checked
+    VERIFY that 'Newsletter' is checked
+    UNCHECK the checkbox for 'Newsletter'
+    VERIFY that 'Newsletter' is NOT checked
+    VERIFY that 'Submit' is disabled
+    CHECK the checkbox for 'I accept the Terms'
+    VERIFY that 'Submit' is enabled
+
+STEP 3: Custom control and upload
+    # 'Delivery Date' is a readonly picker; demo/controls.py owns it.
+    FILL 'Delivery Date' field with '2026-12-24'
+    VERIFY 'Delivery Date' field has value '2026-12-24'
+    UPLOAD '../fixtures/avatar.png' to 'Avatar'
+    VERIFY that 'Uploaded: avatar.png' is present
+
+STEP 4: Submit
+    CLICK the 'Submit' button
+    VERIFY that 'Form submitted' is present
+    VERIFY that '"plan":"pro"' is present
+    VERIFY that '"delivery":"2026-12-24"' is present
+    PRINT "Submitted {full_name} from {country}"
+
+DONE.

@@ -1,0 +1,7 @@
+.venv/
+.bin/
+reports/
+screenshots/
+hunts/visual_baselines/
+__pycache__/
+.pytest_cache/

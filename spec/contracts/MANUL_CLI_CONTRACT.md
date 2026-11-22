@@ -8,7 +8,7 @@
 
 ```json
 {
-  "version": "0.1.5",
+  "version": "0.1.6",
   "generatedFrom": "cmd/manul :: main(), _run_hunt_file(), parse_hunt_file(), sync_main(); pkg/config :: _KEY_MAP, global config constants; pkg/scan :: scan_main(); pkg/record :: record_main(); pkg/daemon :: daemon_main()",
   "entryPoints": {
     "console_script": "manul",
@@ -24,10 +24,11 @@
         {
           "name": "path",
           "required": true,
-          "description": "Path to a .hunt file, a directory containing .hunt files, or '.' for the current directory."
+          "description": "Path to a .hunt file, a directory containing .hunt files, '.' for the current directory, or '-' to read one hunt from stdin."
         }
       ],
-      "isDefault": true
+      "isDefault": true,
+      "targetDetection": "A first argument that is '.', ends in .hunt, or names an existing directory is run as a target — unless it is a subcommand's name (run, run-step, read, map, schema, serve, scan, record, daemon, pages, controls, help), which always means the subcommand. A directory with such a name is run as `manul run pages/` or `manul ./pages`."
     },
     {
       "id": "scan",
@@ -83,7 +84,7 @@
     {
       "id": "controls",
       "syntax": "manul controls list",
-      "description": "List all @custom_control handlers discovered under the configured custom_controls_dirs (default: controls/) in the current working directory. Prints a fixed-width table with PAGE / TARGET / HANDLER / SOURCE columns. Eagerly imports registered Go @custom_control handlers.",
+      "description": "List the custom controls registered in this process with RegisterCustomControl, as 'page → target' lines. The released binary registers none, so it prints 'No custom controls registered.'; nothing is scanned from disk. Controls supplied by a --hooks script or a language binding exist only for the run that registered them.",
       "positionalArgs": [
         {
           "name": "subcommand",
@@ -96,13 +97,13 @@
     {
       "id": "pages",
       "syntax": "manul pages [list|migrate]",
-      "description": "Inspect and migrate the per-site page registry. `list` prints every site → pattern → label mapping discovered under pages/. `migrate` splits a legacy pre-0.0.9.30 pages.json into pages/<safe_netloc>.json fragments and renames the original to pages.json.bak.",
+      "description": "Inspect and migrate the per-site page registry. `list` prints the registry directory (pages/ under the CWD); the mappings are in the JSON fragments themselves. `migrate <legacy-pages.json>` splits a legacy pre-0.0.9.30 pages.json into pages/<safe_netloc>.json fragments and renames the original to pages.json.bak.",
       "positionalArgs": [
         {
           "name": "subcommand",
           "required": false,
           "default": "list",
-          "description": "Either 'list' (default) or 'migrate'. Any other value exits 1."
+          "description": "'list' or 'migrate' (which takes the legacy file as a second argument). Required; anything else exits 1."
         }
       ]
     },
@@ -174,7 +175,7 @@
       "minimum": 1,
       "configKey": "workers",
       "envVar": "MANUL_WORKERS",
-      "description": "Max hunt files to run in parallel. Each worker spawns a separate subprocess with its own browser instance, launched with the run's --headless, --browser, --channel and --executable-path; --cdp, --target and --user-data-dir do not apply to workers and are reported as ignored. Passing --workers 1 overrides a configured value. Forced to 1 when --debug or --break-lines is active. An interrupt (Ctrl+C, SIGTERM) cancels the run in either mode: steps stop, hunts not yet started are counted as failed, and every launched browser is closed and its temp profile removed before the process exits; a second interrupt ends it at once.",
+      "description": "Max hunt files to run in parallel. Each worker is a goroutine with its own browser instance, launched with the run's --headless, --browser, --channel and --executable-path; --cdp, --target and --user-data-dir do not apply to workers and are reported as ignored. Passing --workers 1 overrides a configured value. Forced to 1 when --debug or --break-lines is active. An interrupt (Ctrl+C, SIGTERM) cancels the run in either mode: steps stop, hunts not yet started are counted as failed, and every launched browser is closed and its temp profile removed before the process exits; a second interrupt ends it at once.",
       "appliesTo": ["run"]
     },
     {
@@ -241,7 +242,7 @@
       "default": false,
       "configKey": "html_report",
       "envVar": "MANUL_HTML_REPORT",
-      "description": "Generate a self-contained HTML report after the run (reports/manul_report.html). Recent invocations within the same report session are merged.",
+      "description": "Write a self-contained HTML report for each hunt — for each row of a hunt with @data: — as reports/report_<title>_<YYYYMMDD_HHMMSS>_<seq>.html, and print its path. There is no aggregate report and no merging across invocations.",
       "appliesTo": ["run"]
     },
     {
@@ -261,7 +262,7 @@
       "default": false,
       "configKey": null,
       "envVar": null,
-      "description": "Print the final RunSummary as indented JSON to stdout; human logs are routed to stderr. Base64 screenshots are stripped. Prints the run's own summary shape.",
+      "description": "Print each hunt's result (HuntResult: hunt_file, title, total_steps, passed, failed, results, …) as an indented JSON document on stdout — one document per hunt, and per row of a hunt with @data:, one after another rather than in an array. Human logs go to stderr.",
       "appliesTo": ["run"]
     },
     {
@@ -271,7 +272,7 @@
       "default": false,
       "configKey": null,
       "envVar": null,
-      "description": "Stream per-step JSON Lines (one object per step, type=step) followed by a final type=summary line to stdout; human logs are routed to stderr. One line per step, so a consumer can render progress live.",
+      "description": "Stream JSON Lines to stdout: {\"event\":\"step\",\"data\":<step result>} per step, then {\"event\":\"result\",\"data\":<HuntResult>} per hunt. Human logs go to stderr. With --workers > 1 only the result lines are emitted, and a warning says so.",
       "appliesTo": ["run"]
     },
     {
@@ -279,9 +280,9 @@
       "flag": "--disable-cache",
       "type": "boolean",
       "default": false,
-      "configKey": "semantic_cache_enabled",
-      "envVar": "MANUL_SEMANTIC_CACHE_ENABLED",
-      "description": "Disable the in-session semantic cache (learned_elements) for a fully cold, deterministic run. Inverse of semantic_cache_enabled.",
+      "configKey": "disable_cache",
+      "envVar": "MANUL_DISABLE_CACHE",
+      "description": "Re-probe the page for every command instead of reusing the DOM snapshot taken earlier in the step. MANUL_SEMANTIC_CACHE_ENABLED=false does the same.",
       "appliesTo": ["run"]
     },
     {
@@ -310,7 +311,7 @@
       "type": "string",
       "default": null,
       "configKey": null,
-      "envVar": "MANUL_CDP_TAB",
+      "envVar": null,
       "description": "With --cdp, select the page whose URL contains the given substring (form: url=<substr>; the url= prefix is optional). Falls back to the first page.",
       "appliesTo": ["run"]
     },
@@ -339,19 +340,21 @@
   ],
   "configFile": {
     "filename": "manul.config.json",
-    "resolution": "CWD first, then executable directory fallback",
+    "resolution": "CWD only (./manul.config.json). Unknown keys are ignored silently.",
     "keys": [
       { "key": "headless",               "envVar": "MANUL_HEADLESS",               "type": "boolean",       "default": "false" },
       { "key": "browser",                "envVar": "MANUL_BROWSER",                "type": "string",        "default": "chromium" },
       { "key": "browser_args",           "envVar": "MANUL_BROWSER_ARGS",           "type": "string[]",      "default": "[]" },
       { "key": "timeout",                "envVar": "MANUL_TIMEOUT",                "type": "integer",       "default": "5000" },
       { "key": "nav_timeout",            "envVar": "MANUL_NAV_TIMEOUT",            "type": "integer",       "default": "30000" },
-      { "key": "semantic_cache_enabled",  "envVar": "MANUL_SEMANTIC_CACHE_ENABLED", "type": "boolean",       "default": "true" },
-      { "key": "custom_controls_dirs",   "envVar": "MANUL_CUSTOM_CONTROLS_DIRS",   "type": "string[]",      "default": "[\"controls\"]" },
-      { "key": "log_name_maxlen",        "envVar": "MANUL_LOG_NAME_MAXLEN",        "type": "integer",       "default": "0" },
-      { "key": "log_thought_maxlen",     "envVar": "MANUL_LOG_THOUGHT_MAXLEN",     "type": "integer",       "default": "0" },
+      { "key": "disable_cache",          "envVar": "MANUL_DISABLE_CACHE",          "type": "boolean",       "default": "false" },
+      { "key": "verbose",                "envVar": "MANUL_VERBOSE",                "type": "boolean",       "default": "false" },
+      { "key": "debug_mode",             "envVar": "MANUL_DEBUG",                  "type": "boolean",       "default": "false" },
+      { "key": "break_lines",            "envVar": null,                           "type": "integer[]",     "default": "[]" },
+      { "key": "tags",                   "envVar": "MANUL_TAGS",                   "type": "string[]",      "default": "[]" },
+      { "key": "verify_max_retries",     "envVar": "MANUL_VERIFY_MAX_RETRIES",     "type": "integer",       "default": "15" },
       { "key": "workers",                "envVar": "MANUL_WORKERS",                "type": "integer",       "default": "1" },
-      { "key": "tests_home",             "envVar": null,                           "type": "string",        "default": "tests" },
+      { "key": "tests_home",             "envVar": "MANUL_TESTS_HOME",             "type": "string",        "default": "tests" },
       { "key": "auto_annotate",          "envVar": "MANUL_AUTO_ANNOTATE",          "type": "boolean",       "default": "false" },
       { "key": "channel",                "envVar": "MANUL_CHANNEL",                "type": "string | null", "default": "null" },
       { "key": "executable_path",        "envVar": "MANUL_EXECUTABLE_PATH",        "type": "string | null", "default": "null" },
@@ -368,12 +371,6 @@
   },
   "outputArtifacts": [
     {
-      "id": "log",
-      "path": "reports/last_run.log",
-      "description": "Full stdout log of the most recent run. Overwritten on each invocation.",
-      "alwaysGenerated": true
-    },
-    {
       "id": "run_history",
       "path": "reports/run_history.json",
       "format": "JSON Lines",
@@ -382,19 +379,19 @@
     },
     {
       "id": "html_report",
-      "path": "reports/manul_report.html",
-      "description": "Self-contained dark-themed HTML report with dashboard stats, accordions, screenshots, tag filters, and merged session history.",
+      "path": "reports/report_<title>_<YYYYMMDD_HHMMSS>_<seq>.html",
+      "description": "Self-contained HTML report, one per hunt (one per row for a hunt with @data:). <seq> is a per-process counter, so parallel workers never overwrite each other.",
       "alwaysGenerated": false,
       "trigger": "--html-report flag or html_report config key"
     },
     {
-      "id": "report_state",
-      "path": "reports/manul_report_state.json",
-      "description": "Persisted report session state for cross-invocation HTML report merging. TTL controlled by MANUL_REPORT_SESSION_TTL_SEC (default: 1800s).",
-      "alwaysGenerated": false,
-      "trigger": "--html-report flag"
+      "id": "screenshots",
+      "path": "screenshots/*.png",
+      "description": "Step screenshots per the --screenshot mode (fail_<ms>_<n>.png), plus the files SCREENSHOT \"name\" asks for.",
+      "alwaysGenerated": false
     }
   ],
+  "notGenerated": "There is no reports/last_run.log, no aggregate reports/manul_report.html and no reports/manul_report_state.json; the engine writes neither a run log nor report-session state.",
   "missionStatuses": [
     {
       "id": "pass",
@@ -433,17 +430,16 @@
     }
   ],
   "parallelModel": {
-    "mechanism": "Subprocess per hunt file via asyncio.create_subprocess_exec",
-    "command": "[sys.executable, '-m', 'Manul Browser', '--workers', '1', ...flags, hunt_file]",
-    "concurrency": "asyncio.Semaphore(workers)",
-    "timeout": "600s default (configurable via MANUL_WORKER_TIMEOUT env var)",
-    "stdout": "Captured per worker, printed in submission order after all complete",
-    "htmlReport": "Parent generates consolidated report; --html-report is NOT forwarded to children",
-    "runHistory": "Children write their own run_history.json entries; parent skips to avoid duplicates",
-    "globalVars": "Serialised via MANUL_GLOBAL_VARS env var so workers inherit @before_all context",
+    "mechanism": "One process. pkg/worker runs hunts on a pool of goroutines, each Worker launching and owning its own browser.",
+    "concurrency": "At most `workers` hunts — and browsers — at once.",
+    "stdout": "Results are printed after the pool finishes, in submission order, each under a '📜 <file> (worker N)' header on stderr.",
+    "htmlReport": "One report per hunt, exactly as in a sequential run.",
+    "runHistory": "Appended by the parent for every hunt.",
+    "globalVars": "Each worker's runtime is seeded with the suite's GlobalContext variables directly.",
     "restrictions": [
       "--debug and --break-lines force --workers 1 (sequential)",
-      "Lifecycle hooks run independently per worker — not once-per-suite"
+      "--jsonl emits only the per-hunt result lines, not per-step lines",
+      "Suite hooks still run once per suite: before_all/after_all once, group hooks once per hunt. Callbacks to a --hooks script are serialised over its one pipe."
     ]
   },
   "parsedHuntFile": {

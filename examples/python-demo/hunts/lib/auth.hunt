@@ -1,0 +1,22 @@
+@context: Reusable step blocks — the .hunt side of page objects.
+@title: auth_library
+@export: Login, Logout, OpenDashboard
+# Imported @var: values sit at the lowest scope (import), so any hunt,
+# data row or global can override them.
+@var: {login_user} = ada
+@var: {login_password} = lovelace
+
+STEP Login:
+    NAVIGATE to {base_url}/index.html
+    VERIFY that 'Sign in' is present
+    FILL 'Username' field with '{login_user}'
+    FILL 'Password' field with '{login_password}'
+    CLICK the 'Sign in' button
+    VERIFY that 'Welcome, {login_user}' is present
+
+STEP Logout:
+    CLICK the 'Logout' button ON HEADER
+    VERIFY that 'Sign in' is present
+
+STEP OpenDashboard:
+    NAVIGATE to {base_url}/dashboard.html

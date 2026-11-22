@@ -1965,6 +1965,18 @@ func (rt *Runtime) applyContextualFilters(cmd dsl.Command, elements []dom.Elemen
 		strategies = append(strategies, "on-"+normalizeContextLabel(cmd.OnRegion))
 	}
 
+	// Container before row: "INSIDE 'Users' row with 'John'" means the John row
+	// of the Users table. Filtering by row first left only that row's cells, among
+	// which the table itself can never be, so the container was never found.
+	if cmd.InsideContainer != "" {
+		containerFiltered, err := rt.resolveContainerDescendants(cmd.InsideContainer, filtered)
+		if err != nil {
+			return nil, "", err
+		}
+		filtered = containerFiltered
+		strategies = append(strategies, "inside-container")
+	}
+
 	if cmd.InsideRowText != "" {
 		rowAnchor, err := rt.resolveStructuralAnchor(cmd.InsideRowText, filtered)
 		if err != nil {
@@ -1978,20 +1990,34 @@ func (rt *Runtime) applyContextualFilters(cmd dsl.Command, elements []dom.Elemen
 		strategies = append(strategies, "inside-row")
 	}
 
-	if cmd.InsideContainer != "" {
-		containerAnchor, err := rt.resolveStructuralAnchor(cmd.InsideContainer, filtered)
-		if err != nil {
-			return nil, "", fmt.Errorf("inside container not found: %q", cmd.InsideContainer)
-		}
-		containerFiltered := descendantsOf(containerAnchor, filtered)
-		if len(containerFiltered) == 0 {
-			return nil, "", fmt.Errorf("no candidates found inside container %q", cmd.InsideContainer)
-		}
-		filtered = containerFiltered
-		strategies = append(strategies, "inside-container")
-	}
-
 	return filtered, strings.Join(strategies, "+"), nil
+}
+
+// containerCandidates is how many ranked matches INSIDE looks through for one
+// that contains something.
+const containerCandidates = 5
+
+// resolveContainerDescendants returns the elements inside the container that
+// label names. The container is the best-ranked match that has elements inside
+// it, not the best match outright: a section's heading names it at least as
+// well as the section does, and contains nothing.
+func (rt *Runtime) resolveContainerDescendants(label string, elements []dom.ElementSnapshot) ([]dom.ElementSnapshot, error) {
+	resolved := rt.resolveVariables(label)
+	ranked := scorer.Rank(resolved, "", string(dsl.ModeNone), elements, containerCandidates, nil)
+	found := false
+	for _, cand := range ranked {
+		if cand.Explain.Score.Total < ThresholdAmbiguous {
+			break
+		}
+		found = true
+		if inside := descendantsOf(cand.Element, elements); len(inside) > 0 {
+			return inside, nil
+		}
+	}
+	if !found {
+		return nil, fmt.Errorf("inside container not found: %q", label)
+	}
+	return nil, fmt.Errorf("no candidates found inside container %q", label)
 }
 
 func checkboxCandidatesInSameRow(anchor dom.ElementSnapshot, elements []dom.ElementSnapshot) []dom.ElementSnapshot {

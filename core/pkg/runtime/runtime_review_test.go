@@ -650,6 +650,80 @@ func TestRuntime_ClickInsideRowChoosesCandidateFromMatchingRow(t *testing.T) {
 	}
 }
 
+// The DSL form names both: the container, and a row of it. The container used
+// to be looked up among the row's own elements, where it can never be, so the
+// documented form always failed with "inside container not found". Two tables
+// share a "John" row here, so the container is also what picks the right one.
+func TestRuntime_ClickInsideContainerRowChoosesRowOfThatContainer(t *testing.T) {
+	mock := &MockPage{
+		Elements: []dom.ElementSnapshot{
+			{ID: 1, XPath: "/html/body/table[1]", Tag: "table", AriaLabel: "Admins", IsVisible: true, Rect: dom.Rect{Top: 100, Left: 40, Width: 400, Height: 60}},
+			{ID: 2, XPath: "/html/body/table[1]/tbody[1]/tr[1]/td[1]", Tag: "td", VisibleText: "John", IsVisible: true, Rect: dom.Rect{Top: 120, Left: 40, Width: 80, Height: 24}},
+			{ID: 3, XPath: "/html/body/table[1]/tbody[1]/tr[1]/td[2]/button[1]", Tag: "button", VisibleText: "Delete", IsVisible: true, Rect: dom.Rect{Top: 120, Left: 260, Width: 80, Height: 24}},
+			{ID: 4, XPath: "/html/body/table[2]", Tag: "table", AriaLabel: "Users", IsVisible: true, Rect: dom.Rect{Top: 200, Left: 40, Width: 400, Height: 120}},
+			{ID: 5, XPath: "/html/body/table[2]/tbody[1]/tr[1]/td[1]", Tag: "td", VisibleText: "Jane", IsVisible: true, Rect: dom.Rect{Top: 220, Left: 40, Width: 80, Height: 24}},
+			{ID: 6, XPath: "/html/body/table[2]/tbody[1]/tr[1]/td[2]/button[1]", Tag: "button", VisibleText: "Delete", IsVisible: true, Rect: dom.Rect{Top: 220, Left: 260, Width: 80, Height: 24}},
+			{ID: 7, XPath: "/html/body/table[2]/tbody[1]/tr[2]/td[1]", Tag: "td", VisibleText: "John", IsVisible: true, Rect: dom.Rect{Top: 280, Left: 40, Width: 80, Height: 24}},
+			{ID: 8, XPath: "/html/body/table[2]/tbody[1]/tr[2]/td[2]/button[1]", Tag: "button", VisibleText: "Delete", IsVisible: true, Rect: dom.Rect{Top: 280, Left: 260, Width: 80, Height: 24}},
+		},
+	}
+	for i := range mock.Elements {
+		mock.Elements[i].Normalize()
+	}
+
+	rt := New(config.Config{}, mock, utils.NewLogger(nil))
+	res, err := rt.executeCommand(context.Background(), dsl.Command{
+		Type:            dsl.CmdClick,
+		Raw:             "CLICK the 'Delete' button INSIDE 'Users' row with 'John'",
+		Target:          "Delete",
+		TypeHint:        "button",
+		InsideContainer: "Users",
+		InsideRowText:   "John",
+	})
+	if err != nil {
+		t.Fatalf("click inside container row failed: %v", err)
+	}
+	if res.WinnerXPath != "/html/body/table[2]/tbody[1]/tr[2]/td[2]/button[1]" {
+		t.Fatalf("WinnerXPath = %q, want the John row of the Users table", res.WinnerXPath)
+	}
+}
+
+// A section's heading names it exactly, and is a snapshot element since
+// headings became NEAR anchors — but a heading contains nothing. The container
+// is the best match that has candidates inside it, not the best match outright.
+func TestRuntime_InsideSkipsAHeadingThatNamesTheContainer(t *testing.T) {
+	mock := &MockPage{
+		Elements: []dom.ElementSnapshot{
+			// No <table>: the snapshot does not collect one. The section is the
+			// container, and its heading is the closer text match.
+			{ID: 1, XPath: "/html/body/section[1]", Tag: "section", VisibleText: "Users Name Email Actions John Edit", IsVisible: true, Rect: dom.Rect{Top: 60, Left: 20, Width: 460, Height: 200}},
+			{ID: 2, XPath: "/html/body/section[1]/h2[1]", Tag: "h2", VisibleText: "Users", IsVisible: true, Rect: dom.Rect{Top: 80, Left: 40, Width: 200, Height: 30}},
+			{ID: 3, XPath: "/html/body/section[1]/table[1]/tbody[1]/tr[1]/td[1]", Tag: "td", VisibleText: "John", IsVisible: true, Rect: dom.Rect{Top: 140, Left: 40, Width: 80, Height: 24}},
+			{ID: 4, XPath: "/html/body/section[1]/table[1]/tbody[1]/tr[1]/td[2]/button[1]", Tag: "button", VisibleText: "Edit", IsVisible: true, Rect: dom.Rect{Top: 140, Left: 260, Width: 80, Height: 24}},
+			{ID: 5, XPath: "/html/body/section[2]/button[1]", Tag: "button", VisibleText: "Edit", IsVisible: true, Rect: dom.Rect{Top: 400, Left: 60, Width: 80, Height: 24}},
+		},
+	}
+	for i := range mock.Elements {
+		mock.Elements[i].Normalize()
+	}
+
+	rt := New(config.Config{}, mock, utils.NewLogger(nil))
+	res, err := rt.executeCommand(context.Background(), dsl.Command{
+		Type:            dsl.CmdClick,
+		Raw:             "CLICK the 'Edit' button INSIDE 'Users' row with 'John'",
+		Target:          "Edit",
+		TypeHint:        "button",
+		InsideContainer: "Users",
+		InsideRowText:   "John",
+	})
+	if err != nil {
+		t.Fatalf("click inside container failed: %v", err)
+	}
+	if res.WinnerXPath != "/html/body/section[1]/table[1]/tbody[1]/tr[1]/td[2]/button[1]" {
+		t.Fatalf("WinnerXPath = %q, want the Edit button in the Users table", res.WinnerXPath)
+	}
+}
+
 func TestRuntime_ClickInsideContainerChoosesDescendant(t *testing.T) {
 	mock := &MockPage{
 		Elements: []dom.ElementSnapshot{

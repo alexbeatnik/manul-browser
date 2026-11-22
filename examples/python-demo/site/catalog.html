@@ -1,0 +1,39 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Catalog</title><link rel="stylesheet" href="/style.css"></head>
+<body>
+<header><div id="logo">MANUL</div><nav><a href="/dashboard.html">Home</a></nav><span id="cart">Cart: 0</span></header>
+<main>
+  <h1>Catalog</h1>
+  <button id="refresh">Refresh catalog</button> <span id="source"></span>
+  <div id="products"></div>
+  <label for="cart-total">Cart total</label><input id="cart-total" readonly value="0.00">
+  <button id="checkout">Checkout</button>
+  <p id="order-status"></p>
+</main>
+<footer><a href="#">Terms</a></footer>
+<script>
+let cart = [];
+function render(items) {
+  const box = document.getElementById("products"); box.innerHTML = "";
+  for (const p of items) {
+    const card = document.createElement("div"); card.className = "card";
+    card.innerHTML = `<h3>${p.name}</h3><p>$${p.price.toFixed(2)}</p><button>Add to cart</button>`;
+    card.querySelector("button").onclick = () => {
+      cart.push(p);
+      document.getElementById("cart").textContent = "Cart: " + cart.length;
+      document.getElementById("cart-total").value = cart.reduce((s, x) => s + x.price, 0).toFixed(2);
+    };
+    box.appendChild(card);
+  }
+  document.getElementById("source").textContent = "Loaded " + items.length + " products";
+}
+const load = () => fetch("/api/products").then((r) => r.json()).then(render);
+document.getElementById("refresh").onclick = load;
+document.getElementById("checkout").onclick = async () => {
+  const r = await fetch("/api/orders", { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({ items: cart.map((p) => p.name) }) });
+  const j = await r.json();
+  document.getElementById("order-status").textContent = "Order #" + j.id + " placed";
+};
+load();
+</script>
+</body></html>

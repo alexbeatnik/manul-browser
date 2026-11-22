@@ -109,5 +109,5 @@ Custom controls can target specific pages:
 runtime.RegisterCustomControl("Checkout Page", "React Datepicker", handler)
 ```
 
-The page label is resolved via `document.title` first, then the `pages/` registry, then URL-derived fallback.
+The page label a control is looked up by is the page's `document.title`. Only when the title is empty does the engine derive one from the URL: the last path segment with `-`, `_` and `.` turned into spaces, plus " page" unless it already says so (`/checkout.html` → `checkout html page`), or the host name when the path is empty. The `pages/` registry is **not** consulted — it names pages for `auto_annotate` log lines, not for controls. Register with `"*"` to match every page.
 

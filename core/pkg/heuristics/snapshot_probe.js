@@ -31,6 +31,10 @@
         // Table data cells — needed for EXTRACT and disambiguation.
         if (tag === 'td' || tag === 'th' || tag === 'li' || tag === 'span' ||
             tag === 'p' || tag === 'div' || tag === 'section') return true;
+        // Headings: the usual NEAR anchor ("Add to cart" NEAR 'Manul Plush').
+        // Without them a product title was no element at all, and the anchor
+        // fell to whatever container held its text — often the whole list.
+        if (/^h[1-6]$/.test(tag)) return true;
         if (el.tagName.includes('-')) return true; // custom elements
         return false;
     };

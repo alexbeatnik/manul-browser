@@ -1,0 +1,28 @@
+@context: Network — WAIT FOR RESPONSE against the real API — plus NEAR, FOR EACH over a list, and CALL HOST maths.
+@title: catalog
+@tags: regression, network
+@var: {wanted} = Manul Plush, Snow Boots
+
+STEP 1: Real API
+    NAVIGATE to {base_url}/catalog.html
+    VERIFY that 'Loaded 3 products' is present
+    CLICK the 'Refresh catalog' button
+    WAIT FOR RESPONSE "/api/products"
+    VERIFY that 'Steppe Map' is present
+
+STEP 2: Buy by name with NEAR
+    FOR EACH {item} IN {wanted}:
+        CLICK the 'Add to cart' button NEAR '{item}'
+        PRINT "added {item}"
+    VERIFY that 'Cart: 2' is present
+    EXTRACT the 'Cart total' into {ui_total}
+    CALL HOST demo.compute_total with args: "24.50" "89.99" into {expected_total}
+    CALL HOST demo.assert_equal "{ui_total}" "{expected_total}"
+
+STEP 3: Checkout hits the backend
+    CLICK the 'Checkout' button
+    VERIFY that 'placed' is present
+    CALL HOST demo.api_order_count into {orders}
+    PRINT "backend now has {orders} order(s)"
+
+DONE.

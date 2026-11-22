@@ -85,6 +85,14 @@ with manul.Session() as s:
     print(result.passed, "/", result.total_steps)
 ```
 
+A hunt that fails a step raises `EngineError` with `code == "step_failed"` and
+the step's error as the message — unlike `step()`, which returns a failed
+outcome. The session stays open. To get failures back as data, run hunts with
+`run_suite`, whose `SuiteHunt` entries carry `ok`, `failed` and `error`.
+
+`MOCK` rules and variables a hunt sets outlive it: they stay in the session for
+every later `step` and `run`.
+
 ## Custom controls
 
 Some things a page does cannot be said as "click the thing called X": a canvas
@@ -104,8 +112,9 @@ with manul.Session() as s:
     s.step("CLICK the 'Signature Pad'")     # your function runs instead
 ```
 
-Leave `page` out and the control applies everywhere; a page-specific handler
-beats a wildcard. Lookup ignores case and extra whitespace on both.
+`page` is the page's `document.title` — not a name from the `pages/` registry.
+Leave it out and the control applies everywhere; a page-specific handler beats
+a wildcard. Lookup ignores case and extra whitespace on both.
 
 `ctx` carries `target`, `action`, `value`, `page`, `step` and `vars`, plus
 `eval(js)` and `current_url()` for reaching into the live page. Those two work
@@ -215,7 +224,10 @@ manul.Session(binary="/path/to/manul")            # explicit
 ```
 
 or `MANUL_BINARY=/path/to/manul`. Resolution order: the `binary` argument,
-`$MANUL_BINARY`, the copy bundled in the wheel, then `manul` on `PATH`.
+`$MANUL_BINARY`, the copy bundled in the wheel, then `manul` on `PATH`. A
+candidate that is not a file is skipped, not an error — a mistyped `binary`
+path quietly falls through to the next one, and `EngineNotFound` is raised only
+when every candidate is missing. Check `find_binary()` if in doubt.
 
 `binary` also accepts a sequence when the engine needs a wrapper:
 

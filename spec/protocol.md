@@ -62,7 +62,7 @@ usable. Protocol-level faults (unparseable line, unknown `cmd`) answer with
 **Event** — unsolicited, no `id`:
 
 ```json
-{"event":"ready","protocol":"1.0","engine":"0.1.5"}
+{"event":"ready","protocol":"1.0","engine":"0.1.6"}
 {"event":"log","level":"warn","message":"tab navigated mid-step"}
 ```
 
@@ -88,7 +88,7 @@ Every agent command keeps the argument names and result shape it already has in
 | `map`       | `maxPerGroup?`, `includeUnlabeled?`               | page map `{url, groups:[…]}` |
 | `read`      | `label?`, `selector?`, `maxChars?`                | `{value,found,reason}` or `{text,selector}` |
 | `run-step`  | `step`                                            | `StepOutcome` |
-| `run`       | `path` or `source`                                | `RunOutcome` for a whole `.hunt` |
+| `run`       | `path` or `source`                                | `RunOutcome` for a whole `.hunt`; a hunt with a failing step answers `step_failed` instead (see below) |
 | `run-suite` | `paths` (array of `.hunt` files)                  | `SuiteResult` — per-hunt outcomes with the suite lifecycle applied |
 | `vars`      | `set?` (object), `get?` (array of names)          | current variable map |
 | `state`     | —                                                 | `{title,url}` |
@@ -105,6 +105,13 @@ nothing.
 
 **`read` with a `selector` that matches nothing answers `{"text":""}`**, not
 the text of the whole page. A selector that is not valid CSS is `bad_request`.
+
+**A hunt that fails a step is an error reply, not a `RunOutcome`.** Unlike
+`run-step`, `run` answers `ok:false` with `code:"step_failed"` and the step's
+error as `message` — so the binding raises, and a `RunOutcome` that comes back
+is one whose steps all passed, `VERIFY SOFTLY` warnings aside. The session
+stays usable. Only `run-suite`
+reports a failing hunt as data, in its `hunts[]` entry.
 
 **A hunt run by `path` keeps its location.** `run` and `run-suite` resolve a
 hunt's `@import:` and `MOCK` files relative to the `.hunt` file, as `manul run

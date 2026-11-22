@@ -1,0 +1,34 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Login Page</title><link rel="stylesheet" href="/style.css"></head>
+<body>
+<header><div id="logo">MANUL</div><span>Manul Demo Shop</span></header>
+<main>
+  <h1>Sign in</h1>
+  <section>
+    <form id="login-form">
+      <label for="username">Username</label>
+      <input id="username" name="username" placeholder="Your username">
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password">
+      <p><input type="checkbox" id="remember"><label for="remember" style="display:inline">Remember me</label></p>
+      <button type="submit">Sign in</button>
+    </form>
+    <p id="login-error" class="hidden" role="alert">Invalid username or password</p>
+  </section>
+</main>
+<footer><a href="#">Terms</a><a href="#">Privacy</a></footer>
+<script>
+const USERS = { ada: "lovelace", grace: "hopper", alan: "turing" };
+document.getElementById("login-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const u = document.getElementById("username").value.trim();
+  const p = document.getElementById("password").value;
+  if (USERS[u] && USERS[u] === p) {
+    localStorage.setItem("user", u);
+    location.href = "/dashboard.html";
+  } else {
+    document.getElementById("login-error").classList.remove("hidden");
+  }
+});
+</script>
+</body></html>
