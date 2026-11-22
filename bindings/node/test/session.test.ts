@@ -2,7 +2,16 @@ import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { after, describe, it } from 'node:test';
 
-import { EngineError, ProtocolError, Session, SessionClosed, Transport } from '../src/index.js';
+import {
+  EngineError,
+  ProtocolError,
+  Session,
+  SessionClosed,
+  Transport,
+  call,
+  customControl,
+  resetRegistry,
+} from '../src/index.js';
 
 const FAKE = fileURLToPath(new URL('./fakeEngine.js', import.meta.url));
 
@@ -142,6 +151,7 @@ describe('run', () => {
     assert.equal(res.total, 2);
     assert.equal(res.hunts.length, 2);
     assert.deepEqual(res.hunts[0]?.tags, ['smoke']);
+    assert.deepEqual(res.vars, { token: 'from-hooks' });
   });
 
   it('rejects a suite with no paths', async () => {
@@ -202,5 +212,159 @@ describe('transport', () => {
     assert.equal(t.protocol, '1.0');
     await t.close();
     assert.equal(t.closed, true);
+  });
+});
+
+/** What the session last put on the wire, as the fake recorded it. */
+async function lastArgs(s: Session): Promise<Record<string, unknown> | undefined> {
+  const req = (await s.transport.call('last-request')) as Record<string, unknown>;
+  return req['args'] as Record<string, unknown> | undefined;
+}
+
+describe('what goes on the wire', () => {
+  it('sends a launch with only the options that were given', async () => {
+    const s = await Session.launch({
+      binary: [process.execPath, FAKE],
+      stderr: 'ignore',
+      headless: true,
+      port: 9333,
+    });
+    after(() => s.close());
+    assert.deepEqual(await lastArgs(s), { mode: 'launch', headless: true, port: 9333 });
+  });
+
+  it('attaches to the endpoint it was given', async () => {
+    const s = await Session.attach('http://127.0.0.1:9222', {
+      binary: [process.execPath, FAKE],
+      stderr: 'ignore',
+      tab: 'checkout',
+    });
+    after(() => s.close());
+    assert.equal(s.mode, 'attach');
+    assert.equal(s.cdp, 'http://127.0.0.1:9222');
+    // A launch names the browser it started; an attach did not start one.
+    assert.equal(s.browser, '');
+    assert.deepEqual(await lastArgs(s), {
+      mode: 'attach',
+      cdp: 'http://127.0.0.1:9222',
+      tab: 'checkout',
+    });
+  });
+
+  it('runs a script by path', async () => {
+    const s = await openFake();
+    after(() => s.close());
+    const out = await s.run({ path: 'hunts/login.hunt' });
+    assert.equal(out.ok, true);
+    assert.deepEqual(await lastArgs(s), { path: 'hunts/login.hunt' });
+  });
+
+  it('passes a map budget, and nothing when there is none', async () => {
+    const s = await openFake();
+    after(() => s.close());
+    await s.map();
+    assert.equal(await lastArgs(s), undefined);
+    await s.map({ maxPerGroup: 5, includeUnlabeled: false });
+    assert.deepEqual(await lastArgs(s), { maxPerGroup: 5, includeUnlabeled: false });
+  });
+
+  it('passes maxChars to both kinds of read', async () => {
+    const s = await openFake();
+    after(() => s.close());
+    await s.read('Total', { maxChars: 40 });
+    assert.deepEqual(await lastArgs(s), { label: 'Total', maxChars: 40 });
+    await s.readText('#total', { maxChars: 10 });
+    assert.deepEqual(await lastArgs(s), { selector: '#total', maxChars: 10 });
+  });
+
+  it('asks for every variable by sending no names at all', async () => {
+    const s = await openFake();
+    after(() => s.close());
+    await s.vars();
+    assert.equal(await lastArgs(s), undefined);
+    await s.vars('a', 'b');
+    assert.deepEqual(await lastArgs(s), { get: ['a', 'b'] });
+  });
+
+  it('sends a suite its paths as a copy', async () => {
+    const s = await openFake();
+    after(() => s.close());
+    const paths = ['a.hunt'];
+    await s.runSuite(paths);
+    assert.deepEqual(await lastArgs(s), { paths: ['a.hunt'] });
+  });
+});
+
+describe('more of the session', () => {
+  it('returns the engine schema', async () => {
+    const s = await openFake();
+    after(() => s.close());
+    assert.deepEqual(await s.schema(), { version: '0.1.0', commands: ['CLICK', 'FILL'] });
+  });
+
+  it('reads a label that is there', async () => {
+    const s = await openFake();
+    after(() => s.close());
+    assert.deepEqual(await s.read('Total'), { value: 'read value', found: true, reason: '' });
+  });
+
+  it('fills the fields of a sparse step answer with defaults', async () => {
+    // A custom control answers with only ok/step/action/url. The rest must be
+    // empty values, not undefined leaking out to the caller.
+    resetRegistry();
+    customControl('Widget', () => {});
+    after(() => resetRegistry());
+    const s = await openFake();
+    after(() => s.close());
+    const out = await s.step("CLICK the 'Widget'");
+    assert.deepEqual(out, {
+      ok: true,
+      step: "CLICK the 'Widget'",
+      action: 'custom_control',
+      value: '',
+      url: 'https://example.com/',
+      reason: '',
+      error: '',
+      score: 0,
+      near: [],
+    });
+  });
+
+  it('publishes handlers registered after the session opened', async () => {
+    resetRegistry();
+    after(() => resetRegistry());
+    const s = await openFake();
+    after(() => s.close());
+    assert.deepEqual(s.published, { controls: 0, calls: 0, hooks: 0 });
+
+    call('late', () => 'here');
+    customControl('Late Widget', () => {});
+    assert.deepEqual(await s.publishHandlers(), { controls: 1, calls: 1, hooks: 0 });
+    assert.deepEqual(s.published, { controls: 1, calls: 1, hooks: 0 });
+    assert.equal(await s.transport.call('call-host', { name: 'late', args: [] }), 'here');
+  });
+
+  it('tracks whether it is open', async () => {
+    const s = await openFake();
+    assert.equal(s.opened, true);
+    assert.equal(s.closed, false);
+    await s.close();
+    assert.equal(s.opened, false);
+    assert.equal(s.closed, true);
+  });
+
+  it('closes through Symbol.asyncDispose', async () => {
+    const s = await openFake();
+    await s[Symbol.asyncDispose]();
+    assert.equal(s.closed, true);
+  });
+
+  it('reaches the page primitives directly', async () => {
+    // Outside a handler the real engine refuses these; the fake serves them at
+    // any time. What this pins is the method-to-command mapping.
+    const s = await openFake();
+    after(() => s.close());
+    assert.equal(await s.pageUrl(), 'https://example.com/');
+    assert.equal(await s.pageEval('1'), 'evaluated:1');
   });
 });

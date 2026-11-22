@@ -281,8 +281,8 @@ is the code to ship. A push that leaves the version alone publishes nothing.
 
 ## 📜 Release Notes: 0.1.6
 
-Four fixes found by building a demo that uses every feature
-(`examples/python-demo`), and contracts brought back in line with what ships.
+Fixes found by building two demos that use every feature
+(`examples/python-demo`, `examples/node-demo`), and contracts brought back in line with what ships.
 
 **Fixes**
 
@@ -300,11 +300,24 @@ Four fixes found by building a demo that uses every feature
   an existing directory was run as hunts before subcommands were looked at, so the
   registry's own directory made `manul pages` unreachable. Subcommand names always
   mean the subcommand; `manul ./pages` still runs a directory of that name.
+- **`SCAN PAGE into {reports/draft.hunt}` creates `reports/`.** The write failed with
+  "no such file or directory" when the directory did not exist yet.
 - **No Firefox is left behind on the BiDi port.** When an update is pending, Firefox
   hands over to its updater, which relaunches it outside the engine's process group;
   that Firefox survived `Close` and made every later launch fail with "Maximum number
   of active sessions". Closing now also kills any process still running with the
   launch's own temp profile (Unix).
+
+**Bindings**
+
+- **Node: stopping `manul` stops the engine.** The npm `manul` command started the
+  engine and did not pass signals on, so SIGTERM to `manul daemon` left the engine
+  running as an orphan with its browser and the caller's pipes. SIGINT, SIGTERM and
+  SIGHUP are forwarded now, and a signalled engine exits 128 + the signal number.
+  An engine that cannot be started (no execute bit) exits 126 as documented,
+  rather than the 243 the failed spawn's negated errno turned it into.
+- **Node: `SuiteResult.vars`, `GlobalContext.set()` and `metadata`**, as Python has
+  them — the variables the suite hooks published, and scratch space between hooks.
 
 **Contracts and docs corrected to the shipped behaviour**
 

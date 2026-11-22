@@ -358,7 +358,7 @@
       "uiText": "SCAN PAGE",
       "snippet": "SCAN PAGE${1: into {${2:filename}}}",
       "regex": "\\bSCAN\\s+PAGE\\b",
-      "description": "Scans the current page and prints a draft .hunt to the console, optionally writing it to a file with 'into {filename}' or 'to {filename}'. Complements the `scan` CLI subcommand, which needs a URL: these verbs work on a page you can only reach by driving there — behind a login, or three steps into a flow.",
+      "description": "Scans the current page and prints a draft .hunt to the console, optionally writing it to a file with 'into {filename}' or 'to {filename}' — relative to the working directory, with any missing directories created. Complements the `scan` CLI subcommand, which needs a URL: these verbs work on a page you can only reach by driving there — behind a login, or three steps into a flow.",
       "category": "utility"
     },
     {

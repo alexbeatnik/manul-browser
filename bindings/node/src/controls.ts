@@ -59,6 +59,10 @@ export interface CallContext {
  */
 export interface GlobalContext {
   readonly variables: Record<string, string>;
+  /** Scratch space shared by the hooks of one slot. Never reaches a hunt. */
+  readonly metadata: Record<string, unknown>;
+  /** Publish a variable to every hunt in the suite; the value is stringified. */
+  set(name: string, value: unknown): void;
   eval(js: string): Promise<Json>;
   url(): Promise<string>;
 }
@@ -272,8 +276,13 @@ export async function dispatchInvoke(
     }
     // Every handler in a slot runs, and they share one context so a later hook
     // sees what an earlier one published.
+    const variables: Record<string, string> = { ...vars };
     const ctx: GlobalContext = {
-      variables: { ...vars },
+      variables,
+      metadata: {},
+      set(name: string, value: unknown) {
+        variables[String(name)] = String(value);
+      },
       eval: evalFn,
       url: urlFn,
     };

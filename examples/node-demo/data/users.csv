@@ -1,0 +1,3 @@
+username,password,expected_role
+ada,lovelace,admin
+grace,hopper,member

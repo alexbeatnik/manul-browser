@@ -86,6 +86,8 @@ export interface SuiteResult {
   failed: number;
   skipped: number;
   hunts: SuiteHunt[];
+  /** Variables the suite hooks published, as they stood at the end. */
+  vars: Record<string, string>;
 }
 
 export interface SessionOptions extends TransportOptions {
@@ -317,6 +319,7 @@ export class Session implements PagePeer {
       failed: num(raw['failed']),
       skipped: num(raw['skipped']),
       hunts,
+      vars: { ...((raw['vars'] ?? {}) as Record<string, string>) },
     };
   }
 

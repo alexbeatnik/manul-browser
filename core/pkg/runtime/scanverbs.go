@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -118,6 +119,13 @@ func (rt *Runtime) scanPageDraft(ctx context.Context, outputFile string) (string
 	draft := scan.BuildHuntFull(url, groups)
 
 	if name := strings.TrimSpace(outputFile); name != "" {
+		// A draft is usually sent somewhere out of the way — reports/, drafts/ —
+		// that nothing has created yet.
+		if dir := filepath.Dir(name); dir != "." {
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				return "", fmt.Errorf("SCAN PAGE: create %s: %w", dir, err)
+			}
+		}
 		if err := os.WriteFile(name, []byte(draft), 0o644); err != nil {
 			return "", fmt.Errorf("SCAN PAGE: write %s: %w", name, err)
 		}

@@ -1,0 +1,16 @@
+@context: The whole hunt runs once per CSV row; row columns are {placeholders}.
+@title: data_driven_login
+@tags: smoke, data
+@data: ../data/users.csv
+
+STEP 1: Log in as {username}
+    NAVIGATE to {base_url}/index.html
+    FILL 'Username' field with '{username}'
+    FILL 'Password' field with '{password}'
+    CHECK the checkbox for 'Remember me'
+    CLICK the 'Sign in' button
+    VERIFY that 'Welcome, {username}' is present
+    VERIFY 'Role' field has value '{expected_role}'
+    CLICK the 'Logout' button
+
+DONE.

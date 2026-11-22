@@ -1,0 +1,11 @@
+@context: Picked up by `manul daemon hunts/` — runs every minute.
+@title: health_check
+@tags: monitoring
+@schedule: every 1 minute
+@var: {base_url} = http://localhost:8766
+
+STEP 1: Site is up
+    NAVIGATE to {base_url}/index.html
+    VERIFY that 'Sign in' is present
+
+DONE.
