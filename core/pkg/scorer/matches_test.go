@@ -93,3 +93,29 @@ func TestScoreNear_WideAnchorIsMeasuredFromItsNearestPoint(t *testing.T) {
 		t.Errorf("field 400px further down scored %.2f, not below %.2f", away, near)
 	}
 }
+
+// Half the words was a match: 'Add to cart' shares only "cart" with the
+// paragraph "Cart: 0", and with the products not loaded yet CLICK clicked the
+// paragraph and passed. More than half is the bar, as it was for labels.
+func TestMatchesQuery_HalfTheWordsIsNotAMatch(t *testing.T) {
+	el := func(text string) *dom.ElementSnapshot {
+		e := &dom.ElementSnapshot{Tag: "p", VisibleText: text, IsVisible: true}
+		e.Normalize()
+		return e
+	}
+	cases := []struct {
+		query, text string
+		want        bool
+	}{
+		{"Add to cart", "Cart: 0", false},
+		{"Add to cart", "Add to cart", true},
+		{"Submit your application today", "Submit your application", true},
+		{"Submit your application today", "Submit", false},
+		{"CPU of Chrome", "Chrome CPU 7.4%", true},
+	}
+	for _, c := range cases {
+		if got := MatchesQuery(c.query, el(c.text)); got != c.want {
+			t.Errorf("MatchesQuery(%q, %q) = %v, want %v", c.query, c.text, got, c.want)
+		}
+	}
+}

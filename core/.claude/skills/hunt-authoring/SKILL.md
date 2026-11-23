@@ -181,7 +181,7 @@ hunt against a live browser. Remove `PAUSE` lines before committing.
 | Symptom | Cause | Fix |
 |---|---|---|
 | "cannot resolve element" on a custom widget | The real `<input>` is hidden behind a styled `<div>` | Use `CHECK the checkbox for 'Label'` — engine runs the 3-pass anchor search automatically |
-| Intermittent pagination failures | Click fires before AJAX resolves | Add a `WAIT FOR 'Row N+1' to be visible` after the click |
+| Intermittent pagination failures | The old rows are still on the page, so the next step finds them and does not wait | Add a `WAIT FOR 'Row N+1' to be visible` after the click. An action on something not on the page yet waits for it by itself (up to `timeout`); one on something that is about to be replaced does not |
 | Wrong row clicked in a table | Missing row scope | Use `INSIDE 'Table' row with 'unique text'` |
 | Dropdown doesn't open with `SELECT` | Non-native custom dropdown | Engine falls back to `click()` automatically; verify with `VERIFY 'Field' has text '...'` |
 

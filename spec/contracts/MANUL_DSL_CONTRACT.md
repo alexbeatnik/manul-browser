@@ -19,6 +19,19 @@
 > so a target inside one fails as not found. UPLOAD into a field inside an
 > iframe is not supported and fails saying so.
 >
+> **Waiting for a target.** An action whose target is not on the page yet —
+> products fetched after load, a form that appears after a click — is not
+> failed at the first look. CLICK, DOUBLE CLICK, RIGHT CLICK, FILL, TYPE,
+> SELECT, CHECK, UNCHECK, HOVER, DRAG, UPLOAD, EXTRACT, PRESS … ON and
+> SCROLL … inside look again every 250ms, on a fresh snapshot, until the
+> target is there or `timeout` (default 5s) has passed, and only then fail
+> with failure_reason not_found. Only a not-found failure is retried, and only
+> while the step has changed nothing: once it has typed, clicked, chosen,
+> scrolled or pressed, it is never run a second time, whatever its failure
+> says. An ambiguous target fails at once. So a target that is not on the page
+> costs `timeout` before the step fails; WAIT FOR is still the way to wait for
+> something other than a target to act on.
+>
 > **Tabs.** A tab that the current page opens — a link with `target="_blank"`,
 > `rel="noopener"` included, or `window.open` — is where the next step runs:
 > before each step the engine looks for a tab the page opened since the last

@@ -309,10 +309,10 @@ func MatchesQuery(query string, el *dom.ElementSnapshot) bool {
 	// A word that only names what kind of control it is says nothing about
 	// which one: 'Cross button' shares "button" with 'Host button', the word
 	// overlap was 1/2, and the host page's button was clicked for one inside a
-	// frame the engine cannot enter. What is left of the query once those
-	// words are gone has to match on its own.
-	if rest := withoutRoleWords(q); rest != "" && rest != q && !matchesText(rest, el) {
-		return false
+	// frame the engine cannot enter. The query is matched without those words,
+	// unless they are all it has.
+	if rest := withoutRoleWords(q); rest != "" {
+		q = rest
 	}
 	return matchesText(q, el)
 }
@@ -335,13 +335,30 @@ func withoutRoleWords(q string) string {
 
 func matchesText(q string, el *dom.ElementSnapshot) bool {
 	return scoreExactText(q, el) > 0 ||
-		scoreNormText(q, el) > 0 ||
+		textCarries(q, el) ||
 		scoreLabel(q, el) > 0 ||
 		scorePlaceholder(q, el) > 0 ||
 		scoreAria(q, el) > 0 ||
 		scoreDataQA(q, el) > 0 ||
 		scoreID(q, el) > 0 ||
 		scoreClassName(q, el) > 0
+}
+
+// textCarries reports whether one of el's text signals carries the query:
+// the whole phrase, or more than half of its significant words — the bar
+// scoreLabel already set for a label. Half was enough before, and 'Add to
+// cart' matched the paragraph "Cart: 0" by the one word they share; with the
+// products not loaded yet, CLICK clicked the paragraph and passed.
+func textCarries(q string, el *dom.ElementSnapshot) bool {
+	for _, s := range el.AllTextSignals() {
+		if s == "" || !numbersAgree(q, s) {
+			continue
+		}
+		if strings.Contains(s, q) || wordOverlap(q, s) > 0.5 {
+			return true
+		}
+	}
+	return false
 }
 
 // ContainsQuery reports whether el carries the query whole: as a phrase inside

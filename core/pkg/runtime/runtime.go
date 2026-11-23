@@ -86,6 +86,10 @@ type Runtime struct {
 	// onStep — not silently dropped. Nil outside RunHunt.
 	activeHuntRes *explain.HuntResult
 
+	// acted is set by executeCommandOnce once the step has changed the page,
+	// after which a failure is not retried (wait.go).
+	acted bool
+
 	// Tabs (tabs.go). tabs is every open tab the hunt began on or followed,
 	// in that order — what SWITCH TO TAB counts; openerOf the tab each was
 	// opened from; seenTabs every tab id already looked at, so a tab is
@@ -442,7 +446,7 @@ func screenshotSlug(s string) string {
 	return strings.Trim(b.String(), "_")
 }
 
-func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res explain.ExecutionResult, err error) {
+func (rt *Runtime) executeCommandOnce(ctx context.Context, cmd dsl.Command) (res explain.ExecutionResult, err error) {
 	start := time.Now()
 	res = explain.ExecutionResult{
 		Step:            cmd.Raw,
@@ -554,6 +558,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 		}
 		key, modifiers := splitKeyChord(chord)
 		rt.armNavigationWatch(ctx)
+		rt.acted = true
 		if dispatchErr := rt.page.DispatchKey(ctx, key, modifiers); dispatchErr != nil {
 			err = fmt.Errorf("PRESS %s: %w", chord, dispatchErr)
 			break
@@ -651,6 +656,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 	case dsl.CmdClick, dsl.CmdFill, dsl.CmdType, dsl.CmdHover, dsl.CmdCheck, dsl.CmdUncheck, dsl.CmdSelect, dsl.CmdDoubleClick, dsl.CmdRightClick, dsl.CmdUploadFile:
 		handled, actionValue, metadata, customErr := rt.tryExecuteCustomControl(ctx, cmd)
 		if handled {
+			rt.acted = true
 			res.ActionValue = actionValue
 			res.ProbeMetadata = metadata
 			if customErr != nil {
@@ -697,6 +703,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 				val = rt.resolveVariables(cmd.SetValue)
 			}
 			handled, typeErr := rt.trySetShadowInputValue(ctx, targetPath, val)
+			rt.acted = rt.acted || handled || typeErr != nil
 			if typeErr != nil {
 				err = typeErr
 				break
@@ -714,6 +721,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 
 		if cmd.Type == dsl.CmdClick && isDropdownLikeQuery(targetPath) {
 			handled, clickErr := rt.tryClickDropdownTriggerByLabel(ctx, targetPath)
+			rt.acted = rt.acted || handled || clickErr != nil
 			if clickErr != nil {
 				err = clickErr
 				break
@@ -731,6 +739,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 
 		if cmd.Type == dsl.CmdClick && isLikelyDropdownOptionQuery(targetPath) {
 			handled, clickErr := rt.tryClickVisibleDropdownOption(ctx, targetPath)
+			rt.acted = rt.acted || handled || clickErr != nil
 			if clickErr != nil {
 				err = clickErr
 				break
@@ -912,6 +921,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 					break
 				}
 			}
+			rt.acted = true
 			err = rt.pageFor(winner).SetInputValue(ctx, winner.ID, winner.XPath, val)
 			if err == nil {
 				rt.logger.ActionDetail("⌨️", "Typed %q → %q", val, winner.Name)
@@ -924,6 +934,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 		case dsl.CmdClick:
 			if isDropdownLikeQuery(targetPath) && !isDropdownLikeElement(winner) {
 				handled, clickErr := rt.tryClickNearbyDropdownControl(ctx, winner)
+				rt.acted = rt.acted || handled || clickErr != nil
 				if clickErr != nil {
 					err = clickErr
 					break
@@ -944,6 +955,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 			} else {
 				// Perform interaction
 				rt.armNavigationWatch(ctx)
+				rt.acted = true
 				err = rt.page.Click(ctx, x, y)
 				if err == nil {
 					// A click may trigger navigation or AJAX update.
@@ -963,6 +975,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 			if e != nil {
 				err = e
 			} else {
+				rt.acted = true
 				err = rt.page.DoubleClick(ctx, x, y)
 				err = rt.settleAfterPointer(ctx, err)
 			}
@@ -971,6 +984,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 			if e != nil {
 				err = e
 			} else {
+				rt.acted = true
 				err = rt.page.RightClick(ctx, x, y)
 				err = rt.settleAfterPointer(ctx, err)
 			}
@@ -980,6 +994,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 				err = fmt.Errorf("center calc: %w", e)
 			} else {
 				_ = rt.pageFor(winner).ScrollIntoView(ctx, winner.ID, winner.XPath)
+				rt.acted = true
 				err = rt.page.Hover(ctx, x, y)
 				if err == nil {
 					if waitErr := rt.page.Wait(ctx, 300*time.Millisecond); waitErr != nil {
@@ -995,6 +1010,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 				res.FailureReason = explain.ReasonNotFound
 				break
 			}
+			rt.acted = true
 			err = rt.pageFor(winner).SetChecked(ctx, winner.ID, winner.XPath, checked)
 			if err == nil {
 				rt.rememberStickyCheckboxState(targetPath, checked)
@@ -1027,6 +1043,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 					// of believing it succeeded.
 					err = fmt.Errorf("option %q not found in the dropdown%s", val, formatOptions(outcome.Options))
 				default:
+					rt.acted = true
 					// A sort or filter dropdown often reloads the page on
 					// change, exactly as a click on a link would.
 					if waitErr := rt.page.Wait(ctx, 300*time.Millisecond); waitErr != nil {
@@ -1043,6 +1060,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 				// snapshot recorded is where the dropdown used to be.
 				ox, oy, openErr := rt.clickPoint(ctx, winner, targetPath)
 				if openErr == nil {
+					rt.acted = true
 					openErr = rt.page.Click(ctx, ox, oy)
 				}
 				if openErr != nil {
@@ -1099,6 +1117,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 				err = pathErr
 				break
 			}
+			rt.acted = true
 			err = rt.pageFor(winner).SetFileInput(ctx, winner.ID, winner.XPath, []string{absPath})
 			if err == nil {
 				rt.invalidateSnapshot()
@@ -1147,6 +1166,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 		rt.logger.Info("Target '%s' resolved to element: ID=%d Tag=%s XPath=%s", sourcePath, srcEl.ID, srcEl.Tag, srcEl.XPath)
 		rt.logger.Info("Target '%s' resolved to element: ID=%d Tag=%s XPath=%s", dropPath, destEl.ID, destEl.Tag, destEl.XPath)
 
+		rt.acted = true
 		err = rt.page.DragAndDrop(ctx, x1, y1, x2, y2)
 		if err == nil {
 			rt.invalidateSnapshot()
@@ -1228,6 +1248,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 			}
 		}
 
+		rt.acted = true
 		if scroller, ok := rt.page.(interface {
 			ScrollPage(context.Context, string, string) error
 		}); ok {

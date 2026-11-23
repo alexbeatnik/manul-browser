@@ -1,0 +1,27 @@
+<!doctype html><html><head><title>Late content</title></head>
+<body style="font-family:sans-serif">
+<h1>Catalogue</h1>
+<!-- The page has loaded; its products have not. They arrive the way an AJAX
+     response does, a second and a half later, and the checkout form after
+     the first product is added. -->
+<div id="products">Loading…</div>
+<p id="cart">Cart: 0</p>
+<div id="checkout"></div>
+<script>
+setTimeout(function () {
+  document.getElementById('products').innerHTML =
+    '<div class="card"><h3>Manul Plush</h3><p>Price: <span>$24.50</span></p> ' +
+    '<button id="add">Add to cart</button></div>';
+  document.getElementById('add').onclick = function () {
+    document.getElementById('cart').textContent = 'Cart: 1';
+    setTimeout(function () {
+      document.getElementById('checkout').innerHTML =
+        '<label for="zip">Zip code</label> <input id="zip"> <button id="pay">Pay</button>';
+      document.getElementById('pay').onclick = function () {
+        document.getElementById('cart').textContent = 'Paid, shipping to ' + document.getElementById('zip').value;
+      };
+    }, 1200);
+  };
+}, 1500);
+</script>
+</body></html>

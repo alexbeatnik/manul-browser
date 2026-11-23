@@ -179,6 +179,13 @@ page in transit and waited out `nav_timeout` on — it asks `TabClosed` first.
 Tabs are found by listing, not by events, so none of the subscribe-order traps
 below apply.
 
+**A retried step must not act twice.** An action whose target is not on the
+page yet runs again until `timeout` (`pkg/runtime/wait.go`), and that is safe
+only while it has changed nothing. `rt.acted` is set at every point where a
+step types, clicks, chooses, scrolls or presses; a new mutation without it is
+a step that can run twice — `TestWait_AStepThatHasActedIsNotRunAgain` typed
+8 times without the flag.
+
 **Snapshot caching hides change.** The cache makes resolution cheap within a
 step. Any polling loop must call `invalidateSnapshot()` each iteration or it
 will never see what it is waiting for.

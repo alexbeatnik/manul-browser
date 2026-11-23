@@ -357,6 +357,14 @@ WAIT FOR RESPONSE "api/users"
 
 States for `WAIT FOR`: `visible`, `hidden`, `disappear`.
 
+Actions wait for their target on their own. A CLICK, FILL, SELECT, CHECK,
+HOVER, DRAG, UPLOAD or EXTRACT whose target is not on the page yet — products
+loaded by AJAX, a form that appears after a click — looks again every 250ms
+until it is there or `timeout` (default 5s) has passed. So no `WAIT FOR` is
+needed in front of an action on something that is still arriving; it is for
+waiting on something *else*, such as a spinner going away while the old
+content is still on the page.
+
 ---
 
 ## Control Flow

@@ -110,7 +110,7 @@
       "type": "integer",
       "unit": "milliseconds",
       "default": 5000,
-      "description": "Default action timeout for click, fill, select, hover operations.",
+      "description": "How long a step waits for what it is waiting for. An action whose target is not on the page yet (CLICK, DOUBLE CLICK, RIGHT CLICK, FILL, TYPE, SELECT, CHECK, UNCHECK, HOVER, DRAG, UPLOAD, EXTRACT, PRESS … ON, SCROLL … inside) looks for it again every 250ms for this long before failing not_found; VERIFY polls for this long. 0 turns the waiting for a target off.",
       "minimum": 0
     },
     {

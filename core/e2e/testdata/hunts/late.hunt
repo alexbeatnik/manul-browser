@@ -1,0 +1,14 @@
+@title: An action waits for a target that has not arrived yet
+# expect-output: price=[Price: $24.50]
+STEP 1: Products that arrive after load
+    NAVIGATE to @SITE@/late.html
+    CLICK the 'Add to cart' button
+    VERIFY that 'Cart: 1' is present
+STEP 2: A form that appears after the click
+    FILL 'Zip code' field with '01001'
+    CLICK the 'Pay' button
+    VERIFY that 'Paid, shipping to 01001' is present
+STEP 3: Read what arrived
+    EXTRACT the 'Price' into {price}
+    PRINT "price=[{price}]"
+DONE.
