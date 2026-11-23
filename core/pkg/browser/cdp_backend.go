@@ -228,6 +228,9 @@ func (p *CDPPage) EvalJSInFrame(ctx context.Context, frameIndex int, expr string
 		return nil, err
 	}
 	contextID := t.ContextForIndex(frameIndex)
+	if contextID == 0 {
+		return nil, errNoFrameContext(frameIndex)
+	}
 	wrapped := autoInvoke(expr)
 	raw, err := cdp.EvaluateInContext(ctx, p.conn, contextID, wrapped)
 	if err != nil {
@@ -246,6 +249,9 @@ func (p *CDPPage) CallProbeInFrame(ctx context.Context, frameIndex int, fn strin
 		return nil, err
 	}
 	contextID := t.ContextForIndex(frameIndex)
+	if contextID == 0 {
+		return nil, errNoFrameContext(frameIndex)
+	}
 	expr := fn
 	if arg != nil {
 		expr = fmt.Sprintf("(%s)(%s)", fn, cdp.MustMarshalString(arg))
@@ -261,6 +267,15 @@ func (p *CDPPage) CallProbeInFrame(ctx context.Context, frameIndex int, fn strin
 
 // autoInvoke wraps a bare arrow/function literal so it is executed, mirroring
 // CDPPage.EvalJS's behaviour for the per-frame path.
+// errNoFrameContext is what a frame with no execution context of its own
+// answers. Context 0 means "the default one" to EvaluateInContext, so asking
+// such a frame anything used to ask the main document instead — a snapshot of
+// an iframe Chrome runs in another process (a cross-origin one) came back as
+// a second copy of the page.
+func errNoFrameContext(frameIndex int) error {
+	return fmt.Errorf("frame %d has no execution context here (a cross-origin iframe runs in a process of its own)", frameIndex)
+}
+
 func autoInvoke(expr string) string {
 	trimmed := strings.TrimSpace(expr)
 	if strings.HasPrefix(trimmed, "() =>") || strings.HasPrefix(trimmed, "()=>") ||

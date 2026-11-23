@@ -24,13 +24,22 @@
     if (!root) return "";
 
     let t = root.innerText || "";
-    // Append shadow-root text the flat innerText misses.
-    root.querySelectorAll('*').forEach(el => {
-        if (el.shadowRoot) {
-            const shadow = Array.from(el.shadowRoot.querySelectorAll('*'))
-                .map(e => (e.innerText || "")).join(' ');
-            if (shadow) t += "\n" + shadow;
-        }
+    // Append shadow-root text the flat innerText misses, from every shadow
+    // root however deep: querySelectorAll does not enter one, and pages of
+    // web components nest them. Each root's text is read a top-level child at
+    // a time — innerText covers the rest of that tree — skipping <style> and
+    // the like, whose innerText is their source when they are not rendered.
+    const roots = [root];
+    for (let i = 0; i < roots.length; i++) {
+        roots[i].querySelectorAll('*').forEach(el => {
+            if (el.shadowRoot) roots.push(el.shadowRoot);
+        });
+    }
+    roots.slice(1).forEach(sr => {
+        const shadow = Array.from(sr.children)
+            .filter(c => !/^(STYLE|SCRIPT|TEMPLATE|LINK)$/.test(c.tagName))
+            .map(c => (c.innerText || "")).join(' ');
+        if (shadow.trim()) t += "\n" + shadow;
     });
     return t;
 }

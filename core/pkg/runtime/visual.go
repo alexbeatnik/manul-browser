@@ -17,6 +17,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/alexbeatnik/manul-browser/core/pkg/browser"
 	"github.com/alexbeatnik/manul-browser/core/pkg/dom"
 	"github.com/alexbeatnik/manul-browser/core/pkg/dsl"
 	"github.com/alexbeatnik/manul-browser/core/pkg/explain"
@@ -116,7 +117,7 @@ func (rt *Runtime) verifyVisual(ctx context.Context, cmd dsl.Command, res *expla
 // pixels, so the scale between the two is read off the image itself rather
 // than trusted from devicePixelRatio, which emulation can make disagree.
 func (rt *Runtime) elementImage(ctx context.Context, el dom.ElementSnapshot) (*image.NRGBA, error) {
-	raw, err := rt.page.EvalJS(ctx, pagejs.ElementRect(el.ID, el.XPath))
+	raw, err := rt.pageFor(el).EvalJS(ctx, pagejs.ElementRect(el.ID, el.XPath))
 	if err != nil {
 		return nil, err
 	}
@@ -127,6 +128,19 @@ func (rt *Runtime) elementImage(ctx context.Context, el dom.ElementSnapshot) (*i
 	}
 	if err := decodeJSONText(raw, &box); err != nil {
 		return nil, fmt.Errorf("unreadable element box from the page: %w", err)
+	}
+	// Inside an <iframe> the box is on the frame's viewport, and so is the
+	// width the scale is read from; the screenshot is of the whole page.
+	if framed, ok := rt.pageFor(el).(browser.Framed); ok {
+		dx, dy, err := framed.FrameOffset(ctx)
+		if err != nil {
+			return nil, err
+		}
+		box.X, box.Y = box.X+dx, box.Y+dy
+		box.ViewportWidth = 0
+		if w, err := rt.page.EvalJS(ctx, "window.innerWidth"); err == nil {
+			_ = json.Unmarshal(w, &box.ViewportWidth)
+		}
 	}
 
 	shot, err := rt.page.Screenshot(ctx)

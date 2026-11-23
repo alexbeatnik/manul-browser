@@ -843,11 +843,11 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 		}
 
 		// Visual feedback: flash highlight for every action (matches Python _highlight).
-		_ = rt.page.HighlightElement(ctx, winner.ID, winner.XPath, 2000)
+		_ = rt.pageFor(winner).HighlightElement(ctx, winner.ID, winner.XPath, 2000)
 		// Ensure the highlight is removed as soon as the interaction finishes,
 		// even if the action triggers navigation that destroys the element.
 		defer func() {
-			_ = rt.page.ClearHighlight(ctx)
+			_ = rt.pageFor(winner).ClearHighlight(ctx)
 		}()
 
 		// Debug mode: persistent magenta highlight + pause before action execution.
@@ -874,11 +874,29 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 			// Setting a value on a heading or a table cell raises nothing, so
 			// the step used to pass with the field it meant left untouched.
 			if !winner.IsInteractive(string(dsl.ModeInput)) && winner.Tag != "select" {
+				// The scorer gives a disabled field nothing, so a field that
+				// is still waiting to be enabled lost to any sentence that
+				// mentions it, and the step said the field was a <li>.
+				if disabled := disabledFieldFor(targetPath, cmd.TypeHint, candidateElements); disabled != nil {
+					err = fmt.Errorf("%q is disabled; nothing was typed (WAIT FOR '%s' to be enabled first)", targetPath, targetPath)
+					res.FailureReason = explain.ReasonActionFailed
+					break
+				}
 				err = fmt.Errorf("target not found: %q is <%s>, not a field that takes text", targetPath, winner.Tag)
 				res.FailureReason = explain.ReasonNotFound
 				break
 			}
-			err = rt.page.SetInputValue(ctx, winner.ID, winner.XPath, val)
+			// A field whose middle is under something else cannot be typed
+			// into by a person, and pages check: one that clears such a field
+			// on input left it empty while the step passed. Scrolling it into
+			// view is usually what uncovers it — a field low in a scrolled
+			// box sits under whatever is drawn over the box's edge.
+			if winner.Tag == "input" || winner.Tag == "textarea" {
+				if _, _, err = rt.uncoveredCenter(ctx, winner, targetPath, "in the middle of the field; nothing was typed"); err != nil {
+					break
+				}
+			}
+			err = rt.pageFor(winner).SetInputValue(ctx, winner.ID, winner.XPath, val)
 			if err == nil {
 				rt.logger.ActionDetail("⌨️", "Typed %q → %q", val, winner.Name)
 				if waitErr := rt.page.Wait(ctx, 300*time.Millisecond); waitErr != nil {
@@ -941,11 +959,11 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 				err = rt.settleAfterPointer(ctx, err)
 			}
 		case dsl.CmdHover:
-			x, y, e := rt.page.GetElementCenter(ctx, winner.ID, winner.XPath)
+			x, y, e := rt.pageFor(winner).GetElementCenter(ctx, winner.ID, winner.XPath)
 			if e != nil {
 				err = fmt.Errorf("center calc: %w", e)
 			} else {
-				_ = rt.page.ScrollIntoView(ctx, winner.ID, winner.XPath)
+				_ = rt.pageFor(winner).ScrollIntoView(ctx, winner.ID, winner.XPath)
 				err = rt.page.Hover(ctx, x, y)
 				if err == nil {
 					if waitErr := rt.page.Wait(ctx, 300*time.Millisecond); waitErr != nil {
@@ -957,7 +975,11 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 			}
 		case dsl.CmdCheck, dsl.CmdUncheck:
 			checked := cmd.Type == dsl.CmdCheck
-			err = rt.page.SetChecked(ctx, winner.ID, winner.XPath, checked)
+			if winner, err = rt.captionedBox(ctx, winner, targetPath, elements); err != nil {
+				res.FailureReason = explain.ReasonNotFound
+				break
+			}
+			err = rt.pageFor(winner).SetChecked(ctx, winner.ID, winner.XPath, checked)
 			if err == nil {
 				rt.rememberStickyCheckboxState(targetPath, checked)
 				rt.invalidateSnapshot()
@@ -968,12 +990,12 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 		case dsl.CmdSelect:
 			val := rt.resolveVariables(cmd.Value)
 			res.ActionValue = val
-			_ = rt.page.ScrollIntoView(ctx, winner.ID, winner.XPath)
+			_ = rt.pageFor(winner).ScrollIntoView(ctx, winner.ID, winner.XPath)
 
 			// Detect if it's a native select or custom dropdown
 			if winner.Tag == "select" {
 				rt.armNavigationWatch(ctx)
-				raw, evalErr := rt.page.EvalJS(ctx, pagejs.SelectOption(winner.XPath, val))
+				raw, evalErr := rt.pageFor(winner).EvalJS(ctx, pagejs.SelectOption(winner.XPath, val))
 				if evalErr != nil {
 					err = evalErr
 					break
@@ -1038,8 +1060,8 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 				if len(rankedOpt) > 0 && scorer.MatchesQuery(val, &rankedOpt[0].Element) {
 					opt := rankedOpt[0].Element
 					rt.logger.Info("Selected option %q (Tag=%s ID=%d)", val, opt.Tag, opt.ID)
-					_ = rt.page.ScrollIntoView(ctx, opt.ID, opt.XPath)
-					cx, cy, centerErr := rt.page.GetElementCenter(ctx, opt.ID, opt.XPath)
+					_ = rt.pageFor(opt).ScrollIntoView(ctx, opt.ID, opt.XPath)
+					cx, cy, centerErr := rt.pageFor(opt).GetElementCenter(ctx, opt.ID, opt.XPath)
 					if centerErr != nil {
 						err = fmt.Errorf("select %q: center calc: %w", val, centerErr)
 						break
@@ -1061,7 +1083,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 				err = pathErr
 				break
 			}
-			err = rt.page.SetFileInput(ctx, winner.ID, winner.XPath, []string{absPath})
+			err = rt.pageFor(winner).SetFileInput(ctx, winner.ID, winner.XPath, []string{absPath})
 			if err == nil {
 				rt.invalidateSnapshot()
 			}
@@ -1100,7 +1122,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 
 		// Both centres in one measurement. Measuring them separately scrolls
 		// twice, and the first result is stale by the time the second returns.
-		x1, y1, x2, y2, errCenters := rt.page.GetDragCenters(ctx, srcEl.ID, srcEl.XPath, destEl.ID, destEl.XPath)
+		x1, y1, x2, y2, errCenters := rt.pageFor(srcEl).GetDragCenters(ctx, srcEl.ID, srcEl.XPath, destEl.ID, destEl.XPath)
 		if errCenters != nil {
 			err = fmt.Errorf("drag centre calc failed: %w", errCenters)
 			break
@@ -1129,6 +1151,20 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 		}
 
 		extracted, fromField := decodeExtractResult(val)
+		// What the page itself does not have may be inside one of its
+		// iframes; the first frame that answers is the one read.
+		if !fromField && (extracted == "" || extracted == "null") {
+			for _, f := range rt.enteredFrames(ctx) {
+				raw, ierr := rt.page.CallProbeInFrame(ctx, f.Index, heuristics.BuildExtractProbe(), params)
+				if ierr != nil {
+					continue
+				}
+				if v, field := decodeExtractResult(raw); field || (v != "" && v != "null") {
+					extracted, fromField = v, field
+					break
+				}
+			}
+		}
 
 		// An empty field was found and is empty; empty text was not found.
 		if !fromField && (extracted == "" || extracted == "null") {
@@ -1227,7 +1263,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 				satisfied = missingElementSatisfiesVerifyState(cmd.VerifyState)
 			}
 		} else {
-			raw, errProbe := rt.page.CallProbe(ctx, heuristics.BuildVisibleTextProbe(), nil)
+			raw, errProbe := rt.visibleText(ctx)
 			if errProbe != nil {
 				rt.logger.ActionWarn(fmt.Sprintf("VERIFY SOFTLY skipped: probe error: %v", errProbe))
 				break
@@ -1263,7 +1299,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 		}
 
 		for {
-			raw, errProbe := rt.page.CallProbe(ctx, heuristics.BuildVisibleTextProbe(), nil)
+			raw, errProbe := rt.visibleText(ctx)
 			if errProbe == nil {
 				probed = true
 				pageText = foldSpace(string(raw))
@@ -1339,7 +1375,18 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 				// Ranked as if nothing were disabled, as the state form below
 				// does: a disabled field still has a value to verify.
 				ranked = restoreDisabled(scorer.Rank(target, cmd.TypeHint, string(dsl.ModeNone), asIfEnabled(elements), 5, nil), elements)
-				found = len(ranked) > 0 && scorer.MatchesQuery(target, &ranked[0].Element)
+				byCaption := false
+				if cmd.VerifyFieldKind != "text" && len(ranked) > 0 && !isValueControl(ranked[0].Element) {
+					// The target is a caption — <p>Number</p><input>, an <h3>
+					// over a <select> — and a caption has no value. FILL and
+					// SELECT find the field beside it; reading the caption
+					// instead reported "" for a field FILL had just filled.
+					if field := fieldBesideCaption(target, cmd.TypeHint, elements); field != nil {
+						ranked = field
+						byCaption = true
+					}
+				}
+				found = len(ranked) > 0 && (byCaption || scorer.MatchesQuery(target, &ranked[0].Element))
 				if found {
 					winner := ranked[0].Element
 					switch cmd.VerifyFieldKind {
@@ -1407,6 +1454,16 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 			if lastFound {
 				lastWinner = ranked[0].Element
 				lastStateValue = elementMatchesVerifyState(lastWinner, cmd.VerifyState)
+				if cmd.VerifyState == "checked" || cmd.VerifyState == "unchecked" {
+					// The box CHECK would act on, read off the page: one of
+					// several in a form, picked by its caption.
+					if box, boxErr := rt.captionedBox(ctx, lastWinner, target, elements); boxErr == nil && box.XPath != lastWinner.XPath {
+						lastWinner = box
+						if checked, ok := rt.checkedState(ctx, box); ok {
+							lastStateValue = checked == (cmd.VerifyState == "checked")
+						}
+					}
+				}
 				verifySatisfied := lastStateValue
 				if cmd.VerifyNegated {
 					verifySatisfied = !verifySatisfied
@@ -1969,6 +2026,120 @@ var defaultControlHint = map[dsl.InteractionMode]string{
 	dsl.ModeCheckbox: "checkbox",
 }
 
+// visibleText is the lower-cased visible text of the page and of every
+// entered iframe, which is what a text VERIFY looks for. Only the main
+// document's failure is the step's.
+func (rt *Runtime) visibleText(ctx context.Context) ([]byte, error) {
+	text, err := rt.page.CallProbe(ctx, heuristics.BuildVisibleTextProbe(), nil)
+	if err != nil {
+		return nil, err
+	}
+	for _, f := range rt.enteredFrames(ctx) {
+		if more, err := rt.page.CallProbeInFrame(ctx, f.Index, heuristics.BuildVisibleTextProbe(), nil); err == nil {
+			text = append(append(text, ' '), more...)
+		}
+	}
+	return text, nil
+}
+
+// pageFor is the page el is addressed through: the page itself for the main
+// document, a view of el's own frame for an element inside an <iframe>.
+func (rt *Runtime) pageFor(el dom.ElementSnapshot) browser.Page {
+	return browser.InFrame(rt.page, el.FrameIndex)
+}
+
+// enteredFrames are the page's iframes the engine looks into: every one that
+// can be evaluated in and whose document is same-origin all the way up to the
+// page, each with where its viewport sits on the page's. A cross-origin iframe
+// is left out on both backends — Chromium runs it in a process of its own,
+// and Firefox does not deliver a top-level click into it.
+func (rt *Runtime) enteredFrames(ctx context.Context) []enteredFrame {
+	frames, err := rt.page.Frames(ctx)
+	if err != nil || len(frames) < 2 {
+		return nil
+	}
+	var out []enteredFrame
+	for _, f := range frames {
+		if f.Index == 0 {
+			continue
+		}
+		if dx, dy, err := browser.FrameOffset(ctx, rt.page, f.Index); err == nil {
+			out = append(out, enteredFrame{FrameRef: f, dx: dx, dy: dy})
+		}
+	}
+	return out
+}
+
+type enteredFrame struct {
+	browser.FrameRef
+	dx, dy float64
+}
+
+// frameElements snapshots every entered iframe, each element tagged with its
+// frame and its box moved onto the top-level viewport — where proximity is
+// measured and clicks land.
+func (rt *Runtime) frameElements(ctx context.Context) []dom.ElementSnapshot {
+	var out []dom.ElementSnapshot
+	for _, f := range rt.enteredFrames(ctx) {
+		if _, err := rt.page.EvalJSInFrame(ctx, f.Index, pagejs.SeedFrameIDs); err != nil {
+			continue
+		}
+		raw, err := rt.page.CallProbeInFrame(ctx, f.Index, heuristics.BuildSnapshotProbe(), nil)
+		if err != nil {
+			continue
+		}
+		els, err := heuristics.ParseProbeResult(raw)
+		if err != nil {
+			continue
+		}
+		for i := range els {
+			els[i].FrameIndex = f.Index
+			els[i].FrameURL = f.URL
+			els[i].FrameName = f.Name
+			r := &els[i].Rect
+			r.Top, r.Bottom, r.Left, r.Right = r.Top+f.dy, r.Bottom+f.dy, r.Left+f.dx, r.Right+f.dx
+		}
+		out = append(out, els...)
+	}
+	return out
+}
+
+// isValueControl reports whether el holds a value of its own: a text field,
+// a <select>, or an editable element.
+func isValueControl(el dom.ElementSnapshot) bool {
+	return el.Tag == "select" || el.IsInteractive(string(dsl.ModeInput))
+}
+
+// disabledFieldFor returns the field target names when that field is
+// disabled — the one FILL would have resolved were it enabled — or nil.
+func disabledFieldFor(target, typeHint string, elements []dom.ElementSnapshot) *dom.ElementSnapshot {
+	ranked, _ := resolveRestrictiveCandidates(target, typeHint, dsl.ModeInput, asIfEnabled(elements), nil, nil)
+	ranked = restoreDisabled(ranked, elements)
+	if len(ranked) == 0 || !ranked[0].Element.IsDisabled || ranked[0].Element.Tag == "select" {
+		return nil
+	}
+	el := ranked[0].Element
+	el.IsDisabled = false
+	if !el.IsInteractive(string(dsl.ModeInput)) {
+		return nil
+	}
+	return &ranked[0].Element
+}
+
+// fieldBesideCaption ranks the field a caption names, the way FILL and SELECT
+// find it, or returns nil when there is none. Disabled fields count: a
+// disabled field still has a value to verify.
+func fieldBesideCaption(target, typeHint string, elements []dom.ElementSnapshot) []scorer.RankedCandidate {
+	probe := asIfEnabled(elements)
+	for _, mode := range []dsl.InteractionMode{dsl.ModeInput, dsl.ModeSelect} {
+		ranked, strategy := resolveRestrictiveCandidates(target, typeHint, mode, probe, nil, nil)
+		if len(ranked) > 0 && strings.Contains(strategy, "pass3") && isValueControl(ranked[0].Element) {
+			return restoreDisabled(ranked, elements)
+		}
+	}
+	return nil
+}
+
 func resolveRestrictiveCandidates(targetPath, typeHint string, mode dsl.InteractionMode, elements []dom.ElementSnapshot, anchor *scorer.AnchorContext, logger *utils.Logger) ([]scorer.RankedCandidate, string) {
 	// A type hint alone clears the confidence bar, so pass 1 also has to match
 	// the target — otherwise the first input on the page wins before the label
@@ -2151,7 +2322,7 @@ func controlsInside(container dom.ElementSnapshot, elements []dom.ElementSnapsho
 		if mode == dsl.ModeInput && element.Tag == "input" && nonTextInputTypes[strings.ToLower(element.InputType)] {
 			continue
 		}
-		if element.IsInteractive(string(mode)) && scorer.IsXPathAncestor(container.XPath, element.XPath) {
+		if element.IsInteractive(string(mode)) && element.FrameIndex == container.FrameIndex && scorer.IsXPathAncestor(container.XPath, element.XPath) {
 			out = append(out, element)
 		}
 	}
@@ -2174,7 +2345,7 @@ func checkboxCandidatesInSameRow(anchor dom.ElementSnapshot, elements []dom.Elem
 		if !element.IsInteractive(string(dsl.ModeCheckbox)) {
 			continue
 		}
-		if strings.HasPrefix(element.XPath, rowPrefix+"/") {
+		if element.FrameIndex == anchor.FrameIndex && strings.HasPrefix(element.XPath, rowPrefix+"/") {
 			out = append(out, element)
 		}
 	}
@@ -2188,7 +2359,7 @@ func candidatesInSameRow(anchor dom.ElementSnapshot, elements []dom.ElementSnaps
 	}
 	var out []dom.ElementSnapshot
 	for _, element := range elements {
-		if strings.HasPrefix(element.XPath, rowPrefix+"/") {
+		if element.FrameIndex == anchor.FrameIndex && strings.HasPrefix(element.XPath, rowPrefix+"/") {
 			out = append(out, element)
 		}
 	}
@@ -2202,7 +2373,7 @@ func descendantsOf(container dom.ElementSnapshot, elements []dom.ElementSnapshot
 		if element.XPath == container.XPath {
 			continue
 		}
-		if strings.HasPrefix(element.XPath, prefix) {
+		if element.FrameIndex == container.FrameIndex && strings.HasPrefix(element.XPath, prefix) {
 			out = append(out, element)
 		}
 	}
@@ -2489,7 +2660,7 @@ func (rt *Runtime) ensureCheckboxTargetState(ctx context.Context, acted dom.Elem
 		}
 		tried[key] = true
 
-		if err := rt.page.SetChecked(ctx, candidate.Element.ID, candidate.Element.XPath, desired); err != nil {
+		if err := rt.pageFor(candidate.Element).SetChecked(ctx, candidate.Element.ID, candidate.Element.XPath, desired); err != nil {
 			continue
 		}
 		if waitErr := rt.page.Wait(ctx, 150*time.Millisecond); waitErr != nil {
@@ -2556,10 +2727,17 @@ func (rt *Runtime) collectCheckboxRetryCandidates(ctx context.Context, target st
 // still there after that is reported instead of clicked: the click would have
 // gone to it, and the step would have passed.
 func (rt *Runtime) clickPoint(ctx context.Context, el dom.ElementSnapshot, target string) (x, y float64, err error) {
+	return rt.uncoveredCenter(ctx, el, target, "where the click would land; nothing was clicked")
+}
+
+// uncoveredCenter scrolls el into view and returns its centre once nothing
+// else is on top of it there, failing with "<target> is covered by … <where>"
+// when something still is after coverChecks looks.
+func (rt *Runtime) uncoveredCenter(ctx context.Context, el dom.ElementSnapshot, target, where string) (x, y float64, err error) {
 	for check := 1; ; check++ {
 		// Measured again each time round: what was in the way may have been
 		// holding the layout where it was.
-		x, y, err = rt.page.GetElementCenter(ctx, el.ID, el.XPath)
+		x, y, err = rt.pageFor(el).GetElementCenter(ctx, el.ID, el.XPath)
 		if err != nil {
 			return 0, 0, fmt.Errorf("center calc: %w", err)
 		}
@@ -2568,7 +2746,7 @@ func (rt *Runtime) clickPoint(ctx context.Context, el dom.ElementSnapshot, targe
 			return x, y, nil
 		}
 		if check == coverChecks {
-			return 0, 0, fmt.Errorf("%q is covered by %s where the click would land; nothing was clicked", target, cover)
+			return 0, 0, fmt.Errorf("%q is covered by %s %s", target, cover, where)
 		}
 		if waitErr := rt.page.Wait(ctx, coverCheckEvery); waitErr != nil {
 			return 0, 0, waitErr
@@ -2586,7 +2764,17 @@ const (
 // coveredBy names the element sitting on top of el at (x, y), or returns ""
 // when a click there reaches el.
 func (rt *Runtime) coveredBy(ctx context.Context, el dom.ElementSnapshot, x, y float64) string {
-	raw, err := rt.page.EvalJS(ctx, pagejs.CoveredBy(el.ID, el.XPath, x, y))
+	page := rt.pageFor(el)
+	// (x, y) is on the top-level viewport, where clicks land; the frame
+	// looks at its own.
+	if framed, ok := page.(browser.Framed); ok {
+		dx, dy, err := framed.FrameOffset(ctx)
+		if err != nil {
+			return ""
+		}
+		x, y = x-dx, y-dy
+	}
+	raw, err := page.EvalJS(ctx, pagejs.CoveredBy(el.ID, el.XPath, x, y))
 	if err != nil {
 		return ""
 	}
@@ -2600,10 +2788,56 @@ func (rt *Runtime) coveredBy(ctx context.Context, el dom.ElementSnapshot, x, y f
 	return report.By
 }
 
+// captionedBox narrows el, when it holds several checkboxes or radios, to the
+// one captioned with target. An element with one box or none, or a box
+// itself, is returned as it is. Several boxes and none captioned so is an
+// error: acting on the first of them is acting on a box the step never named.
+func (rt *Runtime) captionedBox(ctx context.Context, el dom.ElementSnapshot, target string, elements []dom.ElementSnapshot) (dom.ElementSnapshot, error) {
+	if el.Tag == "label" {
+		return el, nil
+	}
+	// A box that was ranked first may still be the wrong one of a pair whose
+	// captions are bare text: it is weighed against its siblings, and kept
+	// when none of them is captioned with the target either.
+	scope, scopeID := el.XPath, el.ID
+	if el.Tag == "input" {
+		cut := strings.LastIndex(el.XPath, "/")
+		if cut <= 0 {
+			return el, nil
+		}
+		scope, scopeID = el.XPath[:cut], -1
+	}
+	raw, err := rt.pageFor(el).EvalJS(ctx, pagejs.CaptionedBox(scopeID, scope, target))
+	if err != nil {
+		return el, nil
+	}
+	var pick struct {
+		Count int    `json:"count"`
+		XPath string `json:"xpath"`
+	}
+	if json.Unmarshal(raw, &pick) != nil || pick.Count < 2 {
+		return el, nil
+	}
+	if pick.XPath == "" {
+		if el.Tag == "input" {
+			return el, nil
+		}
+		return el, fmt.Errorf("target not found: %q names an element holding %d checkboxes, and none of them is captioned %q", target, pick.Count, target)
+	}
+	for _, candidate := range elements {
+		if candidate.XPath == pick.XPath {
+			return candidate, nil
+		}
+	}
+	// Not in the snapshot; the page finds it by its path. An ID of -1 is
+	// in no registry, so the path is what is used.
+	return dom.ElementSnapshot{ID: -1, XPath: pick.XPath, Tag: "input"}, nil
+}
+
 // checkedState reads the state of the checkbox or radio el stands for, off the
 // page as it is now. ok is false when the page has no such control to report.
 func (rt *Runtime) checkedState(ctx context.Context, el dom.ElementSnapshot) (checked, ok bool) {
-	raw, err := rt.page.EvalJS(ctx, pagejs.CheckedState(el.ID, el.XPath))
+	raw, err := rt.pageFor(el).EvalJS(ctx, pagejs.CheckedState(el.ID, el.XPath))
 	if err != nil {
 		return false, false
 	}
@@ -2648,7 +2882,7 @@ func (rt *Runtime) reconcileStickyCheckboxStates(ctx context.Context) error {
 		if winner.IsChecked == desired {
 			continue
 		}
-		if err := rt.page.SetChecked(ctx, winner.ID, winner.XPath, desired); err != nil {
+		if err := rt.pageFor(winner).SetChecked(ctx, winner.ID, winner.XPath, desired); err != nil {
 			return err
 		}
 		rt.invalidateSnapshot()
@@ -2905,6 +3139,7 @@ func (rt *Runtime) loadSnapshot(ctx context.Context) ([]dom.ElementSnapshot, err
 	if err != nil {
 		return nil, fmt.Errorf("parse probe failed: %w", err)
 	}
+	elements = append(elements, rt.frameElements(ctx)...)
 	if !rt.cfg.DisableCache {
 		rt.cachedElements = elements
 	}
@@ -2961,7 +3196,8 @@ func nestedDuplicateRankedCandidates(existing, candidate scorer.RankedCandidate)
 	if textA == "" || textA != textB {
 		return false
 	}
-	if !(isXPathAncestor(existing.Element.XPath, candidate.Element.XPath) || isXPathAncestor(candidate.Element.XPath, existing.Element.XPath)) {
+	if existing.Element.FrameIndex != candidate.Element.FrameIndex ||
+		!(isXPathAncestor(existing.Element.XPath, candidate.Element.XPath) || isXPathAncestor(candidate.Element.XPath, existing.Element.XPath)) {
 		return false
 	}
 	return rectIntersectionRatio(existing.Element.Rect, candidate.Element.Rect) >= 0.85
@@ -3092,7 +3328,7 @@ func (rt *Runtime) focusTarget(ctx context.Context, target string) error {
 			!scorer.MatchesQuery(target, &ranked[0].Element) {
 			continue
 		}
-		return rt.page.Focus(ctx, ranked[0].Element.ID, ranked[0].Element.XPath)
+		return rt.pageFor(ranked[0].Element).Focus(ctx, ranked[0].Element.ID, ranked[0].Element.XPath)
 	}
 	return fmt.Errorf("target not found: %q", target)
 }

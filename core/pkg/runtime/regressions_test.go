@@ -1161,3 +1161,190 @@ func TestPress_WaitsForTheNavigationItStarted(t *testing.T) {
 		t.Errorf("polled the navigation %d times, want 3", polls)
 	}
 }
+
+// ── Found by live runs on public trap sites ──────────────────────────────────
+
+// A field whose middle is under another element was "filled": the value was
+// set through JS, the step passed, and the page — which clears a field typed
+// into while covered — left it empty.
+func TestFill_CoveredFieldIsNotTypedInto(t *testing.T) {
+	name := regEl(1, "input", "")
+	name.InputType = "text"
+	name.Placeholder = "Name"
+	page := &MockPage{Elements: []dom.ElementSnapshot{name}}
+	page.EvalResult = func(expr string) ([]byte, bool) {
+		if strings.Contains(expr, "elementFromPoint") {
+			return []byte(`{"covered":true,"by":"<div.overlay>"}`), true
+		}
+		return nil, false
+	}
+
+	_, err := runSource(t, page, "FILL 'Name' field with 'Manul'\n")
+	if err == nil || !strings.Contains(err.Error(), "covered by <div.overlay>") {
+		t.Fatalf("want a covered-field failure, got %v", err)
+	}
+	if len(page.Inputs) != 0 {
+		t.Errorf("typed anyway: %v", page.Inputs)
+	}
+}
+
+// A field waiting to be enabled scores nothing, so FILL resolved a sentence
+// that mentions it and said the field was a <li>.
+func TestFill_DisabledFieldSaysSo(t *testing.T) {
+	field := regEl(1, "input", "")
+	field.InputType = "text"
+	field.Title = "Edit Field"
+	field.IsDisabled = true
+	page := &MockPage{Elements: []dom.ElementSnapshot{
+		regEl(2, "li", "Also record text input into an edit field."), field,
+	}}
+
+	_, err := runSource(t, page, "FILL 'Edit Field' field with 'hello'\n")
+	if err == nil || !strings.Contains(err.Error(), "is disabled") {
+		t.Fatalf("want a disabled-field failure, got %v", err)
+	}
+	if len(page.Inputs) != 0 {
+		t.Errorf("typed anyway: %v", page.Inputs)
+	}
+}
+
+// VERIFY … has value resolved the caption (<p>Number</p><input>, an <h3>
+// over a <select>), which has no value, while FILL had found the field.
+func TestVerifyField_CaptionNamesTheFieldBesideIt(t *testing.T) {
+	caption := regEl(1, "p", "Number")
+	field := regEl(2, "input", "")
+	field.InputType = "number"
+	field.Value = "42"
+	page := &MockPage{Elements: []dom.ElementSnapshot{caption, field}}
+
+	if _, err := runSource(t, page, "VERIFY 'Number' field has value '42'\n"); err != nil {
+		t.Error(err)
+	}
+}
+
+// <input type=checkbox> checkbox 1<br><input type=checkbox> checkbox 2: no
+// element holds a caption alone, the step resolved the form, and the first
+// box in it was the one acted on — UNCHECK 'checkbox 2' unchecked box 1.
+func TestCheck_BoxIsPickedByItsCaptionInsideAForm(t *testing.T) {
+	form := regEl(1, "form", "checkbox 1 checkbox 2")
+	box1 := regEl(2, "input", "")
+	box1.InputType = "checkbox"
+	box1.XPath = "/html/body/form[1]/input[1]"
+	box2 := regEl(3, "input", "")
+	box2.InputType = "checkbox"
+	box2.XPath = "/html/body/form[1]/input[2]"
+	box2.IsChecked = true
+	page := &MockPage{Elements: []dom.ElementSnapshot{form, box1, box2}}
+	page.EvalResult = func(expr string) ([]byte, bool) {
+		if strings.Contains(expr, "captionOf") {
+			if strings.Contains(expr, `"checkbox 2"`) {
+				return []byte(`{"count":2,"xpath":"/html/body/form[1]/input[2]"}`), true
+			}
+			if strings.Contains(expr, `"checkbox 9"`) {
+				return []byte(`{"count":2,"xpath":""}`), true
+			}
+			return []byte(`{"count":2,"xpath":"/html/body/form[1]/input[1]"}`), true
+		}
+		return nil, false
+	}
+	rt := New(regConfig(), page, utils.NewLoggerTo(nopWriter{}, nil))
+
+	box, err := rt.captionedBox(context.Background(), form, "checkbox 2", page.Elements)
+	if err != nil || box.XPath != box2.XPath {
+		t.Fatalf("captionedBox = %q, %v; want %q", box.XPath, err, box2.XPath)
+	}
+	// A box that ranked first is weighed against its siblings.
+	if box, _ = rt.captionedBox(context.Background(), box1, "checkbox 2", page.Elements); box.XPath != box2.XPath {
+		t.Errorf("from the first box: %q, want %q", box.XPath, box2.XPath)
+	}
+	if _, err = rt.captionedBox(context.Background(), form, "checkbox 9", page.Elements); err == nil || !strings.Contains(err.Error(), "none of them") {
+		t.Errorf("no box captioned so: want a failure, got %v", err)
+	}
+}
+
+// ── IFRAMES ──────────────────────────────────────────────────────────────────
+
+// framedPage returns a page whose form lives in an iframe that sits at
+// (100, 200) on the page, and one cross-origin iframe.
+func framedFormPage() *MockPage {
+	email := regEl(1000001, "input", "")
+	email.InputType = "text"
+	email.LabelText = "Email"
+	email.XPath = "/html[1]/body[1]/input[1]"
+	email.Rect = dom.Rect{Top: 10, Left: 20, Width: 100, Height: 20, Bottom: 30, Right: 120}
+	save := regEl(1000002, "button", "Save form")
+	save.XPath = "/html[1]/body[1]/button[1]"
+	save.Rect = dom.Rect{Top: 40, Left: 20, Width: 80, Height: 20, Bottom: 60, Right: 100}
+	ad := regEl(2000001, "button", "Buy now")
+	return &MockPage{
+		Elements:     []dom.ElementSnapshot{regEl(1, "h1", "Host page")},
+		FrameOffsets: map[int][2]float64{1: {100, 200}},
+		FrameDocs: map[int]MockFrame{
+			1: {Elements: []dom.ElementSnapshot{email, save}, Text: "Framed form Saved!"},
+			2: {Elements: []dom.ElementSnapshot{ad}, Text: "Buy now", CrossOrigin: true},
+		},
+	}
+}
+
+// The snapshot read the main document only, so nothing inside an <iframe>
+// could be found, and a text VERIFY never saw a frame's text.
+func TestSnapshot_IncludesSameOriginFramesOnThePagesViewport(t *testing.T) {
+	page := framedFormPage()
+	rt := New(regConfig(), page, utils.NewLoggerTo(nopWriter{}, nil))
+	els, err := rt.loadSnapshot(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var save *dom.ElementSnapshot
+	for i := range els {
+		if els[i].VisibleText == "Buy now" {
+			t.Errorf("a cross-origin frame's element is in the snapshot")
+		}
+		if els[i].VisibleText == "Save form" {
+			save = &els[i]
+		}
+	}
+	if save == nil {
+		t.Fatalf("the framed button is not in the snapshot: %+v", els)
+	}
+	if save.FrameIndex != 1 || save.Rect.Top != 240 || save.Rect.Left != 120 {
+		t.Errorf("framed button: frame %d at (%v,%v), want frame 1 at (120,240)", save.FrameIndex, save.Rect.Left, save.Rect.Top)
+	}
+}
+
+// An element in a frame is acted on in that frame — its value set by the
+// frame's own JS — and clicked on the page's viewport, frame offset added.
+func TestActions_InsideAFrameAreRoutedToIt(t *testing.T) {
+	page := framedFormPage()
+	if _, err := runSource(t, page, "FILL 'Email' field with 'ada@example.com'\nCLICK the 'Save form' button\nVERIFY that 'Saved!' is present\n"); err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Inputs) != 0 {
+		t.Errorf("the value was set through the main document: %v", page.Inputs)
+	}
+	typed := false
+	for _, e := range page.EvalCalls {
+		if strings.Contains(e, "nativeSetter") && strings.Contains(e, "ada@example.com") && strings.Contains(e, "__manulReg[1000001]") {
+			typed = true
+		}
+	}
+	if !typed {
+		t.Error("FILL never set the framed field's value")
+	}
+	if len(page.Clicks) != 1 || page.Clicks[0] != (Point{160, 250}) {
+		t.Errorf("clicks = %v, want the framed button's centre on the page, (160,250)", page.Clicks)
+	}
+}
+
+// What a cross-origin frame holds is out of reach, and says so: CLICK on it
+// is not found instead of a click into it that Firefox never delivers.
+func TestActions_CrossOriginFrameIsNotEntered(t *testing.T) {
+	page := framedFormPage()
+	_, err := runSource(t, page, "CLICK the 'Buy now' button\n")
+	if err == nil || !strings.Contains(err.Error(), "not found") {
+		t.Fatalf("want not found, got %v", err)
+	}
+	if len(page.Clicks) != 0 {
+		t.Errorf("clicked %v", page.Clicks)
+	}
+}

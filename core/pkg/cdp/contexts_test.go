@@ -3,6 +3,7 @@ package cdp
 import (
 	"encoding/json"
 	"testing"
+	"time"
 )
 
 // newTestTracker builds a FrameTracker without a live connection so the
@@ -92,5 +93,30 @@ func TestFrameTracker_DestroyAndDetach(t *testing.T) {
 	ft.onFrameDetached(raw(map[string]any{"frameId": "CHILD"}))
 	if len(ft.Frames()) != 1 {
 		t.Fatalf("after detach, only the main frame should remain")
+	}
+}
+
+// Chrome reports the execution contexts that already exist while answering
+// Runtime.enable. The tracker subscribed after the call, heard none of them,
+// and every iframe already on the page was left without a context.
+func TestFrameTracker_SeesContextsAnnouncedDuringEnable(t *testing.T) {
+	s, c, ctx := startScriptedCDP(t, map[string]string{
+		"Page.getFrameTree": `{"frameTree":{"frame":{"id":"MAIN","url":"http://a.test/"},"childFrames":[{"frame":{"id":"F1","parentId":"MAIN","url":"http://a.test/f.html"}}]}}`,
+	})
+	s.beforeReply = func(method string) {
+		if method == "Runtime.enable" {
+			s.push(`{"method":"Runtime.executionContextCreated","params":{"context":{"id":42,"auxData":{"frameId":"F1","isDefault":true}}}}`)
+		}
+	}
+	ft, err := NewFrameTracker(ctx, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for ft.ContextForIndex(1) != 42 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if got := ft.ContextForIndex(1); got != 42 {
+		t.Errorf("frame 1 context = %d, want 42; frames %+v", got, ft.Frames())
 	}
 }

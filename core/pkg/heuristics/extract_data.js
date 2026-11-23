@@ -104,11 +104,17 @@
         }
     }
 
-    // Gather all <th> text once for column/row word splitting
-    var allTables = Array.from(document.querySelectorAll('table'));
+    // A table drawn with ARIA roles is a table too: role=columnheader is its
+    // <th>, role=cell its <td>. Without them "Chrome CPU" on a grid of divs
+    // came back as the header row, which shares the word "CPU".
+    var TABLES = 'table, [role="table"], [role="grid"], [role="treegrid"]';
+    var HEADERS = 'th, [role="columnheader"]';
+    var CELLS = 'td, [role="cell"], [role="gridcell"]';
+    // Gather all header text once for column/row word splitting
+    var allTables = Array.from(document.querySelectorAll(TABLES));
     var allThTexts = [];
     allTables.forEach(function(t) {
-        Array.from(t.querySelectorAll('th')).forEach(function(th) {
+        Array.from(t.querySelectorAll(HEADERS)).forEach(function(th) {
             allThTexts.push(th.innerText.toLowerCase().trim());
         });
     });
@@ -139,7 +145,7 @@
         for (var ri = 0; ri < rows.length; ri++) {
             var rText = rows[ri].innerText.toLowerCase();
             // Skip header rows when we have row-specific search words
-            var isHeader = rows[ri].querySelectorAll('th').length > 0 && rows[ri].querySelectorAll('td').length === 0;
+            var isHeader = rows[ri].querySelectorAll(HEADERS).length > 0 && rows[ri].querySelectorAll(CELLS).length === 0;
             if (isHeader && classified.row.length > 0) continue;
             var matches = 0;
             if (searchWords.length === 0) {
@@ -159,14 +165,14 @@
         }
         if (bestRow) {
             var cells = Array.from(bestRow.querySelectorAll('td'));
-            if (cells.length === 0) cells = Array.from(bestRow.querySelectorAll('[role="cell"]'));
+            if (cells.length === 0) cells = Array.from(bestRow.querySelectorAll('[role="cell"], [role="gridcell"]'));
             if (cells.length > 1) {
                 // Try column header matching using column-words
                 var colSearchWords = classified.col.length > 0 ? classified.col : hintWords;
                 if (colSearchWords.length > 0) {
-                    var table = bestRow.closest('table');
+                    var table = bestRow.closest(TABLES);
                     if (table) {
-                        var ths = Array.from(table.querySelectorAll('th'));
+                        var ths = Array.from(table.querySelectorAll(HEADERS));
                         for (var hw = 0; hw < colSearchWords.length; hw++) {
                             for (var ti = 0; ti < ths.length; ti++) {
                                 if (wordMatch(ths[ti].innerText.toLowerCase(), colSearchWords[hw])) {

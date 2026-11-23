@@ -201,7 +201,16 @@ func evaluateObjectID(ctx context.Context, c *Conn, expression string) (string, 
 }
 
 // Click dispatches a mouse click at the given page coordinates.
+//
+// The pointer is moved there first, as a person's would be and as the BiDi
+// backend's action sequence does. Pressed without a move, Chrome delivers
+// mouseenter in the middle of the press; a link that replaces itself on
+// mouseenter then took the press and lost the release, so no click happened
+// and the step passed — on Chromium only.
 func Click(ctx context.Context, c *Conn, x, y float64) error {
+	if err := Hover(ctx, c, x, y); err != nil {
+		return err
+	}
 	// MousePressed
 	_, err := c.Call(ctx, "Input.dispatchMouseEvent", map[string]interface{}{
 		"type":       "mousePressed",
@@ -226,6 +235,9 @@ func Click(ctx context.Context, c *Conn, x, y float64) error {
 
 // DoubleClick dispatches a double-click at the given page coordinates.
 func DoubleClick(ctx context.Context, c *Conn, x, y float64) error {
+	if err := Hover(ctx, c, x, y); err != nil {
+		return err
+	}
 	// Press 1
 	_, err := c.Call(ctx, "Input.dispatchMouseEvent", map[string]interface{}{
 		"type": "mousePressed", "button": "left", "x": x, "y": y, "clickCount": 1,
@@ -255,6 +267,9 @@ func DoubleClick(ctx context.Context, c *Conn, x, y float64) error {
 
 // RightClick dispatches a right-click (contextmenu) at the given page coordinates.
 func RightClick(ctx context.Context, c *Conn, x, y float64) error {
+	if err := Hover(ctx, c, x, y); err != nil {
+		return err
+	}
 	_, err := c.Call(ctx, "Input.dispatchMouseEvent", map[string]interface{}{
 		"type":       "mousePressed",
 		"button":     "right",

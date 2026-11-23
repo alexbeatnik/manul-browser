@@ -167,3 +167,22 @@ func TestCoveredByAsksAboutThePointOfTheClick(t *testing.T) {
 		}
 	}
 }
+
+// A target that does not cancel dragover refuses the drop, as in a browser:
+// drop is fired only behind that check.
+func TestHTML5DragAtDropsOnlyWhereTheTargetAccepts(t *testing.T) {
+	js := HTML5DragAt(10, 20, 300, 40)
+	for _, want := range []string{
+		`closest('[draggable="true"]')`, "new DataTransfer()",
+		"'dragstart'", "'dragenter'", "'dragend'", "elementFromPoint(300.000000, 40.000000)",
+	} {
+		if !strings.Contains(js, want) {
+			t.Errorf("missing %s", want)
+		}
+	}
+	over := strings.Index(js, "fire(dst, 'dragover'")
+	drop := strings.Index(js, "fire(dst, 'drop'")
+	if over < 0 || drop < over || !strings.Contains(js[over:drop], "defaultPrevented") {
+		t.Error("drop is not conditioned on a cancelled dragover")
+	}
+}

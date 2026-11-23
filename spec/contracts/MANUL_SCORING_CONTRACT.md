@@ -127,7 +127,8 @@
     "why": "The ranking always has a first place, and tag semantics plus a type hint outscore the confidence threshold by themselves — \"the 'Delete account' button\" scored 0.30 against every button on a page with no such button.",
     "appliesTo": ["click", "double_click", "right_click", "hover", "fill", "type", "check", "uncheck", "select", "upload", "drag (source and destination)", "custom dropdown option", "highlight", "press … on <target>", "verify … has text/value/placeholder", "verify visual"],
     "exempt": "A control found by its position next to a matching label (restrictive pass 3): there the label carries the match and the control is ranked with an empty query, which scores no label, placeholder, aria-label, data-qa or id: those describe the control itself, not the caption it sits beside.",
-    "restrictivePasses": "FILL, TYPE, SELECT and CHECK take the best match outright only if it is a control of their kind. Otherwise a match is a caption, and the control is the only one of that kind inside it if there is exactly one, else the nearest one beside it, taken when it scores clearly above the runner-up or sits clearly nearer the caption. A single control of the right kind that carries the target itself, if only in its class name, is not refused for a low score."
+    "restrictivePasses": "FILL, TYPE, SELECT and CHECK take the best match outright only if it is a control of their kind. Otherwise a match is a caption, and the control is the only one of that kind inside it if there is exactly one, else the nearest one beside it, taken when it scores clearly above the runner-up or sits clearly nearer the caption. A single control of the right kind that carries the target itself, if only in its class name, is not refused for a low score. CHECK, UNCHECK and VERIFY checked/NOT checked then narrow an element holding two or more checkboxes or radios — the caption's container, or a box ranked first beside siblings — to the one box captioned with the target, by its <label> or by the text that follows it up to the next box or line break; a container with several boxes and none so captioned fails the step with failure_reason not_found.",
+    "numbers": "A number in the query must appear as a number of its own in the same text signal of the element: 'Under 4 minutes' does not match \"Under 3 minutes\", 'Page 1' does not match \"Page 10\". A number is a run of digits with any '.' or ',' separators inside it, standing as a word of its own — the 4 of \"4K\" and the 2 of \"button2\" are part of a word and are no number. MatchesQuery fails an element no signal of which carries every number of the query, and a text signal whose numbers disagree scores nothing in partial and word-overlap matching. Word overlap otherwise ignores one-character words, which is how YouTube's 'Under 4 minutes' filter used to click the 'Under 3 minutes' one."
   },
 
   "domScorer": {
@@ -164,7 +165,7 @@
 
   "elementSnapshotShape": {
     "source": "SNAPSHOT_JS in pkg/dom (snapshot JS)",
-    "collectionMethod": "document.createTreeWalker() per frame, injected via page.evaluate()",
+    "collectionMethod": "document.createTreeWalker() over the main document, then over every entered iframe — one whose documents are same-origin all the way up to the page — evaluated in that frame. A cross-origin iframe is not entered on either backend: Chromium runs it in a process of its own, and Firefox does not deliver a top-level click into it. An element's rect is moved onto the top-level viewport (the frame's offset added: iframe box, border and padding, at every level), so proximity is measured and clicks land on one viewport. Element IDs are drawn per frame from a random base a million apart, so they do not collide across frames; XPaths do, and are compared only within one frame.",
     "pruneSet": ["SCRIPT", "STYLE", "NOSCRIPT", "SVG", "TEMPLATE", "META", "PATH", "G", "BR", "HR"],
     "visibilityChecks": [
       "element.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })",
@@ -198,9 +199,9 @@
       { "key": "rect_bottom",         "type": "int",      "description": "Math.round(boundingClientRect.bottom)." },
       { "key": "rect_right",          "type": "int",      "description": "Math.round(boundingClientRect.right)." },
       { "key": "ancestors",           "type": "string[]", "description": "Recent ancestor tag names (up to 8 levels)." },
-      { "key": "frame_index",         "type": "int",      "description": "Index into page.frames (0 = main). Added by the Go snapshot, not by JS." },
-      { "key": "frame_url",           "type": "string",   "description": "Frame URL captured by the Go snapshot, not by JS. Used by _frame_for() as a reload-tolerant routing hint." },
-      { "key": "frame_name",          "type": "string",   "description": "Frame name captured by the Go snapshot, not by JS. Used by _frame_for() as an additional reload-tolerant routing hint." }
+      { "key": "frame_index",         "type": "int",      "description": "Index into Page.Frames (0 = main, omitted). Added by the Go snapshot, not by JS. Every in-page call about the element — typing, checking, measuring, highlighting — is evaluated in this frame." },
+      { "key": "frame_url",           "type": "string",   "description": "URL of the element's frame, set by the Go snapshot for an element inside an iframe; informational." },
+      { "key": "frame_name",          "type": "string",   "description": "Name of the element's frame as the backend reports it (CDP only; BiDi reports none); informational." }
     ],
     "nameSuffixes": [
       { "suffix": "[HIDDEN]",     "meaning": "Intentionally hidden (aria-hidden, off-screen left < -999, visibility hidden)." },

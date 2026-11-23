@@ -45,15 +45,21 @@ func NewFrameTracker(ctx context.Context, conn *Conn) (*FrameTracker, error) {
 
 	// Enabling Runtime makes Chrome emit executionContextCreated for every
 	// frame; enabling Page makes it emit frameNavigated/frameAttached.
+	//
+	// Subscribed first: Chrome reports the contexts that already exist while
+	// answering Runtime.enable, so a subscription made after it heard none of
+	// them, and every iframe already on the page stayed without a context —
+	// unreachable until it navigated.
+	ft.sub = conn.Subscribe()
+	go ft.loop()
 	if _, err := conn.Call(ctx, "Page.enable", nil); err != nil {
+		ft.sub.Close()
 		return nil, err
 	}
 	if _, err := conn.Call(ctx, "Runtime.enable", nil); err != nil {
+		ft.sub.Close()
 		return nil, err
 	}
-
-	ft.sub = conn.Subscribe()
-	go ft.loop()
 
 	ft.seedFrameTree(ctx)
 	return ft, nil

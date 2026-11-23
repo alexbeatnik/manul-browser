@@ -10,8 +10,11 @@ package scorer
 
 import (
 	"math"
+	"regexp"
 	"sort"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/alexbeatnik/manul-browser/core/pkg/dom"
 	"github.com/alexbeatnik/manul-browser/core/pkg/explain"
@@ -240,11 +243,14 @@ func Rank(query, typeHint, mode string, elements []dom.ElementSnapshot, topN int
 		if all[i].bd.RawScore != all[j].bd.RawScore {
 			return all[i].bd.RawScore > all[j].bd.RawScore
 		}
-		if IsXPathAncestor(all[j].elem.XPath, all[i].elem.XPath) {
-			return true
-		}
-		if IsXPathAncestor(all[i].elem.XPath, all[j].elem.XPath) {
-			return false
+		// Paths only nest within one document: every frame has an /html[1].
+		if all[i].elem.FrameIndex == all[j].elem.FrameIndex {
+			if IsXPathAncestor(all[j].elem.XPath, all[i].elem.XPath) {
+				return true
+			}
+			if IsXPathAncestor(all[i].elem.XPath, all[j].elem.XPath) {
+				return false
+			}
 		}
 		return all[i].idx < all[j].idx // earlier in DOM wins on tie
 	})
@@ -293,6 +299,12 @@ func MatchesQuery(query string, el *dom.ElementSnapshot) bool {
 	q := norm(query)
 	if q == "" {
 		return true
+	}
+	// A number is what tells 'Under 4 minutes' from 'Under 3 minutes', and
+	// word overlap drops it as a one-letter word. Some signal of the element
+	// has to carry every number the query names.
+	if !numbersAgreeAny(q, el) {
+		return false
 	}
 	return scoreExactText(q, el) > 0 ||
 		scoreNormText(q, el) > 0 ||
@@ -375,7 +387,7 @@ func scoreLabel(q string, el *dom.ElementSnapshot) float64 {
 		return 0.5
 	}
 	// Word-overlap for multi-word queries like "CPU of Chrome".
-	if sigWords := SignificantWords(q); len(sigWords) >= 2 {
+	if sigWords := SignificantWords(q); len(sigWords) >= 2 && numbersAgree(q, el.NormLabelText) {
 		hits := 0
 		for _, w := range sigWords {
 			if strings.Contains(el.NormLabelText, w) {
@@ -712,6 +724,9 @@ func partialMatch(q, s string) float64 {
 	if s == q {
 		return 1.0
 	}
+	if !numbersAgree(q, s) {
+		return 0.0
+	}
 	score := 0.0
 	// Forward containment only: element text contains the query.
 	if strings.Contains(s, q) {
@@ -743,6 +758,65 @@ func wordOverlap(q, s string) float64 {
 	}
 	return clamp(float64(hits)/float64(len(qWords)), 0, 1)
 }
+
+// numbersAgree reports whether s carries every number q names, each as a
+// number of its own: "page 1" does not agree with "page 10", nor "under 4
+// minutes" with "under 3 minutes". A query with no number agrees with
+// anything.
+func numbersAgree(q, s string) bool {
+	want := standaloneNumbers(q)
+	if len(want) == 0 {
+		return true
+	}
+	have := map[string]bool{}
+	for _, n := range standaloneNumbers(s) {
+		have[n] = true
+	}
+	for _, n := range want {
+		if !have[n] {
+			return false
+		}
+	}
+	return true
+}
+
+// numbersAgreeAny is numbersAgree against any one of el's text signals or
+// its id.
+func numbersAgreeAny(q string, el *dom.ElementSnapshot) bool {
+	if len(standaloneNumbers(q)) == 0 {
+		return true
+	}
+	for _, s := range append(el.AllTextSignals(), el.NormHTMLId) {
+		if numbersAgree(q, s) {
+			return true
+		}
+	}
+	return false
+}
+
+// standaloneNumbers returns the numbers in s that stand as words of their
+// own: "24.50" and "1,299" are one number each, while the 4 of "4K", the 180
+// of "VR180" and the 2 of "button2" are part of a word and not numbers at all.
+// YouTube's filter dialog says "4K", and with it counted as a 4 the whole
+// dialog matched 'Under 4 minutes' and was clicked in the middle.
+func standaloneNumbers(s string) []string {
+	var out []string
+	for _, loc := range numberPattern.FindAllStringIndex(s, -1) {
+		before, _ := utf8.DecodeLastRuneInString(s[:loc[0]])
+		after, _ := utf8.DecodeRuneInString(s[loc[1]:])
+		if loc[0] > 0 && isWordRune(before) || loc[1] < len(s) && isWordRune(after) {
+			continue
+		}
+		out = append(out, s[loc[0]:loc[1]])
+	}
+	return out
+}
+
+func isWordRune(r rune) bool { return unicode.IsLetter(r) || unicode.IsDigit(r) }
+
+// numberPattern is a run of digits with any decimal or thousands separators
+// inside it.
+var numberPattern = regexp.MustCompile(`\d+(?:[.,]\d+)*`)
 
 // IsXPathAncestor reports whether the element at xpath anc contains the one at
 // xpath desc, judged by the snapshot's absolute paths.

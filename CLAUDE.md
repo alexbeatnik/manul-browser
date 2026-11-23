@@ -108,6 +108,37 @@ without error for a host that does not resolve; the failure is the `errorText`
 field of the reply, and the tab is left on `chrome-error://`. Firefox fails the
 command itself. `cdp.Navigate` reads the field so both do.
 
+**Chrome refuses plain http on a fresh profile.** From Chrome 154 the
+HTTPS-First balanced mode turns itself on, and an http-only site answers
+`Page.navigate` with `net::ERR_BLOCKED_BY_CLIENT` — every `NAVIGATE` to such a
+site failed. `chromeArgs` disables `HttpsFirstBalancedModeAutoEnable` and
+`HttpsUpgrades` in the one `--disable-features` switch Chrome honours.
+
+**A press without a move is not a click a page expects.** CDP's
+`mousePressed` at a new point delivers `mouseenter` mid-press; a link that
+replaces itself on hover took the press and lost the release, and nothing was
+clicked, on Chromium only. Every CDP click moves the pointer first, as BiDi's
+action sequence always did.
+
+**Frames are entered only when they are same-origin.** The snapshot, text
+VERIFY and EXTRACT read every iframe whose documents are same-origin up to the
+page; `rt.pageFor(el)` addresses an element's own frame, and coordinates it
+returns are the top-level viewport's. Three things bit on the way. CDP
+announces existing execution contexts *while answering* `Runtime.enable`, so
+`FrameTracker` must subscribe first — otherwise every iframe already on the
+page has no context. Context 0 means "the default one" to `Runtime.evaluate`,
+so a frame without a context silently evaluated in the main document and its
+"snapshot" was a second copy of the page; `EvalJSInFrame` now refuses. And
+Firefox does not deliver a top-level click into a cross-origin iframe — the
+step passed with nothing clicked — which is why those are left out on both
+backends rather than half-supported.
+
+**Firefox starts no HTML5 drag from WebDriver actions.** A pointer drag over
+`draggable="true"` fired nothing the page listens for, however slowly it moved,
+and DRAG passed with nothing moved; Chromium's mouse events do start one. The
+BiDi backend dispatches the drag events itself for such a source
+(`pagejs.HTML5DragAt`) and keeps the pointer for everything else.
+
 **A click goes to coordinates, not to an element.** Whatever is on top at that
 point receives it, and the step used to pass. `clickPoint` asks the page first
 (`pagejs.CoveredBy`) and fails the step if something else would get the click.

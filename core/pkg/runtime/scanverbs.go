@@ -49,7 +49,7 @@ func (rt *Runtime) highlightTarget(ctx context.Context, cmd dsl.Command) error {
 
 	winner := ranked[0].Element
 	rt.logger.ActionDetail("🖍", "Highlighting %q → <%s>", target, winner.Tag)
-	return rt.page.HighlightElement(ctx, winner.ID, winner.XPath, 2000)
+	return rt.pageFor(winner).HighlightElement(ctx, winner.ID, winner.XPath, 2000)
 }
 
 // fullScan renders every interactive control on the page as Markdown, grouped

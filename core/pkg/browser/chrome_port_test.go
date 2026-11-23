@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -146,6 +147,29 @@ func TestChromeArgs_DebuggingPort(t *testing.T) {
 	}
 	if slices.Contains(args, "--remote-debugging-port=0") {
 		t.Fatalf("explicit port launch still asks for port 0; args: %v", args)
+	}
+}
+
+// From Chrome 154 a fresh profile refuses a plain-http site with no working
+// https, and NAVIGATE to it failed with net::ERR_BLOCKED_BY_CLIENT. There is
+// one --disable-features switch — Chrome keeps only the last — so the feature
+// has to be in it.
+func TestChromeArgs_PlainHTTPIsNotBlocked(t *testing.T) {
+	opts := DefaultLaunchOptions()
+	opts.UserDataDir = "/tmp/profile"
+	var disabled []string
+	for _, a := range chromeArgs(opts) {
+		if v, ok := strings.CutPrefix(a, "--disable-features="); ok {
+			disabled = append(disabled, v)
+		}
+	}
+	if len(disabled) != 1 {
+		t.Fatalf("want exactly one --disable-features, got %v", disabled)
+	}
+	for _, f := range []string{"HttpsFirstBalancedModeAutoEnable", "HttpsUpgrades"} {
+		if !slices.Contains(strings.Split(disabled[0], ","), f) {
+			t.Errorf("%s is not disabled: %s", f, disabled[0])
+		}
 	}
 }
 

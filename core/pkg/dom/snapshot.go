@@ -37,6 +37,11 @@ type ElementSnapshot struct {
 	// FrameIndex is the zero-based frame index this element belongs to.
 	// 0 is the main document; positive values refer to embedded frames.
 	FrameIndex int `json:"frame_index,omitempty"`
+	// FrameURL and FrameName are those of the frame the element is in, set by
+	// the Go snapshot for an element inside an <iframe>; the frame is found
+	// again by its URL when it cannot report its own position.
+	FrameURL  string `json:"frame_url,omitempty"`
+	FrameName string `json:"frame_name,omitempty"`
 
 	// -- Text signals ---------------------------------------------------
 

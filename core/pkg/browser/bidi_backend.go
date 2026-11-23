@@ -250,7 +250,25 @@ func (p *BiDiPage) Hover(ctx context.Context, x, y float64) error {
 }
 
 func (p *BiDiPage) DragAndDrop(ctx context.Context, fromX, fromY, toX, toY float64) error {
-	return bidi.DragAndDrop(ctx, p.conn, p.contextID, fromX, fromY, toX, toY)
+	return dragHTML5First(ctx, p.eval, fromX, fromY, toX, toY, func() error {
+		return bidi.DragAndDrop(ctx, p.conn, p.contextID, fromX, fromY, toX, toY)
+	})
+}
+
+// dragHTML5First drags an element with draggable="true" by dispatching the
+// HTML5 drag events in the page (pagejs.HTML5DragAt) — Firefox starts no drag
+// session from WebDriver actions — and anything else with the pointer, which
+// is what pointer-event drag libraries listen to. Chromium's backend needs
+// none of this: its mouse events start a real drag.
+func dragHTML5First(ctx context.Context, eval func(context.Context, string) (interface{}, error), fromX, fromY, toX, toY float64, pointer func() error) error {
+	done, err := eval(ctx, pagejs.HTML5DragAt(fromX, fromY, toX, toY))
+	if err != nil {
+		return fmt.Errorf("html5 drag: %w", err)
+	}
+	if s, _ := done.(string); s == "1" {
+		return nil
+	}
+	return pointer()
 }
 
 // SetFileInput resolves the file input with the shared page JS and hands the

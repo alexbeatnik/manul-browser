@@ -11,6 +11,14 @@
 > engine keep working unchanged; `CALL HOST` is the language-neutral spelling for
 > new scripts.
 >
+> **Frames.** Elements inside an `<iframe>` are found, acted on and verified
+> like any other, with nothing to switch into: the snapshot, text VERIFY,
+> WAIT FOR and EXTRACT read every iframe whose documents are same-origin all
+> the way up to the page, nested ones included. A cross-origin iframe (an
+> embedded player, a payment widget, an ad) is not entered on either backend,
+> so a target inside one fails as not found. UPLOAD into a field inside an
+> iframe is not supported and fails saying so.
+>
 > Every verb listed here is executable. `pkg/runtime` carries a guard test that
 > walks each declared `CommandType` and fails on "not yet implemented", because
 > a verb that parses and appears in this contract but has no runtime case is a
@@ -37,7 +45,7 @@
       "uiText": "NAVIGATE to ''",
       "snippet": "NAVIGATE to ${1:url}",
       "regex": "\\bNAVIGATE\\b",
-      "description": "Navigates the browser to a specific URL and waits for the page to finish loading, for at most nav_timeout (30s by default). A navigation the browser could not make — a host that does not resolve, a refused connection — fails the step with the browser's own error, on both backends. When the time runs out, a document that has already been parsed is carried on with and a warning logged: it is a usable page held up by a resource that may never arrive. One that has not been parsed fails the step with a navigation timeout.",
+      "description": "Navigates the browser to a specific URL and waits for the page to finish loading, for at most nav_timeout (30s by default). A navigation the browser could not make — a host that does not resolve, a refused connection — fails the step with the browser's own error, on both backends. A plain http:// URL is loaded as given: Chromium is launched with its HTTPS-First and HTTPS-Upgrades features off, which from Chrome 154 otherwise refuse an http-only site with net::ERR_BLOCKED_BY_CLIENT. When the time runs out, a document that has already been parsed is carried on with and a warning logged: it is a usable page held up by a resource that may never arrive. One that has not been parsed fails the step with a navigation timeout.",
       "category": "navigation"
     },
     {
@@ -55,7 +63,7 @@
       "uiText": "CLICK the ''",
       "snippet": "CLICK the '${1:target}'${2: button}",
       "regex": null,
-      "description": "Clicks a resolved element. Detected by the 'click' verb (case-insensitive). Element type hint (button, link, element) after the target is optional but recommended for scoring accuracy. The click is dispatched at the centre of the element, so it would go to whatever is on top of it there. When that is not the element, something inside it, something it is inside, or the <label> it belongs to, the engine waits up to about 1.5s for it to clear and then fails the step naming what is in the way (for example an open date picker or a modal backdrop) — nothing is clicked. After the click the engine waits for any navigation it set off: it marks the document first, and if the page starts to leave it (beforeunload) waits, for at most nav_timeout, until another document has replaced it and finished loading. Until then the old document still reports readyState 'complete', so the next step would run on a page that is about to go. Interaction mode: clickable.",
+      "description": "Clicks a resolved element. Detected by the 'click' verb (case-insensitive). Element type hint (button, link, element) after the target is optional but recommended for scoring accuracy. The click is dispatched at the centre of the element, the pointer moved there first, so it would go to whatever is on top of it there. When that is not the element, something inside it, something it is inside, or the <label> it belongs to, the engine waits up to about 1.5s for it to clear and then fails the step naming what is in the way (for example an open date picker or a modal backdrop) — nothing is clicked. After the click the engine waits for any navigation it set off: it marks the document first, and if the page starts to leave it (beforeunload) waits, for at most nav_timeout, until another document has replaced it and finished loading. Until then the old document still reports readyState 'complete', so the next step would run on a page that is about to go. Interaction mode: clickable.",
       "category": "interaction",
       "interactionMode": "clickable"
     },
@@ -75,7 +83,7 @@
       "uiText": "CHECK the checkbox for ''",
       "snippet": "CHECK the checkbox for '${1:target}'",
       "regex": null,
-      "description": "Checks a checkbox element. Detected by the 'check' verb (case-insensitive). The target may be the box itself, its <label>, or a caption beside it in the same cell, row or block, or text in the same element as the box (<div><input type=checkbox> Agree to the <a>Terms</a></div>). Afterwards the state is read off the control that was acted on; only if the page cannot report it is the box looked up again by name, and a retry never touches a checkbox that does not carry the target. Interaction mode: clickable.",
+      "description": "Checks a checkbox element. Detected by the 'check' verb (case-insensitive). The target may be the box itself, its <label>, or a caption beside it in the same cell, row or block, or text in the same element as the box (<div><input type=checkbox> Agree to the <a>Terms</a></div>). Afterwards the state is read off the control that was acted on; only if the page cannot report it is the box looked up again by name, and a retry never touches a checkbox that does not carry the target. Several boxes whose captions are bare text in one element (<input type=checkbox> checkbox 1<br><input type=checkbox> checkbox 2) are told apart by the text after each box, up to the next box or line break; when the target names an element holding several boxes and none is captioned with it, the step fails with failure_reason not_found instead of acting on the first. Interaction mode: clickable.",
       "category": "interaction",
       "interactionMode": "clickable"
     },
@@ -95,7 +103,7 @@
       "uiText": "FILL '' field with ''",
       "snippet": "FILL '${1:target}' field with '${2:value}'",
       "regex": null,
-      "description": "Types text into a resolved input/textarea element. Detected by the 'fill' verb (case-insensitive). Element type hint (field, input) is optional but recommended. The element typed into must be a field that takes text (an input, textarea, editable element, or a <select>): a caption, heading or table header that matches the target is how the field beside or below it is found, and a step that resolves to no field fails with failure_reason not_found instead of passing with the value written nowhere. Interaction mode: input.",
+      "description": "Types text into a resolved input/textarea element. Detected by the 'fill' verb (case-insensitive). Element type hint (field, input) is optional but recommended. The element typed into must be a field that takes text (an input, textarea, editable element, or a <select>): a caption, heading or table header that matches the target is how the field beside or below it is found, and a step that resolves to no field fails with failure_reason not_found instead of passing with the value written nowhere. A text field the target names that is disabled fails the step with failure_reason action_failed and says so, rather than resolving to some text that mentions it. An <input> or <textarea> is scrolled to the middle of its scrolling boxes first, and if something else is still on top of its centre after about 1.5s the step fails naming it and nothing is typed. Interaction mode: input.",
       "category": "interaction",
       "interactionMode": "input"
     },
@@ -135,7 +143,7 @@
       "uiText": "DRAG '' and drop it into ''",
       "snippet": "DRAG '${1:source}' and drop it into '${2:destination}'",
       "regex": null,
-      "description": "Drags one element and drops it onto another. Detected by the 'drag' + 'drop' verbs (case-insensitive). A source or destination that nothing on the page matches fails the step with failure_reason not_found. Interaction mode: drag.",
+      "description": "Drags one element and drops it onto another. Detected by the 'drag' + 'drop' verbs (case-insensitive). A source or destination that nothing on the page matches fails the step with failure_reason not_found. The drag is a pointer drag — press on the source, moves across, release on the target — which is what pointer-event libraries listen to, and on Chromium also starts a native HTML5 drag. Firefox starts none from WebDriver actions, so there a source that is or sits inside an element with draggable=\"true\" is dragged by dispatching the HTML5 drag events in the page instead: dragstart and drag on it, dragenter and dragover on the target, drop only if dragover was cancelled (a target that does not cancel it refuses the drop, as in a browser), then dragend, all sharing one DataTransfer. That substitution is made in the top document only, not for a draggable inside an iframe. Interaction mode: drag.",
       "category": "interaction",
       "interactionMode": "drag"
     },
@@ -194,7 +202,7 @@
       "uiText": "EXTRACT the '' into {variable}",
       "snippet": "EXTRACT the '${1:target}' into {${2:variable}}",
       "regex": "\\bEXTRACT\\b",
-      "description": "Extracts the text content of a resolved element and stores it into a runtime variable for use in subsequent steps. A target that names a form control reads what the control currently holds instead of the text around it — this is how a value written by FILL is read back. The control is named when its label, placeholder, aria-label, title, name, id or test id is the target (case, surrounding whitespace and a trailing ':' or '*' aside), when the text the target matched turns out to be its <label>, or — for a control with no name of its own — when the element just before it is a caption that reads exactly as the target (\"<p>Number</p><input>\", or the table cell beside the one holding the field). An <input> or <textarea> answers with its value, a <select> with the option it shows as selected (the option text, not its value attribute), a contenteditable or role=textbox element with its text. An empty control extracts as an empty string and the step passes; text that is not found, or is empty, still fails the step. Checkboxes, radios, buttons and file inputs are not read this way.",
+      "description": "Extracts the text content of a resolved element and stores it into a runtime variable for use in subsequent steps. A target that names a form control reads what the control currently holds instead of the text around it — this is how a value written by FILL is read back. The control is named when its label, placeholder, aria-label, title, name, id or test id is the target (case, surrounding whitespace and a trailing ':' or '*' aside), when the text the target matched turns out to be its <label>, or — for a control with no name of its own — when the element just before it is a caption that reads exactly as the target (\"<p>Number</p><input>\", or the table cell beside the one holding the field). An <input> or <textarea> answers with its value, a <select> with the option it shows as selected (the option text, not its value attribute), a contenteditable or role=textbox element with its text. An empty control extracts as an empty string and the step passes; text that is not found, or is empty, still fails the step. Checkboxes, radios, buttons and file inputs are not read this way. What the main document does not have is looked for in each same-origin iframe in turn, and the first that answers is read. In a table — <table> with <th>/<td>, or one drawn with ARIA roles (role=table/grid, columnheader, row, cell/gridcell) — a target naming a row and a column ('Chrome CPU') reads that cell.",
       "category": "data"
     },
     {
@@ -203,7 +211,7 @@
       "uiText": "VERIFY that '' is present",
       "snippet": "VERIFY that '${1:target}' is ${2|present,NOT present,ENABLED,DISABLED,checked,NOT checked|}",
       "regex": "\\bVERIFY\\b",
-      "description": "Asserts that an element or text is present, not present, enabled, disabled, checked, or not checked. Fails the mission on mismatch. State is read off the element whether or not it is disabled — 'is disabled' finds the disabled control, and a read-only checkbox still reports 'is checked'. Text compares the way it reads: case-insensitively, with every run of whitespace, line breaks and no-break spaces included, counted as one space on both sides, so two spans shown on one line as 'Shopping cart (1)' match although the page's innerText breaks them apart. A text check that could not read the page at all fails rather than concluding the text is absent. A text check polls for up to the step timeout until it is satisfied: 'is present' until the text appears, 'is NOT present' until it is gone — so a negated check passes on the first look when the text is absent, and waits for text that is still disappearing.",
+      "description": "Asserts that an element or text is present, not present, enabled, disabled, checked, or not checked. Fails the mission on mismatch. State is read off the element whether or not it is disabled — 'is disabled' finds the disabled control, and a read-only checkbox still reports 'is checked'. Text compares the way it reads: case-insensitively, with every run of whitespace, line breaks and no-break spaces included, counted as one space on both sides, so two spans shown on one line as 'Shopping cart (1)' match although the page's innerText breaks them apart. A text check that could not read the page at all fails rather than concluding the text is absent. The text read includes that of every shadow root however deeply nested, a top-level child of each at a time, so text drawn by web components (archive.org, Lit and Stencil apps) is seen, and so is the text of every same-origin <iframe>, nested ones included. A cross-origin iframe's text is not read. A text check polls for up to the step timeout until it is satisfied: 'is present' until the text appears, 'is NOT present' until it is gone — so a negated check passes on the first look when the text is absent, and waits for text that is still disappearing.",
       "category": "assertion"
     },
     {
@@ -230,7 +238,7 @@
       "uiText": "VERIFY '' field has value ''",
       "snippet": "VERIFY '${1:element_name}' ${2|button,field,element,input|} has value '${3:Expected Value}'",
       "regex": "^\\s*(?:\\d+\\.\\s*)?VERIFY\\s+(?P<target_quote>[\"'])(?P<target>.+?)(?P=target_quote)\\s+(?P<element_type>button|field|element|input)\\s+HAS\\s+VALUE\\s+(?P<expected_quote>[\"'])(?P<expected>.*?)(?P=expected_quote)\\s*\\.?\\s*$",
-      "description": "Strict value verification. Resolves the element via heuristics, reads its current value via locator.input_value() with a value-attribute fallback, normalizes missing values to an empty string, and asserts exact equality against the expected value. A <label> is never the element resolved — it has no value, only the field's name — and a disabled field is resolved like any other.",
+      "description": "Strict value verification. Resolves the element via heuristics, reads its current value via locator.input_value() with a value-attribute fallback, normalizes missing values to an empty string, and asserts exact equality against the expected value. A <label> is never the element resolved — it has no value, only the field's name — and a disabled field is resolved like any other. When what matches the target best is a caption with no value of its own (<p>Number</p><input>, an <h3> over a <select>), the field beside it is read, found as FILL and SELECT find it.",
       "category": "assertion"
     },
     {
