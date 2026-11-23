@@ -19,6 +19,18 @@
 > so a target inside one fails as not found. UPLOAD into a field inside an
 > iframe is not supported and fails saying so.
 >
+> **Tabs.** A tab that the current page opens — a link with `target="_blank"`,
+> `rel="noopener"` included, or `window.open` — is where the next step runs:
+> before each step the engine looks for a tab the page opened since the last
+> one, follows it, and waits for it to leave `about:blank` (at most 3 seconds)
+> and load. When the tab it is on has been closed, as a sign-in popup closes
+> itself, the next step runs on the tab that opened it (or, if that one is
+> closed too, the last tab still open), and the step that closed it does not
+> wait out `nav_timeout` for it to come back. Tabs open before the hunt began
+> are never followed. SWITCH TO TAB goes back to a tab that is still open. A
+> tab that is followed is a new page: MOCK rules given on the old one do not
+> apply in it.
+>
 > Every verb listed here is executable. `pkg/runtime` carries a guard test that
 > walks each declared `CommandType` and fails on "not yet implemented", because
 > a verb that parses and appears in this contract but has no runtime case is a
@@ -58,6 +70,15 @@
       "category": "navigation"
     },
     {
+      "id": "switch_tab",
+      "label": "SWITCH TO TAB",
+      "uiText": "SWITCH TO TAB 1",
+      "snippet": "SWITCH TO TAB ${1:1}",
+      "regex": "\\bSWITCH\\s+(?:TO\\s+)?TAB\\s",
+      "description": "Makes another open tab the one the next steps run on, and brings it to the front. The argument is a position — 1 is the tab the hunt began on, then each tab a step opened, in the order they were opened, counting open tabs only — or quoted text, which picks the first open tab whose title or URL contains it, ignoring case. SWITCH TAB is the same verb. Only the tab the hunt began on and the tabs it has followed are counted; other tabs the browser has open are not. A position past the last open tab, text no tab has, or an argument that is neither fails the step. Following a newly opened tab needs no SWITCH; going back to one that is still open does.",
+      "category": "navigation"
+    },
+    {
       "id": "click",
       "label": "CLICK",
       "uiText": "CLICK the ''",
@@ -83,7 +104,7 @@
       "uiText": "CHECK the checkbox for ''",
       "snippet": "CHECK the checkbox for '${1:target}'",
       "regex": null,
-      "description": "Checks a checkbox element. Detected by the 'check' verb (case-insensitive). The target may be the box itself, its <label>, or a caption beside it in the same cell, row or block, or text in the same element as the box (<div><input type=checkbox> Agree to the <a>Terms</a></div>). Afterwards the state is read off the control that was acted on; only if the page cannot report it is the box looked up again by name, and a retry never touches a checkbox that does not carry the target. Several boxes whose captions are bare text in one element (<input type=checkbox> checkbox 1<br><input type=checkbox> checkbox 2) are told apart by the text after each box, up to the next box or line break; when the target names an element holding several boxes and none is captioned with it, the step fails with failure_reason not_found instead of acting on the first. Interaction mode: clickable.",
+      "description": "Checks a checkbox element. Detected by the 'check' verb (case-insensitive). The target may be the box itself, its <label>, or a caption beside it in the same cell, row or block, or text in the same element as the box (<div><input type=checkbox> Agree to the <a>Terms</a></div>). Afterwards the state is read off the control that was acted on; only if the page cannot report it is the box looked up again by name, and a retry never touches a checkbox that does not carry the target. Several boxes whose captions are bare text in one element (<input type=checkbox> checkbox 1<br><input type=checkbox> checkbox 2) are told apart by the text after each box, up to the next box or line break — that text is the box's own label when it has no <label>, so such a box is found by its caption whether or not anything around it is; when the target names an element holding several boxes and none is captioned with it, the step fails with failure_reason not_found instead of acting on the first. Interaction mode: clickable.",
       "category": "interaction",
       "interactionMode": "clickable"
     },

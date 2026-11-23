@@ -81,6 +81,29 @@ SCROLL DOWN inside the 'Product List'
 | `SCROLL UP` | Scroll page up by ~500px |
 | `SCROLL DOWN inside the '<container>'` | Scroll within a container element |
 
+### Tabs
+
+A tab that a step opens — a `target="_blank"` link, `window.open` — is followed
+on its own: the next step runs there. When it closes itself, as a sign-in popup
+does, the engine goes back to the tab that opened it. `SWITCH TO TAB` is for
+going back to a tab that is still open.
+
+```hunt
+CLICK the 'Open the product' link
+CLICK the 'Add to cart' button
+SWITCH TO TAB 1
+SWITCH TO TAB 'Checkout'
+```
+
+Here the product opens in a new tab and *Add to cart* is clicked in it;
+`SWITCH TO TAB 1` returns to the tab the hunt began on, and
+`SWITCH TO TAB 'Checkout'` to the first open tab with "Checkout" in its title or URL.
+
+| Command | Description |
+|---------|-------------|
+| `SWITCH TO TAB <n>` | Run the next steps on open tab *n*: 1 is the hunt's first tab, then tabs in the order they were opened |
+| `SWITCH TO TAB '<text>'` | Run the next steps on the first open tab whose title or URL contains *text* |
+
 ---
 
 ## Interaction
@@ -490,6 +513,7 @@ When paused (`--debug` or `PAUSE`):
 | Command | Category | Example |
 |---------|----------|---------|
 | `NAVIGATE` | Navigation | `NAVIGATE to 'https://example.com'` |
+| `SWITCH TO TAB` | Navigation | `SWITCH TO TAB 1` |
 | `CLICK` | Interaction | `Click the 'Submit' button` |
 | `DOUBLE CLICK` | Interaction | `DOUBLE CLICK the 'Copy' button` |
 | `RIGHT CLICK` | Interaction | `RIGHT CLICK the 'Menu' element` |

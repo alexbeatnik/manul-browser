@@ -34,8 +34,21 @@ cd bindings/python && python -m pytest tests/ -q       # binding (no Chrome need
 ```
 
 The Python tests run against a fake engine that speaks the protocol, so they
-need neither Chrome nor a compiled binary and finish in about a second. Anything
-that genuinely needs a browser has to be run by hand.
+need neither Chrome nor a compiled binary and finish in about a second.
+
+What needs a real browser is in `core/e2e`, behind a build tag:
+
+```bash
+cd core && go test -tags e2e ./e2e/                     # Chrome and Firefox, whichever are installed
+cd core && MANUL_E2E_BROWSERS=firefox go test -tags e2e ./e2e/
+```
+
+It builds `manul`, serves `e2e/testdata/site` from two local origins and runs
+every hunt in `e2e/testdata/hunts` through the CLI; CI runs it on both browsers.
+A hunt that must fail says so with `# expect-fail: <text>`, and one whose PRINT
+output matters with `# expect-output: <text>`. Every hunt there was checked to
+fail on the engine before its fix — a fixture the old engine passes proves
+nothing. A bug found on a live site gets its smallest local page here.
 
 ## Invariants
 
@@ -157,6 +170,15 @@ got the label bonus, and the zip-code field beat the quantity box under 'Qty.'.
 A scorer that compares the query against an attribute returns 0 for an empty
 query.
 
+**A new tab is listed before it has a page.** A `target="_blank"` click
+returns with the tab already listed (Chrome's `openerId`, Firefox's
+`originalOpener`) but still on `about:blank`, so following it at once took a
+snapshot of nothing; `waitForNewTab` waits for it to leave. A popup that closes
+itself fails every evaluation afterwards, which `settleNavigation` took for a
+page in transit and waited out `nav_timeout` on — it asks `TabClosed` first.
+Tabs are found by listing, not by events, so none of the subscribe-order traps
+below apply.
+
 **Snapshot caching hides change.** The cache makes resolution cheap within a
 step. Any polling loop must call `invalidateSnapshot()` each iteration or it
 will never see what it is waiting for.
@@ -223,10 +245,10 @@ compare against the index with `git show :path/to/file.go | gofmt -d`.
 ## Conventions
 
 - Go ≥ 1.26, single dependency (`gorilla/websocket`). Keep it that way.
-- Firefox work can be checked against a real browser: `manul run x.hunt
-  --browser firefox --headless`. There is no fake for either protocol — the
-  unit tests drive a mock WebSocket server, which proves framing, not
-  behaviour.
+- There is no fake for either protocol — the unit tests drive a mock
+  WebSocket server, which proves framing, not behaviour. Behaviour is what
+  `core/e2e` is for; a single hunt can also be run by hand with `manul run
+  x.hunt --browser firefox --headless`.
 - The engine version lives in `cmd/manul/main.go` as `version`, without a `v`
   prefix, and must match the contracts.
 - `.hunt` verbs are matched by keyword, not strict grammar. New verbs go in the

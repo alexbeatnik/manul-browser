@@ -21,6 +21,9 @@ type Context struct {
 	ID       string    `json:"context"`
 	URL      string    `json:"url"`
 	Children []Context `json:"children"`
+	// OriginalOpener is the context that opened this one (a link with
+	// target="_blank", window.open), or empty.
+	OriginalOpener string `json:"originalOpener"`
 }
 
 // ── Connection setup ──────────────────────────────────────────────────────────

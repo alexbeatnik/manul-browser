@@ -167,6 +167,23 @@ func (c *Conn) Close() error {
 	return closeErr
 }
 
+// URL returns the WebSocket URL this connection was dialed on.
+func (c *Conn) URL() string { return c.wsURL }
+
+// Closed reports whether the connection has been torn down — by Close, or by
+// the browser closing the socket, which it does when the tab goes away.
+func (c *Conn) Closed() bool {
+	if c == nil {
+		return true
+	}
+	select {
+	case <-c.ctx.Done():
+		return true
+	default:
+		return false
+	}
+}
+
 func (c *Conn) readLoop() {
 	// Calling Close() (idempotent via closeOnce) ensures subscription channels
 	// are closed when the read loop exits for any reason — including unexpected

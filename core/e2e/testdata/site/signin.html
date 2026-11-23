@@ -1,0 +1,5 @@
+<!doctype html><html><head><title>Sign in</title></head>
+<body style="font-family:sans-serif">
+<label for="user">User name</label> <input id="user">
+<button onclick="window.opener.postMessage({user: document.getElementById('user').value}, '*'); window.close()">Authorize</button>
+</body></html>

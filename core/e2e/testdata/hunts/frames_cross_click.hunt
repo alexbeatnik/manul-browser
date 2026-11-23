@@ -1,0 +1,8 @@
+@title: A cross-origin frame is not entered
+# expect-fail: Cross button
+# Firefox does not deliver a top-level click into such a frame, so the step
+# would pass with nothing clicked. It must fail instead, on both browsers.
+STEP 1: Click
+    NAVIGATE to @SITE@/frames.html
+    CLICK the 'Cross button' button
+DONE.

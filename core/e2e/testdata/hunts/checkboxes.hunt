@@ -1,0 +1,13 @@
+@title: A box is picked by its caption
+STEP 1: Checkboxes without labels
+    NAVIGATE to @SITE@/checkboxes.html
+    UNCHECK the checkbox for 'checkbox 2'
+    VERIFY that 'checkbox 2' is NOT checked
+    CHECK the checkbox for 'checkbox 1'
+    VERIFY that 'checkbox 1' is checked
+    VERIFY that 'checkbox 2' is NOT checked
+STEP 2: A full-width caption leads to the field under it
+    VERIFY 'Number' field has value '42'
+    FILL 'Number' field with '7'
+    VERIFY 'Number' field has value '7'
+DONE.

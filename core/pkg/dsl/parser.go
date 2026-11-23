@@ -70,6 +70,7 @@ const (
 	CmdPause           CommandType = "PAUSE"
 	CmdDebugVars       CommandType = "DEBUG_VARS"
 	CmdMock            CommandType = "MOCK"
+	CmdSwitchTab       CommandType = "SWITCH_TAB"
 	CmdUnknown         CommandType = "UNKNOWN"
 )
 
@@ -1260,6 +1261,18 @@ func parseCommandLine(line string) Command {
 		cmd.Type = CmdPause
 	case upper == "DEBUG VARS":
 		cmd.Type = CmdDebugVars
+
+	// ── SWITCH TO TAB ─────────────────────────────────────────────────────────
+	// "SWITCH TO TAB 2" by position, "SWITCH TO TAB 'Checkout'" by title or
+	// URL. The position goes to Value, a quoted text to Target.
+	case strings.HasPrefix(upper, "SWITCH TO TAB ") || strings.HasPrefix(upper, "SWITCH TAB "):
+		cmd.Type = CmdSwitchTab
+		rest := strings.TrimSpace(stripPrefix(line, "SWITCH TO TAB", "SWITCH TAB"))
+		if q := extractFirstQuoted(rest); q != "" {
+			cmd.Target = q
+		} else {
+			cmd.Value = rest
+		}
 
 	// ── MOCK GET/POST/PUT/PATCH/DELETE ────────────────────────────────────────
 	case strings.HasPrefix(upper, "MOCK "):

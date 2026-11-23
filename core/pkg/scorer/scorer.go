@@ -306,6 +306,34 @@ func MatchesQuery(query string, el *dom.ElementSnapshot) bool {
 	if !numbersAgreeAny(q, el) {
 		return false
 	}
+	// A word that only names what kind of control it is says nothing about
+	// which one: 'Cross button' shares "button" with 'Host button', the word
+	// overlap was 1/2, and the host page's button was clicked for one inside a
+	// frame the engine cannot enter. What is left of the query once those
+	// words are gone has to match on its own.
+	if rest := withoutRoleWords(q); rest != "" && rest != q && !matchesText(rest, el) {
+		return false
+	}
+	return matchesText(q, el)
+}
+
+// roleWords name a kind of control rather than a particular one.
+var roleWords = map[string]bool{
+	"button": true, "link": true, "field": true, "checkbox": true,
+	"dropdown": true, "tab": true, "icon": true,
+}
+
+func withoutRoleWords(q string) string {
+	var kept []string
+	for _, w := range strings.Fields(q) {
+		if !roleWords[w] {
+			kept = append(kept, w)
+		}
+	}
+	return strings.Join(kept, " ")
+}
+
+func matchesText(q string, el *dom.ElementSnapshot) bool {
 	return scoreExactText(q, el) > 0 ||
 		scoreNormText(q, el) > 0 ||
 		scoreLabel(q, el) > 0 ||
@@ -622,8 +650,13 @@ func scoreNear(el *dom.ElementSnapshot, anchor *AnchorContext) float64 {
 	const threshold = 500.0
 	cx := el.Rect.Left + el.Rect.Width/2
 	cy := el.Rect.Top + el.Rect.Height/2
-	ax := anchor.Rect.Left + anchor.Rect.Width/2
-	ay := anchor.Rect.Top + anchor.Rect.Height/2
+	// Measured to the nearest point of the anchor, not to its middle. A
+	// caption in a <p> spans the page, so its middle was 600px from the field
+	// right under it, past the threshold, and "<p>Number</p><input>" could
+	// not be filled at all. For an anchor no wider than a button the two
+	// barely differ.
+	ax := clamp(cx, anchor.Rect.Left, anchor.Rect.Left+anchor.Rect.Width)
+	ay := clamp(cy, anchor.Rect.Top, anchor.Rect.Top+anchor.Rect.Height)
 	dist := math.Sqrt((cx-ax)*(cx-ax) + (cy-ay)*(cy-ay))
 	if dist > threshold {
 		return 0.0

@@ -1,0 +1,13 @@
+<!doctype html><html><head><title>Shadow</title></head>
+<body style="font-family:sans-serif">
+<outer-card></outer-card>
+<script>
+// A shadow root inside a shadow root, with a style element that must not be read as text.
+customElements.define('inner-note', class extends HTMLElement {
+  constructor(){ super(); this.attachShadow({mode:'open'}).innerHTML =
+    '<style>p{color:green}</style><p>Deeply nested note</p>'; } });
+customElements.define('outer-card', class extends HTMLElement {
+  constructor(){ super(); this.attachShadow({mode:'open'}).innerHTML =
+    '<h3>Outer card</h3><inner-note></inner-note>'; } });
+</script>
+</body></html>

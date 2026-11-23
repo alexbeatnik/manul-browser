@@ -1,0 +1,10 @@
+@title: Numbers must agree
+STEP 1: Near twins
+    NAVIGATE to @SITE@/numbers.html
+    CLICK the 'Page 3' link
+    VERIFY that 'opened page 3' is present
+    CLICK the 'Page 23' link
+    VERIFY that 'opened page 23' is present
+    CLICK the 'Watch in 4K' button
+    VERIFY that 'picked 4K' is present
+DONE.

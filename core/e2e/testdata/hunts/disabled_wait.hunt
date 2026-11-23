@@ -1,0 +1,9 @@
+@title: A field that becomes enabled can be filled
+STEP 1: Wait, then fill
+    NAVIGATE to @SITE@/disabled.html
+    CLICK the 'Enable the field' button
+    WAIT FOR 'Edit Field' to be enabled
+    FILL 'Edit Field' field with 'hello'
+    PRESS ENTER
+    VERIFY that 'Value changed to: hello' is present
+DONE.

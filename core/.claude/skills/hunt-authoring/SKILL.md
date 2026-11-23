@@ -124,6 +124,20 @@ Blocks until a network response URL matching the substring is received.
 Use after form submits that trigger XHR/fetch requests to avoid polling
 with `WAIT N` fixed delays.
 
+### Tabs
+
+A tab a step opens (`target="_blank"`, `window.open`) is followed without any
+verb, and a popup that closes itself hands back to its opener. To go back to a
+tab that is still open:
+
+```hunt
+SWITCH TO TAB 1
+SWITCH TO TAB 'Checkout'
+```
+
+1 is the tab the hunt began on; quoted text picks the first open tab whose
+title or URL contains it.
+
 ### Drag-and-drop and file upload
 
 ```hunt

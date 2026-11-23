@@ -2,6 +2,10 @@
 
 **Not started yet.** Blocked on `manul serve` in the same way `bindings/` is.
 
+Not to be confused with `core/e2e`, which exists: that checks what the engine
+*does* in Chrome and Firefox, through the CLI alone. This is about every path
+into the engine producing the same bytes. Its local pages can be shared.
+
 ## What it is for
 
 With one engine, this is not about keeping rival implementations honest — it is

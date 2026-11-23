@@ -85,6 +85,15 @@ type Runtime struct {
 	// this so their steps are recorded in the report and surfaced via
 	// onStep — not silently dropped. Nil outside RunHunt.
 	activeHuntRes *explain.HuntResult
+
+	// Tabs (tabs.go). tabs is every open tab the hunt began on or followed,
+	// in that order — what SWITCH TO TAB counts; openerOf the tab each was
+	// opened from; seenTabs every tab id already looked at, so a tab is
+	// followed once; tabsNoted whether tab 1 has been recorded.
+	tabs      []browser.Page
+	openerOf  map[browser.Page]browser.Page
+	seenTabs  map[string]bool
+	tabsNoted bool
 }
 
 // New creates a new Runtime bound to the given Config, Page, and Logger.
@@ -440,6 +449,7 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 		CommandType:     string(cmd.Type),
 		ActionPerformed: strings.ToLower(string(cmd.Type)),
 	}
+	rt.followTabs(ctx)
 	defer func() {
 		if pageURL, urlErr := rt.page.CurrentURL(ctx); urlErr == nil {
 			res.PageURL = pageURL
@@ -600,6 +610,12 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (res exp
 
 	case dsl.CmdCallGo:
 		res.ActionValue, res.ProbeMetadata, err = rt.executeCallGo(ctx, cmd)
+
+	case dsl.CmdSwitchTab:
+		res.ActionValue, err = rt.switchTab(ctx, cmd)
+		if err == nil {
+			rt.logger.ActionDetail("🗂️", "Switched to %s", res.ActionValue)
+		}
 
 	case dsl.CmdMock:
 		err = rt.handleMock(ctx, cmd)
@@ -1940,6 +1956,12 @@ func (rt *Runtime) settleNavigation(ctx context.Context) {
 		raw, err := rt.page.EvalJS(limited, pagejs.NavigationState)
 		if err == nil && strings.TrimSpace(string(raw)) != "1" {
 			break
+		}
+		// A page that cannot be evaluated is usually one in transit — or one
+		// whose tab the action closed: a sign-in popup's "Authorize" does,
+		// and the step waited out nav_timeout for it to come back.
+		if t, ok := rt.page.(browser.Tabbed); err != nil && ok && t.TabClosed(limited) {
+			return
 		}
 		select {
 		case <-limited.Done():

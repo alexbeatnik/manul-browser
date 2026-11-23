@@ -1,0 +1,24 @@
+@title: Same-origin frames are entered
+# expect-output: email=[ada@example.com]
+# An iframe with a form, and a nested iframe below the fold. Every step
+# below is addressed to the element's own frame.
+STEP 1: The host page itself
+    NAVIGATE to @SITE@/frames.html
+    CLICK the 'Host button' button
+    VERIFY that 'host clicked' is present
+STEP 2: A form inside an iframe
+    FILL 'Email' field with 'ada@example.com'
+    CHECK the checkbox for 'Subscribe to news'
+    SELECT 'Pro' from the 'Plan' dropdown
+    VERIFY 'Email' field has value 'ada@example.com'
+    VERIFY that 'Subscribe to news' is checked
+    CLICK the 'Save form' button
+    VERIFY that 'Saved ada@example.com news=true plan=Pro' is present
+    EXTRACT the 'Email' into {e}
+    PRINT "email=[{e}]"
+STEP 3: A nested iframe below the fold
+    CLICK the 'Deep button' button
+    VERIFY that 'inner clicked' is present
+    HOVER over the 'Deep button'
+    WAIT FOR 'Deep button' to be visible
+DONE.

@@ -105,7 +105,7 @@
       "method": "_score_proximity(el)",
       "returnRange": "[0.0, 1.0]",
       "modes": [
-        { "qualifier": "NEAR",       "scoring": "Euclidean distance to anchor element + DOM depth affinity" },
+        { "qualifier": "NEAR",       "scoring": "Euclidean distance to the nearest point of the anchor element + DOM depth affinity" },
         { "qualifier": "ON HEADER",  "scoring": "Element in <header>/<nav> ancestry OR top 15% of viewport" },
         { "qualifier": "ON FOOTER",  "scoring": "Element in <footer> ancestry OR bottom 15% of viewport" },
         { "qualifier": "INSIDE",     "scoring": "Container subtree membership (resolved row/container)" },
@@ -128,7 +128,8 @@
     "appliesTo": ["click", "double_click", "right_click", "hover", "fill", "type", "check", "uncheck", "select", "upload", "drag (source and destination)", "custom dropdown option", "highlight", "press … on <target>", "verify … has text/value/placeholder", "verify visual"],
     "exempt": "A control found by its position next to a matching label (restrictive pass 3): there the label carries the match and the control is ranked with an empty query, which scores no label, placeholder, aria-label, data-qa or id: those describe the control itself, not the caption it sits beside.",
     "restrictivePasses": "FILL, TYPE, SELECT and CHECK take the best match outright only if it is a control of their kind. Otherwise a match is a caption, and the control is the only one of that kind inside it if there is exactly one, else the nearest one beside it, taken when it scores clearly above the runner-up or sits clearly nearer the caption. A single control of the right kind that carries the target itself, if only in its class name, is not refused for a low score. CHECK, UNCHECK and VERIFY checked/NOT checked then narrow an element holding two or more checkboxes or radios — the caption's container, or a box ranked first beside siblings — to the one box captioned with the target, by its <label> or by the text that follows it up to the next box or line break; a container with several boxes and none so captioned fails the step with failure_reason not_found.",
-    "numbers": "A number in the query must appear as a number of its own in the same text signal of the element: 'Under 4 minutes' does not match \"Under 3 minutes\", 'Page 1' does not match \"Page 10\". A number is a run of digits with any '.' or ',' separators inside it, standing as a word of its own — the 4 of \"4K\" and the 2 of \"button2\" are part of a word and are no number. MatchesQuery fails an element no signal of which carries every number of the query, and a text signal whose numbers disagree scores nothing in partial and word-overlap matching. Word overlap otherwise ignores one-character words, which is how YouTube's 'Under 4 minutes' filter used to click the 'Under 3 minutes' one."
+    "numbers": "A number in the query must appear as a number of its own in the same text signal of the element: 'Under 4 minutes' does not match \"Under 3 minutes\", 'Page 1' does not match \"Page 10\". A number is a run of digits with any '.' or ',' separators inside it, standing as a word of its own — the 4 of \"4K\" and the 2 of \"button2\" are part of a word and are no number. MatchesQuery fails an element no signal of which carries every number of the query, and a text signal whose numbers disagree scores nothing in partial and word-overlap matching. Word overlap otherwise ignores one-character words, which is how YouTube's 'Under 4 minutes' filter used to click the 'Under 3 minutes' one.",
+    "roleWords": "A word that names a kind of control — button, link, field, checkbox, dropdown, tab, icon — says nothing about which one. When the query has such a word and other words besides, what is left without it has to match the element on its own: 'Cross button' does not match \"Host button\", and 'Help link' still matches a link reading \"Help\". A query that is only a role word is compared as it is."
   },
 
   "domScorer": {
@@ -229,7 +230,7 @@
     "types": [
       {
         "syntax": "NEAR 'Anchor Text'",
-        "scoring": "Euclidean distance between element rect center and anchor rect center. Closer = higher proximity score.",
+        "scoring": "Euclidean distance from the element's rect center to the nearest point of the anchor's rect (its center when the element is beside it, a point on its edge otherwise), blended with DOM depth affinity. Closer = higher proximity score. Measured to the anchor's middle, a caption <p> spanning the viewport was 600px from the field right under it and gave it no proximity at all.",
         "proximityWeight": 1.5
       },
       {

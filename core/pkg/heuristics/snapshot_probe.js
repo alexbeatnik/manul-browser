@@ -74,7 +74,26 @@
                 .join(' ');
             if (text) return text;
         }
-        // 4. Fieldset legend context for grouped controls.
+        // 4. A checkbox or radio with no label is captioned by the text that
+        // follows it, up to the next box or <br> — "<input type=checkbox>
+        // checkbox 2". Without this the box had no text at all and was found
+        // only when a container around it happened to be in the snapshot.
+        // pagejs.CaptionedBox reads captions by the same rule.
+        if (el.tagName === 'INPUT' && (el.type === 'checkbox' || el.type === 'radio')) {
+            let t = '';
+            for (let n = el.nextSibling; n; n = n.nextSibling) {
+                if (n.nodeType === Node.ELEMENT_NODE) {
+                    if (n.tagName === 'BR' || n.matches('input,select,textarea,button') ||
+                        n.querySelector('input,select,textarea,button')) break;
+                    t += ' ' + (n.innerText || n.textContent || '');
+                } else if (n.nodeType === Node.TEXT_NODE) {
+                    t += ' ' + n.textContent;
+                }
+            }
+            t = normalize(t);
+            if (t) return t;
+        }
+        // 5. Fieldset legend context for grouped controls.
         if (['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName)) {
             const fieldset = el.closest('fieldset');
             if (fieldset) {
@@ -86,7 +105,7 @@
                 }
             }
         }
-        // 5. Table column header context for <td>
+        // 6. Table column header context for <td>
         if (el.tagName === 'TD' || el.tagName === 'TH') {
             const tr = el.closest('tr');
             if (tr) {

@@ -185,6 +185,8 @@ func (b *CDPBrowser) Close() error { return nil }
 type CDPPage struct {
 	conn    *cdp.Conn
 	tracker *cdp.FrameTracker
+	// id is this page's target id, learnt on first use (tabs.go).
+	id string
 	// mocks is nil until the first MOCK: no request is paused before then.
 	mocks *mockTable
 }

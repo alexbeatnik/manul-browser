@@ -1,0 +1,15 @@
+@title: SWITCH TO TAB goes back and forth between open tabs
+STEP 1: Open a second tab, then go back by number
+    NAVIGATE to @SITE@/tabs.html
+    CLICK the 'Open the product' link
+    CLICK the 'Add to cart' button
+    SWITCH TO TAB 1
+    VERIFY that 'Shop front' is present
+    VERIFY that 'In cart: 1' is NOT present
+STEP 2: And forward again by title
+    SWITCH TO TAB 'Product'
+    VERIFY that 'In cart: 1' is present
+STEP 3: And by URL
+    SWITCH TO TAB 'tabs.html'
+    VERIFY that 'Shop front' is present
+DONE.

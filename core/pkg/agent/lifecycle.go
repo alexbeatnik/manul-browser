@@ -92,10 +92,11 @@ func (s *Session) PageState(ctx context.Context) (PageState, error) {
 	}
 
 	var ps PageState
-	if url, err := s.page.CurrentURL(ctx); err == nil {
+	page := s.rt.Page()
+	if url, err := page.CurrentURL(ctx); err == nil {
 		ps.URL = url
 	}
-	if raw, err := s.page.EvalJS(ctx, "document.title"); err == nil {
+	if raw, err := page.EvalJS(ctx, "document.title"); err == nil {
 		var title string
 		if json.Unmarshal(raw, &title) == nil {
 			ps.Title = strings.TrimSpace(title)

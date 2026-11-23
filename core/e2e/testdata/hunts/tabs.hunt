@@ -1,0 +1,8 @@
+@title: A tab a step opens is followed, and left when it closes
+STEP 1: A link with target=_blank
+    NAVIGATE to @SITE@/tabs.html
+    CLICK the 'Open the product' link
+    VERIFY that 'Manul Plush' is present
+    CLICK the 'Add to cart' button
+    VERIFY that 'In cart: 1' is present
+DONE.

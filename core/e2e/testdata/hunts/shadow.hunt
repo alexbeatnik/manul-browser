@@ -1,0 +1,7 @@
+@title: Nested shadow roots are read
+STEP 1: Text
+    NAVIGATE to @SITE@/shadow.html
+    VERIFY that 'Outer card' is present
+    VERIFY that 'Deeply nested note' is present
+    VERIFY that 'color:green' is NOT present
+DONE.

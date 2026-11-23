@@ -313,7 +313,7 @@ func (s *Session) ReadText(ctx context.Context, selector string) (string, error)
 		return "", fmt.Errorf("agent: session closed")
 	}
 
-	raw, err := s.page.CallProbe(ctx, heuristics.BuildPageTextProbe(), selector)
+	raw, err := s.rt.Page().CallProbe(ctx, heuristics.BuildPageTextProbe(), selector)
 	if err != nil {
 		return "", fmt.Errorf("agent: read text: %w", err)
 	}
@@ -701,7 +701,7 @@ func (s *Session) Map(ctx context.Context, budget MapBudget) (PageMap, error) {
 		return PageMap{}, fmt.Errorf("agent: session closed")
 	}
 
-	groups, err := scan.ScanCurrentPageFull(ctx, s.page)
+	groups, err := scan.ScanCurrentPageFull(ctx, s.rt.Page())
 	if err != nil {
 		return PageMap{}, fmt.Errorf("agent: map: %w", err)
 	}
@@ -711,7 +711,7 @@ func (s *Session) Map(ctx context.Context, budget MapBudget) (PageMap, error) {
 		max = DefaultMaxPerGroup
 	}
 
-	url, _ := s.page.CurrentURL(ctx)
+	url, _ := s.rt.Page().CurrentURL(ctx)
 	pm := PageMap{URL: url}
 
 	names := make([]string, 0, len(groups))

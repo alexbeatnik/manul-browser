@@ -158,6 +158,7 @@ func engineSchema() map[string]any {
 			{Verb: "WAIT FOR RESPONSE", Syntax: "WAIT FOR RESPONSE <url-substr>"},
 			{Verb: "SET", Syntax: "SET {var} = <value>"},
 			{Verb: "MOCK", Syntax: "MOCK <METHOD> '<path>' with '<file>'", Note: "intercept a request with a fixture"},
+			{Verb: "SWITCH TO TAB", Syntax: "SWITCH TO TAB <n>|'<title or url>'", Note: "tab 1 is the one the hunt began on; a tab a step opens is followed without it"},
 			{Verb: "PRINT", Syntax: "PRINT <text|{var}>"},
 			{Verb: "SCREENSHOT", Syntax: "SCREENSHOT"},
 			{Verb: "REPEAT", Syntax: "REPEAT N TIMES:", Note: "{i} is a 0-based counter; ends at END REPEAT"},

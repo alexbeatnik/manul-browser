@@ -45,7 +45,7 @@ func TestEveryDeclaredVerbIsImplemented(t *testing.T) {
 		dsl.CmdSet, dsl.CmdPrint, dsl.CmdScreenshot, dsl.CmdHighlight,
 		dsl.CmdRepeat, dsl.CmdForEach, dsl.CmdWhile, dsl.CmdIf,
 		dsl.CmdCallGo, dsl.CmdUploadFile, dsl.CmdPause, dsl.CmdDebugVars,
-		dsl.CmdMock,
+		dsl.CmdMock, dsl.CmdSwitchTab,
 	}
 
 	for _, typ := range all {
