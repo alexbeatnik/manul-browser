@@ -1,8 +1,8 @@
-@title: A cross-origin frame is not entered
-# expect-fail: Cross button
-# Firefox does not deliver a top-level click into such a frame, so the step
-# would pass with nothing clicked. It must fail instead, on both browsers.
+@title: A cross-origin frame is entered
+# The frame is on the same site, another port: same process in Chrome. Its
+# window.frameElement is null, so it is measured from the page.
 STEP 1: Click
     NAVIGATE to @SITE@/frames.html
     CLICK the 'Cross button' button
+    VERIFY that 'cross clicked' is present
 DONE.

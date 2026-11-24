@@ -133,18 +133,34 @@ replaces itself on hover took the press and lost the release, and nothing was
 clicked, on Chromium only. Every CDP click moves the pointer first, as BiDi's
 action sequence always did.
 
-**Frames are entered only when they are same-origin.** The snapshot, text
-VERIFY and EXTRACT read every iframe whose documents are same-origin up to the
-page; `rt.pageFor(el)` addresses an element's own frame, and coordinates it
-returns are the top-level viewport's. Three things bit on the way. CDP
-announces existing execution contexts *while answering* `Runtime.enable`, so
-`FrameTracker` must subscribe first — otherwise every iframe already on the
-page has no context. Context 0 means "the default one" to `Runtime.evaluate`,
-so a frame without a context silently evaluated in the main document and its
-"snapshot" was a second copy of the page; `EvalJSInFrame` now refuses. And
-Firefox does not deliver a top-level click into a cross-origin iframe — the
-step passed with nothing clicked — which is why those are left out on both
-backends rather than half-supported.
+**Every displayed frame is entered, cross-origin ones too.** The snapshot,
+text VERIFY and EXTRACT read every iframe of the page; `rt.pageFor(el)`
+addresses an element's own frame, and coordinates it returns are the
+top-level viewport's. What bit on the way:
+
+- CDP announces existing execution contexts *while answering*
+  `Runtime.enable`, and existing iframes while answering
+  `Target.setAutoAttach`, so `FrameTracker` subscribes first and `settle`s
+  before the first snapshot.
+- Context 0 means "the default one" to `Runtime.evaluate`, so a frame without
+  a context silently evaluated in the main document; `EvalJSInFrame` refuses.
+- A cross-site iframe is an OOPIF: the page's session has no frame and no
+  context for it. It is a flat session (`sessionId` on the one socket), and
+  its context ids start at 1 like the page's — the tracker keys contexts by
+  session. The page's session reports the frame as detached with reason
+  `swap` when it moves out; that is not a removal.
+- A cross-origin frame cannot place itself (`frameElement` is null), so it is
+  measured from its parent: `DOM.getFrameOwner` on CDP, `contentWindow` on
+  BiDi, which serializes to the frame's context id. `PlaceFrames` does all of
+  a page's frames at once; one at a time cost seconds per step on a page with
+  ads.
+- Firefox does not deliver a top-level click into a cross-site frame — the
+  step passed with nothing clicked. Sent to the frame's own context with its
+  own coordinates, it arrives; `BiDiPage.routePoint` does that for every
+  pointer action, and `routeFocus` for keys. Chrome routes input itself.
+- MDN keeps its frames in a shadow root, where `querySelectorAll` and
+  `elementFromPoint` do not look; the pagejs frame helpers walk open shadow
+  roots.
 
 **Firefox starts no HTML5 drag from WebDriver actions.** A pointer drag over
 `draggable="true"` fired nothing the page listens for, however slowly it moved,

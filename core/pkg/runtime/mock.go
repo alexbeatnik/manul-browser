@@ -46,9 +46,23 @@ type MockPage struct {
 
 // MockFrame is one iframe of a MockPage.
 type MockFrame struct {
-	Elements    []dom.ElementSnapshot
-	Text        string
+	Elements []dom.ElementSnapshot
+	Text     string
+	// CrossOrigin frames cannot measure themselves; they are measured from
+	// outside (FrameOrigin), at FrameOffsets with this Size. A zero Size is a
+	// frame that is not displayed.
 	CrossOrigin bool
+	Size        [2]float64
+}
+
+// FrameOrigin implements browser.FrameLocator.
+func (m *MockPage) FrameOrigin(ctx context.Context, frameIndex int) (x, y, w, h float64, err error) {
+	doc, ok := m.FrameDocs[frameIndex]
+	if !ok {
+		return 0, 0, 0, 0, fmt.Errorf("no frame %d", frameIndex)
+	}
+	off := m.FrameOffsets[frameIndex]
+	return off[0], off[1], doc.Size[0], doc.Size[1], nil
 }
 
 type Point struct {

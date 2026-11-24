@@ -18,8 +18,11 @@
 //	                         must contain <text>
 //	# expect-output: <text>  the run's output must contain <text> (for PRINT)
 //
-// In a hunt, @SITE@ is the origin serving testdata/site and @CROSS@ another
-// origin serving the same files, so a page can embed a cross-origin frame.
+// In a hunt and in a page, @SITE@ is the origin serving testdata/site,
+// @CROSS@ another port of 127.0.0.1 serving the same files — cross-origin
+// but the same site — and @XSITE@ that second server under the name
+// localhost, which is another site: Chrome runs a frame from it in a process
+// of its own.
 package e2e
 
 import (
@@ -66,10 +69,16 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// serve starts a file server for testdata/site on its own 127.0.0.1 port. A
-// different port is a different origin, which is all a cross-origin frame
-// needs, and avoids depending on how "localhost" resolves on the runner.
-func serve(t *testing.T, cross *string) string {
+// origins are the three a fixture can name; see the package doc.
+type origins struct{ site, cross, xsite string }
+
+func (o *origins) replace(s string) string {
+	return strings.NewReplacer("@SITE@", o.site, "@CROSS@", o.cross, "@XSITE@", o.xsite).Replace(s)
+}
+
+// serve starts a file server for testdata/site on its own 127.0.0.1 port.
+// Pages are served with the origins filled in.
+func serve(t *testing.T, o *origins) string {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -88,7 +97,7 @@ func serve(t *testing.T, cross *string) string {
 			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_, _ = w.Write(bytes.ReplaceAll(body, []byte("@CROSS@"), []byte(*cross)))
+		_, _ = w.Write([]byte(o.replace(string(body))))
 	})}
 	go func() { _ = srv.Serve(ln) }()
 	t.Cleanup(func() { _ = srv.Close() })
@@ -138,9 +147,10 @@ type huntResult struct {
 }
 
 func TestHunts(t *testing.T) {
-	var cross string
-	site := serve(t, &cross)
-	cross = serve(t, &cross)
+	o := &origins{}
+	o.site = serve(t, o)
+	o.cross = serve(t, o)
+	o.xsite = strings.Replace(o.cross, "127.0.0.1", "localhost", 1)
 
 	paths, err := filepath.Glob(filepath.Join("testdata", "hunts", "*.hunt"))
 	if err != nil || len(paths) == 0 {
@@ -153,19 +163,19 @@ func TestHunts(t *testing.T) {
 			for _, path := range paths {
 				name := strings.TrimSuffix(filepath.Base(path), ".hunt")
 				t.Run(name, func(t *testing.T) {
-					runHunt(t, browser, required, path, site, cross)
+					runHunt(t, browser, required, path, o)
 				})
 			}
 		})
 	}
 }
 
-func runHunt(t *testing.T, browser string, required bool, path, site, cross string) {
+func runHunt(t *testing.T, browser string, required bool, path string, o *origins) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	src := strings.NewReplacer("@SITE@", site, "@CROSS@", cross).Replace(string(raw))
+	src := o.replace(string(raw))
 	want := readExpectations(src)
 
 	dir := t.TempDir()

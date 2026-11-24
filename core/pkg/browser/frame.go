@@ -29,12 +29,34 @@ func InFrame(p Page, frameIndex int) Page {
 	return &framedPage{Page: p, frame: frameIndex}
 }
 
+// FrameLocator is implemented by a backend that can measure a frame from the
+// document that holds it, which is the only way to place a cross-origin one:
+// its own window.frameElement is null.
+type FrameLocator interface {
+	// FrameOrigin is where frame frameIndex's content box starts in the
+	// top-level viewport, and its size. A frame that is not displayed has
+	// size 0.
+	FrameOrigin(ctx context.Context, frameIndex int) (x, y, w, h float64, err error)
+}
+
+// Placement is where a frame's content box starts in the top-level viewport,
+// and its size.
+type Placement struct{ X, Y, W, H float64 }
+
+// FramePlacer is implemented by a backend that can place every frame of the
+// page at once, which costs a round trip or two where measuring frame by
+// frame cost several per frame.
+type FramePlacer interface {
+	// PlaceFrames places every frame it can, by frame index. A frame it
+	// could not measure is missing from the map.
+	PlaceFrames(ctx context.Context) (map[int]Placement, error)
+}
+
 // FrameOffset measures where frame frameIndex of p sits in the top-level
-// viewport, from inside the frame. It fails for a frame with a cross-origin
-// document between it and the top, which hides window.frameElement: such a
-// frame is not entered at all (see the DSL contract), because a click Firefox
-// dispatches from the top level never reaches it — the step passed with
-// nothing clicked — and Chromium runs it in a process of its own.
+// viewport. A same-origin frame measures itself through frameElement, in one
+// evaluation. A cross-origin one is measured from outside when the backend
+// can (FrameLocator); a frame with no size — a tracking pixel, a hidden
+// widget — is reported as an error, since there is nothing in it to act on.
 func FrameOffset(ctx context.Context, p Page, frameIndex int) (float64, float64, error) {
 	if frameIndex == 0 {
 		return 0, 0, nil
@@ -47,10 +69,30 @@ func FrameOffset(ctx context.Context, p Page, frameIndex int) (float64, float64,
 		OK   bool
 		X, Y float64
 	}
-	if json.Unmarshal(raw, &o) != nil || !o.OK {
-		return 0, 0, fmt.Errorf("frame %d is cross-origin to the page; it is not entered", frameIndex)
+	if json.Unmarshal(raw, &o) == nil && o.OK {
+		return o.X, o.Y, nil
 	}
-	return o.X, o.Y, nil
+	loc, ok := p.(FrameLocator)
+	if !ok {
+		return 0, 0, fmt.Errorf("frame %d is cross-origin to the page and cannot be placed", frameIndex)
+	}
+	x, y, w, h, err := loc.FrameOrigin(ctx, frameIndex)
+	if err != nil {
+		return 0, 0, fmt.Errorf("frame %d: %w", frameIndex, err)
+	}
+	if w*h < 4 {
+		return 0, 0, fmt.Errorf("frame %d is not displayed", frameIndex)
+	}
+	return x, y, nil
+}
+
+// frameBox decodes pagejs.FrameBox.
+func frameBox(raw []byte) (x, y, w, h float64, err error) {
+	var b *struct{ X, Y, W, H float64 }
+	if err := json.Unmarshal(raw, &b); err != nil || b == nil {
+		return 0, 0, 0, 0, fmt.Errorf("frame element not found (%s)", strings.TrimSpace(string(raw)))
+	}
+	return b.X, b.Y, b.W, b.H, nil
 }
 
 type framedPage struct {

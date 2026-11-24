@@ -1,0 +1,19 @@
+<!doctype html><html><head><title>Card</title></head>
+<body style="font-family:sans-serif;margin:8px">
+<!-- A payment form on another site, as Stripe's and every PSP's is. -->
+<form id="f">
+  <label for="card">Card number</label> <input id="card" autocomplete="off">
+  <button type="button" id="pay">Pay now</button>
+</form>
+<p id="state">Card not checked</p>
+<iframe src="cardhelp.html" width="300" height="70" style="border:0"></iframe>
+<script>
+document.getElementById('f').addEventListener('submit', function (e) {
+  e.preventDefault();
+  document.getElementById('state').textContent = 'Card checked: ' + document.getElementById('card').value;
+});
+document.getElementById('pay').addEventListener('click', function () {
+  parent.postMessage({paid: true, card: document.getElementById('card').value}, '*');
+});
+</script>
+</body></html>

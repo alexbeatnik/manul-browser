@@ -13,11 +13,16 @@
 >
 > **Frames.** Elements inside an `<iframe>` are found, acted on and verified
 > like any other, with nothing to switch into: the snapshot, text VERIFY,
-> WAIT FOR and EXTRACT read every iframe whose documents are same-origin all
-> the way up to the page, nested ones included. A cross-origin iframe (an
-> embedded player, a payment widget, an ad) is not entered on either backend,
-> so a target inside one fails as not found. UPLOAD into a field inside an
-> iframe is not supported and fails saying so.
+> WAIT FOR and EXTRACT read every iframe of the page, nested ones included,
+> same-origin or not — a payment form, an embedded player, a live example —
+> and frames held in open shadow roots too. A cross-site frame Chromium runs
+> in a process of its own is attached as a session of its own; Firefox gets
+> every pointer action over a cross-origin frame sent to that frame's own
+> context, and every key to the frame that holds the focus, since a click it
+> dispatches from the top never arrives there. A frame with no size (a
+> tracking pixel, a hidden widget) is left out, and so is one that does not
+> answer within 2 seconds. Frames in closed shadow roots cannot be reached.
+> UPLOAD into a field inside an iframe is not supported and fails saying so.
 >
 > **Waiting for a target.** An action whose target is not on the page yet —
 > products fetched after load, a form that appears after a click — is not
@@ -177,7 +182,7 @@
       "uiText": "DRAG '' and drop it into ''",
       "snippet": "DRAG '${1:source}' and drop it into '${2:destination}'",
       "regex": null,
-      "description": "Drags one element and drops it onto another. Detected by the 'drag' + 'drop' verbs (case-insensitive). A source or destination that nothing on the page matches fails the step with failure_reason not_found. The drag is a pointer drag — press on the source, moves across, release on the target — which is what pointer-event libraries listen to, and on Chromium also starts a native HTML5 drag. Firefox starts none from WebDriver actions, so there a source that is or sits inside an element with draggable=\"true\" is dragged by dispatching the HTML5 drag events in the page instead: dragstart and drag on it, dragenter and dragover on the target, drop only if dragover was cancelled (a target that does not cancel it refuses the drop, as in a browser), then dragend, all sharing one DataTransfer. That substitution is made in the top document only, not for a draggable inside an iframe. Interaction mode: drag.",
+      "description": "Drags one element and drops it onto another. Detected by the 'drag' + 'drop' verbs (case-insensitive). A source or destination that nothing on the page matches fails the step with failure_reason not_found. The drag is a pointer drag — press on the source, moves across, release on the target — which is what pointer-event libraries listen to, and on Chromium also starts a native HTML5 drag. Firefox starts none from WebDriver actions, so there a source that is or sits inside an element with draggable=\"true\" is dragged by dispatching the HTML5 drag events in the page instead: dragstart and drag on it, dragenter and dragover on the target, drop only if dragover was cancelled (a target that does not cancel it refuses the drop, as in a browser), then dragend, all sharing one DataTransfer. That substitution is made in the document the drag starts in when that is the page or a cross-origin frame (a drag over one is sent to the frame's own context); a draggable inside a same-origin iframe still gets the pointer, which starts no HTML5 drag in Firefox. Interaction mode: drag.",
       "category": "interaction",
       "interactionMode": "drag"
     },
@@ -236,7 +241,7 @@
       "uiText": "EXTRACT the '' into {variable}",
       "snippet": "EXTRACT the '${1:target}' into {${2:variable}}",
       "regex": "\\bEXTRACT\\b",
-      "description": "Extracts the text content of a resolved element and stores it into a runtime variable for use in subsequent steps. A target that names a form control reads what the control currently holds instead of the text around it — this is how a value written by FILL is read back. The control is named when its label, placeholder, aria-label, title, name, id or test id is the target (case, surrounding whitespace and a trailing ':' or '*' aside), when the text the target matched turns out to be its <label>, or — for a control with no name of its own — when the element just before it is a caption that reads exactly as the target (\"<p>Number</p><input>\", or the table cell beside the one holding the field). An <input> or <textarea> answers with its value, a <select> with the option it shows as selected (the option text, not its value attribute), a contenteditable or role=textbox element with its text. An empty control extracts as an empty string and the step passes; text that is not found, or is empty, still fails the step. Checkboxes, radios, buttons and file inputs are not read this way. What the main document does not have is looked for in each same-origin iframe in turn, and the first that answers is read. In a table — <table> with <th>/<td>, or one drawn with ARIA roles (role=table/grid, columnheader, row, cell/gridcell) — a target naming a row and a column ('Chrome CPU') reads that cell.",
+      "description": "Extracts the text content of a resolved element and stores it into a runtime variable for use in subsequent steps. A target that names a form control reads what the control currently holds instead of the text around it — this is how a value written by FILL is read back. The control is named when its label, placeholder, aria-label, title, name, id or test id is the target (case, surrounding whitespace and a trailing ':' or '*' aside), when the text the target matched turns out to be its <label>, or — for a control with no name of its own — when the element just before it is a caption that reads exactly as the target (\"<p>Number</p><input>\", or the table cell beside the one holding the field). An <input> or <textarea> answers with its value, a <select> with the option it shows as selected (the option text, not its value attribute), a contenteditable or role=textbox element with its text. An empty control extracts as an empty string and the step passes; text that is not found, or is empty, still fails the step. Checkboxes, radios, buttons and file inputs are not read this way. What the main document does not have is looked for in each iframe in turn, and the first that answers is read. In a table — <table> with <th>/<td>, or one drawn with ARIA roles (role=table/grid, columnheader, row, cell/gridcell) — a target naming a row and a column ('Chrome CPU') reads that cell.",
       "category": "data"
     },
     {
@@ -245,7 +250,7 @@
       "uiText": "VERIFY that '' is present",
       "snippet": "VERIFY that '${1:target}' is ${2|present,NOT present,ENABLED,DISABLED,checked,NOT checked|}",
       "regex": "\\bVERIFY\\b",
-      "description": "Asserts that an element or text is present, not present, enabled, disabled, checked, or not checked. Fails the mission on mismatch. State is read off the element whether or not it is disabled — 'is disabled' finds the disabled control, and a read-only checkbox still reports 'is checked'. Text compares the way it reads: case-insensitively, with every run of whitespace, line breaks and no-break spaces included, counted as one space on both sides, so two spans shown on one line as 'Shopping cart (1)' match although the page's innerText breaks them apart. A text check that could not read the page at all fails rather than concluding the text is absent. The text read includes that of every shadow root however deeply nested, a top-level child of each at a time, so text drawn by web components (archive.org, Lit and Stencil apps) is seen, and so is the text of every same-origin <iframe>, nested ones included. A cross-origin iframe's text is not read. A text check polls for up to the step timeout until it is satisfied: 'is present' until the text appears, 'is NOT present' until it is gone — so a negated check passes on the first look when the text is absent, and waits for text that is still disappearing.",
+      "description": "Asserts that an element or text is present, not present, enabled, disabled, checked, or not checked. Fails the mission on mismatch. State is read off the element whether or not it is disabled — 'is disabled' finds the disabled control, and a read-only checkbox still reports 'is checked'. Text compares the way it reads: case-insensitively, with every run of whitespace, line breaks and no-break spaces included, counted as one space on both sides, so two spans shown on one line as 'Shopping cart (1)' match although the page's innerText breaks them apart. A text check that could not read the page at all fails rather than concluding the text is absent. The text read includes that of every shadow root however deeply nested, a top-level child of each at a time, so text drawn by web components (archive.org, Lit and Stencil apps) is seen, and so is the text of every <iframe>, nested ones included. A cross-origin iframe's text is read as well. A text check polls for up to the step timeout until it is satisfied: 'is present' until the text appears, 'is NOT present' until it is gone — so a negated check passes on the first look when the text is absent, and waits for text that is still disappearing.",
       "category": "assertion"
     },
     {

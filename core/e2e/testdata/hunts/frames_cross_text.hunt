@@ -1,6 +1,6 @@
-@title: A cross-origin frame's text is not read
+@title: A cross-origin frame's text is read
 STEP 1: Text
     NAVIGATE to @SITE@/frames.html
     VERIFY that 'Host page' is present
-    VERIFY that 'Cross origin text' is NOT present
+    VERIFY that 'Cross origin text' is present
 DONE.

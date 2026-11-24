@@ -2078,7 +2078,10 @@ func (rt *Runtime) visibleText(ctx context.Context) ([]byte, error) {
 		return nil, err
 	}
 	for _, f := range rt.enteredFrames(ctx) {
-		if more, err := rt.page.CallProbeInFrame(ctx, f.Index, heuristics.BuildVisibleTextProbe(), nil); err == nil {
+		fctx, cancel := context.WithTimeout(ctx, frameTimeout)
+		more, err := rt.page.CallProbeInFrame(fctx, f.Index, heuristics.BuildVisibleTextProbe(), nil)
+		cancel()
+		if err == nil {
 			text = append(append(text, ' '), more...)
 		}
 	}
@@ -2091,22 +2094,42 @@ func (rt *Runtime) pageFor(el dom.ElementSnapshot) browser.Page {
 	return browser.InFrame(rt.page, el.FrameIndex)
 }
 
-// enteredFrames are the page's iframes the engine looks into: every one that
-// can be evaluated in and whose document is same-origin all the way up to the
-// page, each with where its viewport sits on the page's. A cross-origin iframe
-// is left out on both backends — Chromium runs it in a process of its own,
-// and Firefox does not deliver a top-level click into it.
+// frameTimeout bounds what one iframe may take to answer. A page carries
+// iframes the hunt never asked about — ads, trackers, chat widgets — and one
+// that hangs must not stall the step.
+const frameTimeout = 2 * time.Second
+
+// enteredFrames are the page's iframes the engine looks into, each with where
+// its viewport sits on the page's: every one that can be evaluated in and
+// placed, same-origin or not. A frame with no size — a tracking pixel, a
+// hidden widget — is left out, and so is one that does not answer in time.
 func (rt *Runtime) enteredFrames(ctx context.Context) []enteredFrame {
 	frames, err := rt.page.Frames(ctx)
 	if err != nil || len(frames) < 2 {
 		return nil
 	}
 	var out []enteredFrame
+	if placer, ok := rt.page.(browser.FramePlacer); ok {
+		pctx, cancel := context.WithTimeout(ctx, frameTimeout)
+		placed, err := placer.PlaceFrames(pctx)
+		cancel()
+		if err == nil {
+			for _, f := range frames {
+				if p, ok := placed[f.Index]; ok && f.Index != 0 && p.W*p.H >= 4 {
+					out = append(out, enteredFrame{FrameRef: f, dx: p.X, dy: p.Y})
+				}
+			}
+			return out
+		}
+	}
 	for _, f := range frames {
 		if f.Index == 0 {
 			continue
 		}
-		if dx, dy, err := browser.FrameOffset(ctx, rt.page, f.Index); err == nil {
+		fctx, cancel := context.WithTimeout(ctx, frameTimeout)
+		dx, dy, err := browser.FrameOffset(fctx, rt.page, f.Index)
+		cancel()
+		if err == nil {
 			out = append(out, enteredFrame{FrameRef: f, dx: dx, dy: dy})
 		}
 	}
@@ -2124,10 +2147,13 @@ type enteredFrame struct {
 func (rt *Runtime) frameElements(ctx context.Context) []dom.ElementSnapshot {
 	var out []dom.ElementSnapshot
 	for _, f := range rt.enteredFrames(ctx) {
-		if _, err := rt.page.EvalJSInFrame(ctx, f.Index, pagejs.SeedFrameIDs); err != nil {
+		fctx, cancel := context.WithTimeout(ctx, frameTimeout)
+		if _, err := rt.page.EvalJSInFrame(fctx, f.Index, pagejs.SeedFrameIDs); err != nil {
+			cancel()
 			continue
 		}
-		raw, err := rt.page.CallProbeInFrame(ctx, f.Index, heuristics.BuildSnapshotProbe(), nil)
+		raw, err := rt.page.CallProbeInFrame(fctx, f.Index, heuristics.BuildSnapshotProbe(), nil)
+		cancel()
 		if err != nil {
 			continue
 		}

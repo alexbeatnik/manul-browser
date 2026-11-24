@@ -1,0 +1,14 @@
+<!doctype html><html><head><title>Checkout</title>
+<style>body{font-family:sans-serif} iframe{border:6px solid #888;padding:4px;margin:30px 0 0 50px}</style></head>
+<body>
+<h1>Checkout</h1>
+<p>Order status: <span id="status">unpaid</span></p>
+<!-- A tracking pixel from another site: displayed nowhere, never entered. -->
+<iframe src="@XSITE@/cross.html" width="0" height="0" style="border:0;padding:0;margin:0"></iframe>
+<iframe id="psp" src="@XSITE@/card.html" width="420" height="200"></iframe>
+<script>
+addEventListener('message', function (e) {
+  if (e.data && e.data.paid) document.getElementById('status').textContent = 'paid with ' + e.data.card;
+});
+</script>
+</body></html>

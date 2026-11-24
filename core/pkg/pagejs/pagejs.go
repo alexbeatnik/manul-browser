@@ -670,6 +670,93 @@ const FrameOffset = `(() => {
 	return JSON.stringify({ok: true, x: x, y: y});
 })()`
 
+// frameBoxBody measures an <iframe> element `f` from the document holding it:
+// where its content box starts in that document's viewport, and its size.
+const frameBoxBody = `var r = f.getBoundingClientRect(), cs = getComputedStyle(f);
+		var pl = parseFloat(cs.paddingLeft) || 0, pt = parseFloat(cs.paddingTop) || 0;
+		var pr = parseFloat(cs.paddingRight) || 0, pb = parseFloat(cs.paddingBottom) || 0;
+		var shown = cs.display !== 'none' && cs.visibility !== 'hidden';
+		return JSON.stringify({x: r.left + f.clientLeft + pl, y: r.top + f.clientTop + pt,
+			w: shown ? Math.max(0, f.clientWidth - pl - pr) : 0, h: shown ? Math.max(0, f.clientHeight - pt - pb) : 0});`
+
+// allFrames lists every <iframe> and <frame> of the document, open shadow
+// roots included: a web component that embeds a frame keeps it in its shadow
+// root, where querySelectorAll does not look. MDN's live examples are five
+// cross-site frames, none of them in the light DOM.
+const allFrames = `function () {
+		var out = [];
+		(function walk(root) {
+			root.querySelectorAll('*').forEach(function (e) {
+				if (/^I?FRAME$/.test(e.tagName)) out.push(e);
+				if (e.shadowRoot) walk(e.shadowRoot);
+			});
+		})(document);
+		return out;
+	}`
+
+// FrameWindows lists the window of every frame of the document, in the order
+// allFrames finds them. Over WebDriver BiDi a window serializes to its
+// browsing-context id, even a cross-origin one, which is what ties a frame's
+// context to the element that holds it; FrameBox(i) then measures the i-th.
+const FrameWindows = `(` + allFrames + `)().map(function (f) { return f.contentWindow; })`
+
+// FrameBoxes measures every frame of the document in one evaluation: for
+// each, [its window, x, y, w, h] as FrameBox gives them. Placing every frame
+// of a page one at a time cost several round trips each, and a page with ten
+// ad frames spent seconds on it in every step.
+const FrameBoxes = `(` + allFrames + `)().map(function (f) {
+	var b = JSON.parse((function () { ` + frameBoxBody + ` })());
+	return [f.contentWindow, b.x, b.y, b.w, b.h];
+})`
+
+// FrameBox measures the i-th <iframe> or <frame> of the document: where its
+// content box starts in this document's viewport, and its width and height
+// (0 for one not displayed). A cross-origin frame cannot measure itself —
+// window.frameElement is null there — so it is measured from outside.
+func FrameBox(i int) string {
+	return fmt.Sprintf(`(() => {
+		var f = (%s)()[%d];
+		if (!f) return JSON.stringify(null);
+		%s
+	})()`, allFrames, i, frameBoxBody)
+}
+
+// FrameBoxOn is FrameBox for an element handed over as this — Chrome's
+// Runtime.callFunctionOn, on the node DOM.getFrameOwner names.
+const FrameBoxOn = `function () { var f = this; ` + frameBoxBody + ` }`
+
+// CrossFrameAt reports the cross-origin frame at viewport point (x, y), if
+// that is what is there: [its window, where its content box starts]. A
+// same-origin frame answers null — a click dispatched at this document
+// reaches into it — and so does anything else.
+func CrossFrameAt(x, y float64) string {
+	return fmt.Sprintf(`(() => {
+		var f = document.elementFromPoint(%[1]g, %[2]g);
+		// Into open shadow roots: from outside, the point is over the host.
+		while (f && f.shadowRoot) {
+			var d = f.shadowRoot.elementFromPoint(%[1]g, %[2]g);
+			if (!d || d === f) break;
+			f = d;
+		}
+		if (!f || !/^I?FRAME$/.test(f.tagName)) return null;
+		var same = false;
+		try { same = !!f.contentDocument; } catch (_) {}
+		if (same) return null;
+		var b = JSON.parse((function () { %[3]s })());
+		return [f.contentWindow, b.x, b.y];
+	})()`, x, y, frameBoxBody)
+}
+
+// CrossFrameFocused answers the window of the cross-origin frame that holds
+// the focus, or null: a key dispatched at this document goes no further.
+const CrossFrameFocused = `(() => {
+	var f = document.activeElement;
+	while (f && f.shadowRoot && f.shadowRoot.activeElement) f = f.shadowRoot.activeElement;
+	if (!f || !/^I?FRAME$/.test(f.tagName)) return null;
+	try { if (f.contentDocument) return null; } catch (_) {}
+	return [f.contentWindow];
+})()`
+
 // SeedFrameIDs starts a frame's element-ID counter far from every other
 // frame's, before its first snapshot. Each window numbers its own elements
 // from zero, so element 7 of an iframe and element 7 of the page were the

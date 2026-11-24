@@ -1336,9 +1336,9 @@ func TestActions_InsideAFrameAreRoutedToIt(t *testing.T) {
 	}
 }
 
-// What a cross-origin frame holds is out of reach, and says so: CLICK on it
-// is not found instead of a click into it that Firefox never delivers.
-func TestActions_CrossOriginFrameIsNotEntered(t *testing.T) {
+// A cross-origin frame that is not displayed — the ad in framedFormPage has
+// no size — is not entered: there is nothing in it to act on.
+func TestActions_UndisplayedCrossOriginFrameIsNotEntered(t *testing.T) {
 	page := framedFormPage()
 	_, err := runSource(t, page, "CLICK the 'Buy now' button\n")
 	if err == nil || !strings.Contains(err.Error(), "not found") {
@@ -1346,5 +1346,24 @@ func TestActions_CrossOriginFrameIsNotEntered(t *testing.T) {
 	}
 	if len(page.Clicks) != 0 {
 		t.Errorf("clicked %v", page.Clicks)
+	}
+}
+
+// A cross-origin frame cannot say where it is (frameElement is null there),
+// so it used to be left out: a payment form in one could not be filled. It
+// is measured from outside, and its elements land on the page's viewport.
+func TestActions_CrossOriginFrameIsEnteredWhereItIsMeasured(t *testing.T) {
+	page := framedFormPage()
+	doc := page.FrameDocs[2]
+	doc.Size = [2]float64{300, 150}
+	page.FrameDocs[2] = doc
+	page.FrameOffsets[2] = [2]float64{400, 500}
+	if _, err := runSource(t, page, "CLICK the 'Buy now' button\n"); err != nil {
+		t.Fatal(err)
+	}
+	ad := doc.Elements[0].Rect
+	want := Point{400 + ad.Left + ad.Width/2, 500 + ad.Top + ad.Height/2}
+	if len(page.Clicks) != 1 || page.Clicks[0] != want {
+		t.Errorf("clicks = %v, want %v", page.Clicks, want)
 	}
 }

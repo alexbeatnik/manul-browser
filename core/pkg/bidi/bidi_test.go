@@ -438,3 +438,21 @@ func TestIntercept_BlocksThePageAndAnswersARequest(t *testing.T) {
 		t.Errorf("continueRequest params = %v", m.paramsFor("network.continueRequest"))
 	}
 }
+
+// iframe.contentWindow is how a frame's context is named from the document
+// that holds it, across origins too. It used to decode to nil, like every
+// type the probes did not return.
+func TestDecodeRemoteValue_WindowIsItsContext(t *testing.T) {
+	v, err := decodeRemoteValue([]byte(`{"type":"array","value":[{"type":"window","value":{"context":"17179869185"}},{"type":"number","value":68}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	items, _ := v.([]interface{})
+	if len(items) != 2 {
+		t.Fatalf("got %#v", v)
+	}
+	w, _ := items[0].(map[string]interface{})
+	if w["context"] != "17179869185" {
+		t.Errorf("window = %#v, want its context id", items[0])
+	}
+}

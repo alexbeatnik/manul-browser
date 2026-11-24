@@ -209,7 +209,8 @@ func (p *BiDiPage) CallProbe(ctx context.Context, fn string, arg any) ([]byte, e
 }
 
 func (p *BiDiPage) Click(ctx context.Context, x, y float64) error {
-	return bidi.Click(ctx, p.conn, p.contextID, x, y)
+	target, x, y := p.routePoint(ctx, x, y)
+	return bidi.Click(ctx, p.conn, target, x, y)
 }
 
 func (p *BiDiPage) Focus(ctx context.Context, id int, xpath string) error {
@@ -238,20 +239,34 @@ func (p *BiDiPage) ScrollPage(ctx context.Context, direction, container string) 
 }
 
 func (p *BiDiPage) DoubleClick(ctx context.Context, x, y float64) error {
-	return bidi.DoubleClick(ctx, p.conn, p.contextID, x, y)
+	target, x, y := p.routePoint(ctx, x, y)
+	return bidi.DoubleClick(ctx, p.conn, target, x, y)
 }
 
 func (p *BiDiPage) RightClick(ctx context.Context, x, y float64) error {
-	return bidi.RightClick(ctx, p.conn, p.contextID, x, y)
+	target, x, y := p.routePoint(ctx, x, y)
+	return bidi.RightClick(ctx, p.conn, target, x, y)
 }
 
 func (p *BiDiPage) Hover(ctx context.Context, x, y float64) error {
-	return bidi.Hover(ctx, p.conn, p.contextID, x, y)
+	target, x, y := p.routePoint(ctx, x, y)
+	return bidi.Hover(ctx, p.conn, target, x, y)
 }
 
+// DragAndDrop is routed by where it starts. A drag whose two ends are in
+// different cross-origin frames cannot be one action sequence in either, so it
+// is sent to the page as it is.
 func (p *BiDiPage) DragAndDrop(ctx context.Context, fromX, fromY, toX, toY float64) error {
-	return dragHTML5First(ctx, p.eval, fromX, fromY, toX, toY, func() error {
-		return bidi.DragAndDrop(ctx, p.conn, p.contextID, fromX, fromY, toX, toY)
+	target, fx, fy := p.routePoint(ctx, fromX, fromY)
+	dropTarget, tx, ty := p.routePoint(ctx, toX, toY)
+	if target != dropTarget {
+		target, fx, fy, tx, ty = p.contextID, fromX, fromY, toX, toY
+	}
+	eval := func(ctx context.Context, expr string) (interface{}, error) {
+		return bidi.Evaluate(ctx, p.conn, target, expr)
+	}
+	return dragHTML5First(ctx, eval, fx, fy, tx, ty, func() error {
+		return bidi.DragAndDrop(ctx, p.conn, target, fx, fy, tx, ty)
 	})
 }
 
@@ -432,8 +447,10 @@ func decodeJSONString(val interface{}, out interface{}) error {
 	return json.Unmarshal([]byte(s), out)
 }
 
+// DispatchKey goes to the context that holds the focus, which is a
+// cross-origin frame's own when a field inside one has it.
 func (p *BiDiPage) DispatchKey(ctx context.Context, key string, modifiers int) error {
-	return bidi.DispatchKey(ctx, p.conn, p.contextID, normalizeKeyName(key), modifiers)
+	return bidi.DispatchKey(ctx, p.conn, p.routeFocus(ctx), normalizeKeyName(key), modifiers)
 }
 
 func (p *BiDiPage) CurrentURL(ctx context.Context) (string, error) {

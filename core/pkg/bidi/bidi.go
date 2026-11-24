@@ -768,9 +768,22 @@ func (rv remoteValue) decode() (interface{}, error) {
 		// shared reference — so that is what survives the decode.
 		return map[string]interface{}{"sharedId": rv.SharedID}, nil
 
+	case "window":
+		// A WindowProxy is how a frame's browsing context is named from the
+		// document that holds it: iframe.contentWindow serializes to the
+		// child's context id, even across origins. That is what ties an
+		// <iframe> element to the context its document runs in.
+		var w struct {
+			Context string `json:"context"`
+		}
+		if err := json.Unmarshal(rv.Value, &w); err != nil || w.Context == "" {
+			return nil, nil
+		}
+		return map[string]interface{}{"context": w.Context}, nil
+
 	default:
-		// function, symbol, error, promise, proxy, window, typedarray… none of
-		// which the engine's probes return.
+		// function, symbol, error, promise, proxy, typedarray… none of which
+		// the engine's probes return.
 		return nil, nil
 	}
 }

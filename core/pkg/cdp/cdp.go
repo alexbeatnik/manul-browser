@@ -106,7 +106,14 @@ func EvaluateInContext(ctx context.Context, c *Conn, contextID int, expression s
 	if contextID == 0 {
 		return Evaluate(ctx, c, expression)
 	}
-	res, err := c.Call(ctx, "Runtime.evaluate", map[string]interface{}{
+	return EvaluateInSession(ctx, c, "", contextID, expression)
+}
+
+// EvaluateInSession evaluates in an execution context of an attached session
+// — an out-of-process iframe's. Context ids are numbered per session, so the
+// id alone does not say which document it is.
+func EvaluateInSession(ctx context.Context, c *Conn, sessionID string, contextID int, expression string) (interface{}, error) {
+	res, err := c.CallSession(ctx, sessionID, "Runtime.evaluate", map[string]interface{}{
 		"expression":    expression,
 		"returnByValue": true,
 		"awaitPromise":  true,
