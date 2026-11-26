@@ -161,6 +161,13 @@ top-level viewport's. What bit on the way:
 - MDN keeps its frames in a shadow root, where `querySelectorAll` and
   `elementFromPoint` do not look; the pagejs frame helpers walk open shadow
   roots.
+- A node reference (CDP `objectId`, BiDi `sharedId`) belongs to the context it
+  was taken in, so UPLOAD into a frame resolves the field there and sets the
+  files on that frame's session or context.
+- From the top, `elementFromPoint` over a same-origin frame is the `<iframe>`
+  itself, so Firefox's HTML5-drag substitution never saw the draggable in
+  it. The drag check descends into any frame (`routeAnyFrame`); the pointer
+  only into cross-origin ones, which is all it needs.
 
 **Firefox starts no HTML5 drag from WebDriver actions.** A pointer drag over
 `draggable="true"` fired nothing the page listens for, however slowly it moved,
@@ -201,6 +208,15 @@ only while it has changed nothing. `rt.acted` is set at every point where a
 step types, clicks, chooses, scrolls or presses; a new mutation without it is
 a step that can run twice — `TestWait_AStepThatHasActedIsNotRunAgain` typed
 8 times without the flag.
+
+**`innerText` keeps transparent text.** It leaves out `display:none` and
+`visibility:hidden`, not `opacity:0`, and opacity is not inherited: the text
+inside a faded-out block has an opacity of 1 of its own. So `VERIFY … is NOT
+present` failed on text nobody could see. `visible_text_probe.js` finds the
+topmost transparent elements (under 0.01, the snapshot's bar) and takes each
+one's text out of the page text once — once, so the same words shown
+elsewhere stay present. A test that recognises a probe by a fragment of its
+code breaks when the probe changes; compare with the probe itself.
 
 **Snapshot caching hides change.** The cache makes resolution cheap within a
 step. Any polling loop must call `invalidateSnapshot()` each iteration or it

@@ -22,7 +22,7 @@
 // @CROSS@ another port of 127.0.0.1 serving the same files — cross-origin
 // but the same site — and @XSITE@ that second server under the name
 // localhost, which is another site: Chrome runs a frame from it in a process
-// of its own.
+// of its own. @TESTDATA@ is the absolute path of testdata/, for UPLOAD.
 package e2e
 
 import (
@@ -175,7 +175,13 @@ func runHunt(t *testing.T, browser string, required bool, path string, o *origin
 	if err != nil {
 		t.Fatal(err)
 	}
-	src := o.replace(string(raw))
+	// @TESTDATA@ is where files a hunt hands the page (UPLOAD) live; the hunt
+	// itself runs from a temporary copy, so a path beside it would not be.
+	testdata, err := filepath.Abs("testdata")
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := strings.ReplaceAll(o.replace(string(raw)), "@TESTDATA@", filepath.ToSlash(testdata))
 	want := readExpectations(src)
 
 	dir := t.TempDir()

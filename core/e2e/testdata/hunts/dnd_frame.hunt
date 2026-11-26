@@ -1,0 +1,12 @@
+@title: HTML5 and pointer drag inside a same-origin iframe
+STEP 1: A refused drop leaves the card where it was
+    NAVIGATE to @SITE@/dndframe.html
+    DRAG 'Write report' and drop it into 'Locked'
+    VERIFY that 'drag ended without drop' is present
+STEP 2: An accepted drop moves it
+    DRAG 'Write report' and drop it into 'Done'
+    VERIFY that 'moved card1 to done' is present
+STEP 3: A pointer-based drag still uses the pointer
+    DRAG 'Slider knob' and drop it into 'Pointer target'
+    VERIFY that 'pointer drop ok' is present
+DONE.

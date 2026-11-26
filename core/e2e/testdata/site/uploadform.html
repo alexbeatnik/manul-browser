@@ -1,0 +1,14 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Upload form</title></head>
+<body style="font-family:sans-serif;margin:8px">
+<label for="doc">Attachment</label> <input type="file" id="doc">
+<p id="picked">nothing picked</p>
+<script>
+// The same form in both frames, captioned apart.
+if (location.search === '?b') document.querySelector('label').textContent = 'Evidence';
+document.getElementById('doc').addEventListener('change', function (e) {
+  var f = e.target.files[0];
+  document.getElementById('picked').textContent = document.querySelector('label').textContent +
+    ' got ' + (f ? f.name + ' (' + f.size + ' bytes)' : 'none');
+});
+</script>
+</body></html>

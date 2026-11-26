@@ -1,0 +1,24 @@
+@title: EXTRACT returns the value, not its caption
+# expect-output: price=[$24.50]
+# expect-output: total=[42 items]
+# expect-output: shipping=[Free]
+# expect-output: order=[1234]
+# expect-output: status=[Shipped]
+# expect-output: weight=[2 kg]
+# expect-output: name=[Manul Plush]
+# expect-output: gift=[Gift wrap]
+STEP 1: Captions in their many forms
+    NAVIGATE to @SITE@/extract.html
+    EXTRACT the 'Price' into {price}
+    EXTRACT the 'Total' into {total}
+    EXTRACT the 'Shipping' into {shipping}
+    EXTRACT the 'Order' into {order}
+    EXTRACT the 'Status' into {status}
+    EXTRACT the 'Weight' into {weight}
+    PRINT "price=[{price}] total=[{total}] shipping=[{shipping}] order=[{order}]"
+    PRINT "status=[{status}] weight=[{weight}]"
+STEP 2: Text that is not a caption comes back whole
+    EXTRACT the 'Manul Plush' into {name}
+    EXTRACT the 'Gift' into {gift}
+    PRINT "name=[{name}] gift=[{gift}]"
+DONE.

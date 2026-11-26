@@ -253,19 +253,28 @@ func (p *BiDiPage) Hover(ctx context.Context, x, y float64) error {
 	return bidi.Hover(ctx, p.conn, target, x, y)
 }
 
-// DragAndDrop is routed by where it starts. A drag whose two ends are in
-// different cross-origin frames cannot be one action sequence in either, so it
-// is sent to the page as it is.
+// DragAndDrop is routed by where it starts. The HTML5 drag events are
+// dispatched in the innermost frame under both ends, same-origin or not —
+// from the top, elementFromPoint sees only the <iframe>, and a draggable in a
+// same-origin frame got the pointer, which starts no drag in Firefox. The
+// pointer itself goes where routePoint sends it. A drag whose two ends are in
+// different frames cannot be one sequence in either, so it is sent to the
+// page as it is.
 func (p *BiDiPage) DragAndDrop(ctx context.Context, fromX, fromY, toX, toY float64) error {
+	doc, dfx, dfy := p.routeAnyFrame(ctx, fromX, fromY)
+	dropDoc, dtx, dty := p.routeAnyFrame(ctx, toX, toY)
+	if doc != dropDoc {
+		doc, dfx, dfy, dtx, dty = p.contextID, fromX, fromY, toX, toY
+	}
 	target, fx, fy := p.routePoint(ctx, fromX, fromY)
 	dropTarget, tx, ty := p.routePoint(ctx, toX, toY)
 	if target != dropTarget {
 		target, fx, fy, tx, ty = p.contextID, fromX, fromY, toX, toY
 	}
 	eval := func(ctx context.Context, expr string) (interface{}, error) {
-		return bidi.Evaluate(ctx, p.conn, target, expr)
+		return bidi.Evaluate(ctx, p.conn, doc, expr)
 	}
-	return dragHTML5First(ctx, eval, fx, fy, tx, ty, func() error {
+	return dragHTML5First(ctx, eval, dfx, dfy, dtx, dty, func() error {
 		return bidi.DragAndDrop(ctx, p.conn, target, fx, fy, tx, ty)
 	})
 }
@@ -295,6 +304,20 @@ func (p *BiDiPage) SetFileInput(ctx context.Context, id int, xpath string, fileP
 		return fmt.Errorf("SetFileInput: resolve file input: %w", err)
 	}
 	return bidi.SetFiles(ctx, p.conn, p.contextID, sharedID, filePaths)
+}
+
+// setFileInputInFrame resolves the node in the frame's own context and sets
+// the files there: a node reference belongs to the context it came from.
+func (p *BiDiPage) setFileInputInFrame(ctx context.Context, frameIndex, id int, xpath string, filePaths []string) error {
+	contextID, err := p.frameContextID(ctx, frameIndex)
+	if err != nil {
+		return err
+	}
+	sharedID, err := bidi.EvaluateNode(ctx, p.conn, contextID, pagejs.FileInput(id, xpath))
+	if err != nil {
+		return fmt.Errorf("SetFileInput: resolve file input: %w", err)
+	}
+	return bidi.SetFiles(ctx, p.conn, contextID, sharedID, filePaths)
 }
 
 func (p *BiDiPage) Screenshot(ctx context.Context) ([]byte, error) {

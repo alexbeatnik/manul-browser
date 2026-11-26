@@ -67,11 +67,49 @@
         });
         return out;
     };
+    // A caption names the value; it is not part of it. "Price: $24.50" is
+    // the value "$24.50" of 'Price', and <dt>Total</dt><dd>42</dd> the value
+    // "42" of 'Total'. The whole text used to come back, caption and all.
+    //
+    // Only a caption that is the target, and only when the rest reads as a
+    // value: after ':', '=' or a dash, or after a space when it starts like a
+    // number or an amount. 'Manul' on "Manul Plush" is the text itself.
+    var VALUE_START = /^[\d$\u20ac\u00a3\u20b4\u00a5+\-\u2212.,(]/;
+    var afterCaption = function(text) {
+        var lower = text.toLowerCase();
+        if (!wanted || lower.indexOf(wanted) !== 0) return null;
+        var rest = text.slice(wanted.length);
+        var sep = rest.match(/^\s*[:=\u2014\u2013-]+\s*/);
+        if (sep) {
+            rest = rest.slice(sep[0].length).trim();
+            return rest || null;
+        }
+        rest = rest.trim();
+        if (rest && /^\s/.test(text.slice(wanted.length)) && VALUE_START.test(rest)) return rest;
+        return null;
+    };
+    // An element that is the caption and nothing else, in a form that marks it
+    // as one, gives the value beside it.
+    var CAPTION_TAGS = ['DT', 'TH', 'LABEL'];
+    var besideCaption = function(el, text) {
+        if (asName(text) !== wanted) return null;
+        var next = el.nextElementSibling;
+        if (!next) return null;
+        var marked = CAPTION_TAGS.indexOf(el.tagName) >= 0 || /:\s*$/.test(text) || next.tagName === 'DD';
+        if (!marked) return null;
+        if (isField(next)) return fieldValue(next);
+        var v = (next.innerText || '').trim();
+        return v || null;
+    };
     // Text that turns out to be a field's label answers with the field.
     var textOrField = function(el) {
         var lbl = el.closest('label');
         if (lbl && isField(lbl.control)) return fieldValue(lbl.control);
-        return el.innerText.trim();
+        var text = el.innerText.trim();
+        var beside = besideCaption(el, text);
+        if (beside !== null) return beside;
+        var after = afterCaption(text);
+        return after !== null ? after : text;
     };
 
     // Strategy 0: a form control the target names outright. Ahead of the text
@@ -231,6 +269,27 @@
                 return cells2[cells2.length - 1].innerText.trim();
             }
         }
+    }
+    // Strategy 2b: an element captioned by the target — "Order 1234",
+    // <dt>Total</dt>. Ahead of the broad search, which takes the first
+    // element that merely contains the word: 'Order' found the heading
+    // "Order summary" above "Order 1234". The shortest caption wins.
+    if (wanted) {
+        var captioned = null, captionedLen = Infinity;
+        var candidates = Array.from(document.querySelectorAll(ALL_TAGS));
+        for (var cj = 0; cj < candidates.length; cj++) {
+            var el = candidates[cj];
+            if ((el.textContent || '').length > wanted.length + 200) continue;
+            var t = (el.innerText || '').trim();
+            if (!t || t.toLowerCase().indexOf(wanted) !== 0) continue;
+            var v = besideCaption(el, t);
+            if (v === null) v = afterCaption(t);
+            if (v !== null && t.length < captionedLen) {
+                captioned = v;
+                captionedLen = t.length;
+            }
+        }
+        if (captioned !== null) return captioned;
     }
     // Strategy 3: broad text search
     if (target) {

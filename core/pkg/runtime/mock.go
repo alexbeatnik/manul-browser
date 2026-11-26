@@ -9,6 +9,7 @@ import (
 
 	"github.com/alexbeatnik/manul-browser/core/pkg/browser"
 	"github.com/alexbeatnik/manul-browser/core/pkg/dom"
+	"github.com/alexbeatnik/manul-browser/core/pkg/heuristics"
 	"github.com/alexbeatnik/manul-browser/core/pkg/pagejs"
 )
 
@@ -270,7 +271,7 @@ func (m *MockPage) CallProbeInFrame(ctx context.Context, frameIndex int, fn stri
 	if strings.Contains(fn, "elements:") { // the snapshot probe
 		return json.Marshal(dom.PageSnapshot{Elements: doc.Elements})
 	}
-	if strings.Contains(fn, "t.toLowerCase()") { // the visible-text probe
+	if fn == heuristics.BuildVisibleTextProbe() {
 		return []byte(strings.ToLower(doc.Text)), nil
 	}
 	return nil, nil

@@ -729,7 +729,14 @@ const FrameBoxOn = `function () { var f = this; ` + frameBoxBody + ` }`
 // that is what is there: [its window, where its content box starts]. A
 // same-origin frame answers null — a click dispatched at this document
 // reaches into it — and so does anything else.
-func CrossFrameAt(x, y float64) string {
+func CrossFrameAt(x, y float64) string { return frameAt(x, y, false) }
+
+// FrameAt is CrossFrameAt for any frame, same-origin ones too: what a drag
+// needs to find the element it starts on, which elementFromPoint at the top
+// reports as the <iframe> itself.
+func FrameAt(x, y float64) string { return frameAt(x, y, true) }
+
+func frameAt(x, y float64, anyOrigin bool) string {
 	return fmt.Sprintf(`(() => {
 		var f = document.elementFromPoint(%[1]g, %[2]g);
 		// Into open shadow roots: from outside, the point is over the host.
@@ -741,10 +748,10 @@ func CrossFrameAt(x, y float64) string {
 		if (!f || !/^I?FRAME$/.test(f.tagName)) return null;
 		var same = false;
 		try { same = !!f.contentDocument; } catch (_) {}
-		if (same) return null;
+		if (same && !%[4]t) return null;
 		var b = JSON.parse((function () { %[3]s })());
 		return [f.contentWindow, b.x, b.y];
-	})()`, x, y, frameBoxBody)
+	})()`, x, y, frameBoxBody, anyOrigin)
 }
 
 // CrossFrameFocused answers the window of the cross-origin frame that holds

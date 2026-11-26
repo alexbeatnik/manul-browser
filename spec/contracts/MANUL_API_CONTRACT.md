@@ -62,7 +62,7 @@
     {
       "name": "ReadText",
       "signature": "(*Session) ReadText(ctx context.Context, selector string) (string, error)",
-      "description": "Returns the case-preserved, shadow-DOM-aware visible text of the page, sanitized of markup noise (base64/data-*/SVG path data). Pass a CSS selector to scope to a region; pass \"\" for the whole body. A selector that matches nothing returns \"\" with a nil error — the region is not there, which is not the whole page. A selector that is not valid CSS returns ErrBadSelector. Single probe round-trip."
+      "description": "Returns the case-preserved, shadow-DOM-aware visible text of the page, sanitized of markup noise (base64/data-*/SVG path data). Transparent text (opacity under 0.01, on the element or around it) is left out, as text VERIFY leaves it out: the topmost transparent elements each take their text out once, so the same words shown elsewhere stay; a region that is itself transparent reads as \"\". Pass a CSS selector to scope to a region; pass \"\" for the whole body. A selector that matches nothing returns \"\" with a nil error — the region is not there, which is not the whole page. A selector that is not valid CSS returns ErrBadSelector. Single probe round-trip."
     },
     {
       "name": "Step",

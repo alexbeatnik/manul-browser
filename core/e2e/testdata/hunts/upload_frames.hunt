@@ -1,0 +1,10 @@
+@title: UPLOAD into a field inside an iframe
+STEP 1: A same-origin frame
+    NAVIGATE to @SITE@/upload.html
+    UPLOAD '@TESTDATA@/files/notes.txt' to 'Attachment'
+    VERIFY that 'Attachment got notes.txt (17 bytes)' is present
+    VERIFY that 'Evidence got' is NOT present
+STEP 2: A cross-site frame (its own process in Chrome)
+    UPLOAD '@TESTDATA@/files/notes.txt' to 'Evidence'
+    VERIFY that 'Evidence got notes.txt (17 bytes)' is present
+DONE.

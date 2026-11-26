@@ -180,11 +180,21 @@ func MustMarshalString(v interface{}) string {
 }
 
 func evaluateObjectID(ctx context.Context, c *Conn, expression string) (string, error) {
-	res, err := c.Call(ctx, "Runtime.evaluate", map[string]interface{}{
+	return evaluateObjectIDIn(ctx, c, "", 0, expression)
+}
+
+// evaluateObjectIDIn is evaluateObjectID in a given session and execution
+// context; 0 is the session's default context.
+func evaluateObjectIDIn(ctx context.Context, c *Conn, sessionID string, contextID int, expression string) (string, error) {
+	params := map[string]interface{}{
 		"expression":    expression,
 		"returnByValue": false,
 		"awaitPromise":  true,
-	})
+	}
+	if contextID != 0 {
+		params["contextId"] = contextID
+	}
+	res, err := c.CallSession(ctx, sessionID, "Runtime.evaluate", params)
 	if err != nil {
 		return "", err
 	}
@@ -593,6 +603,22 @@ func (c *Conn) SetFileInput(ctx context.Context, id int, xpath string, filePaths
 	// does, so it answered 0 and every upload failed with "Could not find
 	// node with given id".
 	_, err = c.Call(ctx, "DOM.setFileInputFiles", map[string]interface{}{
+		"objectId": objectID,
+		"files":    filePaths,
+	})
+	return err
+}
+
+// SetFileInputIn is SetFileInput for a field inside an iframe: the node is
+// resolved in the frame's own execution context, and the files are set on
+// the session that owns it — an out-of-process iframe's, for a cross-site
+// one.
+func (c *Conn) SetFileInputIn(ctx context.Context, sessionID string, contextID int, id int, xpath string, filePaths []string) error {
+	objectID, err := evaluateObjectIDIn(ctx, c, sessionID, contextID, pagejs.FileInput(id, xpath))
+	if err != nil {
+		return fmt.Errorf("SetFileInput: resolve file input: %w", err)
+	}
+	_, err = c.CallSession(ctx, sessionID, "DOM.setFileInputFiles", map[string]interface{}{
 		"objectId": objectID,
 		"files":    filePaths,
 	})

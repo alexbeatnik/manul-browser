@@ -142,10 +142,19 @@ func (f *framedPage) ClearHighlight(ctx context.Context) error {
 	return err
 }
 
-// SetFileInput is not routed into frames: both backends hand the browser a
-// node reference taken from the main document's evaluation.
+// frameFiles is a backend that can set the files of a field inside a frame.
+// Both hand the browser a node reference, and a reference belongs to the
+// execution context it was taken from — the main document's is no use for a
+// field in a frame.
+type frameFiles interface {
+	setFileInputInFrame(ctx context.Context, frameIndex, id int, xpath string, filePaths []string) error
+}
+
 func (f *framedPage) SetFileInput(ctx context.Context, id int, xpath string, filePaths []string) error {
-	return fmt.Errorf("UPLOAD into a field inside an <iframe> is not supported")
+	if ff, ok := f.Page.(frameFiles); ok {
+		return ff.setFileInputInFrame(ctx, f.frame, id, xpath, filePaths)
+	}
+	return fmt.Errorf("UPLOAD into a field inside an <iframe> is not supported by this backend")
 }
 
 // GetElementCenter scrolls the element into view — which scrolls the page

@@ -1,5 +1,5 @@
 @title: An action waits for a target that has not arrived yet
-# expect-output: price=[Price: $24.50]
+# expect-output: price=[$24.50]
 STEP 1: Products that arrive after load
     NAVIGATE to @SITE@/late.html
     CLICK the 'Add to cart' button

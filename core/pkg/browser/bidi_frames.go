@@ -103,9 +103,19 @@ func windowContext(v interface{}) string {
 // has to be sent to, and the point in that context's viewport: the page
 // itself, unless the point is over a cross-origin frame.
 func (p *BiDiPage) routePoint(ctx context.Context, x, y float64) (string, float64, float64) {
+	return p.routeInto(ctx, x, y, pagejs.CrossFrameAt)
+}
+
+// routeAnyFrame is routePoint into the innermost frame at the point, same-
+// origin ones included.
+func (p *BiDiPage) routeAnyFrame(ctx context.Context, x, y float64) (string, float64, float64) {
+	return p.routeInto(ctx, x, y, pagejs.FrameAt)
+}
+
+func (p *BiDiPage) routeInto(ctx context.Context, x, y float64, at func(x, y float64) string) (string, float64, float64) {
 	contextID := p.contextID
 	for depth := 0; depth < maxFrameDepth; depth++ {
-		val, err := bidi.Evaluate(ctx, p.conn, contextID, pagejs.CrossFrameAt(x, y))
+		val, err := bidi.Evaluate(ctx, p.conn, contextID, at(x, y))
 		if err != nil {
 			break
 		}

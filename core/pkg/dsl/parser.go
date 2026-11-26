@@ -1647,15 +1647,23 @@ func keywordIndex(s, keyword string) int {
 }
 
 // stripInlineComment drops a trailing "# comment". Only a '#' that stands
-// alone — whitespace before it, whitespace or nothing after — and sits outside
-// quotes counts, so URL fragments, CSS ids and colours are left intact.
+// alone — whitespace before it and after it — and sits outside quotes
+// counts, so URL fragments, CSS ids and colours are left intact. A '#' that
+// ends the line with nothing after it is not a comment either: it is the key
+// in `PRESS #`, which used to be stripped and leave a step that parsed as
+// nothing.
 func stripInlineComment(line string) string {
 	masked := maskQuoted(line)
-	for i := 1; i < len(masked); i++ {
+	start := 1
+	// The key of PRESS # stands alone too; it is never the comment.
+	if up := strings.ToUpper(line); strings.HasPrefix(up, "PRESS # ") || up == "PRESS #" {
+		start = len("PRESS #")
+	}
+	for i := start; i < len(masked); i++ {
 		if masked[i] != '#' || (masked[i-1] != ' ' && masked[i-1] != '\t') {
 			continue
 		}
-		if i+1 == len(masked) || masked[i+1] == ' ' || masked[i+1] == '\t' {
+		if i+1 < len(masked) && (masked[i+1] == ' ' || masked[i+1] == '\t') {
 			return strings.TrimSpace(line[:i])
 		}
 	}

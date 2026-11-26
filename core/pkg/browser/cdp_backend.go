@@ -555,6 +555,18 @@ func (p *CDPPage) SetFileInput(ctx context.Context, id int, xpath string, filePa
 	return p.conn.SetFileInput(ctx, id, xpath, filePaths)
 }
 
+func (p *CDPPage) setFileInputInFrame(ctx context.Context, frameIndex, id int, xpath string, filePaths []string) error {
+	t, err := p.ensureTracker(ctx)
+	if err != nil {
+		return err
+	}
+	session, contextID := t.TargetForIndex(frameIndex)
+	if contextID == 0 {
+		return errNoFrameContext(frameIndex)
+	}
+	return p.conn.SetFileInputIn(ctx, session, contextID, id, xpath, filePaths)
+}
+
 func (p *CDPPage) Screenshot(ctx context.Context) ([]byte, error) {
 	return cdp.Screenshot(ctx, p.conn)
 }
