@@ -1,0 +1,10 @@
+[
+  {"name": "Local fixture: form in iframes", "url": "@LOCAL@/frames.html", "tab": "127.0.0.1", "click": {"role": "button", "name": "Host button"}},
+  {"name": "Local fixture: order summary", "url": "@LOCAL@/extract.html", "tab": "127.0.0.1"},
+  {"name": "the-internet: home", "url": "https://the-internet.herokuapp.com/", "click": {"role": "link", "name": "Form Authentication"}},
+  {"name": "Sauce Demo: login", "url": "https://www.saucedemo.com/", "click": {"role": "button", "name": "Login"}},
+  {"name": "Books to Scrape: catalogue", "url": "https://books.toscrape.com/", "click": {"role": "link", "name": "Travel"}},
+  {"name": "Wikipedia: Web browser", "url": "https://en.wikipedia.org/wiki/Web_browser", "settle": 2500, "click": {"role": "link", "name": "Talk"}},
+  {"name": "GitHub: microsoft/playwright", "url": "https://github.com/microsoft/playwright", "settle": 3000, "click": {"role": "link", "name": "Issues"}},
+  {"name": "MDN: <button> reference", "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/button", "settle": 3000, "click": {"role": "link", "name": "Specifications"}}
+]

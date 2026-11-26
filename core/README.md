@@ -19,21 +19,21 @@ This is the engine itself, and the only implementation of it: the `.hunt` DSL, t
 
 ### Built for agents — and it's measurably cheaper on tokens
 
-An agent has to *see* a page before it can act. A browser driver like Playwright or Selenium doesn't help here — it gives *code* access to the page, not the model. An LLM agent built on one still has to serialize the page into the prompt, and the usual ways are raw HTML or the accessibility snapshot — both expensive. `manul map` instead emits a compact, landmark-grouped view of just the labelled, interactive elements. Measured with the GPT-4 tokenizer (`cl100k_base`) on representative pages:
+An agent has to *see* a page before it can act. Playwright MCP shows it an accessibility snapshot of the whole page, and acts on elements through refs taken from it — refs that every action invalidates, so the next action needs a fresh snapshot. `manul map` emits a compact, landmark-grouped view of the labelled, interactive elements, and `manul run-step` acts on a label, which does not go stale. Measured on the same Chrome tab with `cl100k_base` (2026-11-26, `@playwright/mcp` 0.0.86):
 
-| What an agent feeds the model to perceive a page | Tokens | vs `manul map` |
-| --- | --- | --- |
-| Raw HTML (page source) | 2,216 – 2,241 | **4–8× more** |
-| Accessibility tree (role + name) | 1,384 – 1,912 | **3.6–5× more** |
-| **`manul map` (compact JSON)** | **278 – 528** | **1×** |
+| | Playwright MCP | Manul | |
+| --- | ---: | ---: | --- |
+| Seeing a page — 8 pages, from a local fixture to Wikipedia and MDN | 258 – 60,581 | 29 – 3,126 | **2.8–21× fewer** (2.1–8.9× with no budget on `map`) |
+| A whole task — sign in, add to cart, check the cart on Sauce Demo | 4,314 (10 calls) | 916 (9 calls) | **4.7× fewer** |
+| Tool definitions sent with every request | 4,484 | — | |
 
-So the perception step that every browser-agent pays on *every* turn costs **~4–8× fewer tokens** than dumping HTML, and **~3.6–5× fewer** than the a11y tree. These are clean synthetic pages — real-world HTML is far more bloated, so the gap widens in practice.
+A snapshot and a map do not hold the same thing — the snapshot also carries the page's text — and the method, the caveats and a script to rerun it all are in [Token efficiency](docs/token-efficiency.md).
 
 Authoring is also leaner and far more durable: the same flow written as a `.hunt` file carries **zero CSS/XPath selectors** to break when the markup shifts.
 
 > **Status: Alpha.** Solo-developed, actively battle-tested. Bugs are expected, APIs may evolve, and there are no promises about stability or production readiness. The core claim is transparency: when a step works, you can see exactly why; when it fails, you get the scoring breakdown to diagnose it.
 
-> **📖 Full Documentation:** [Overview](docs/overview.md) · [Installation](docs/installation.md) · [Getting Started](docs/getting-started.md) · [DSL Syntax](docs/dsl-syntax.md) · [DSL for LLMs](docs/dsl-for-llms.md) · [Reports & Explainability](docs/reports.md) · [Integration](docs/integration.md) · [Extensions](docs/extensions.md) · [Loops & Page Objects](docs/loops-and-pages.md)
+> **📖 Full Documentation:** [Overview](docs/overview.md) · [Installation](docs/installation.md) · [Getting Started](docs/getting-started.md) · [DSL Syntax](docs/dsl-syntax.md) · [DSL for LLMs](docs/dsl-for-llms.md) · [Reports & Explainability](docs/reports.md) · [Integration](docs/integration.md) · [Extensions](docs/extensions.md) · [Loops & Page Objects](docs/loops-and-pages.md) · [Token Efficiency](docs/token-efficiency.md)
 
 ---
 
