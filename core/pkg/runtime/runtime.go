@@ -956,7 +956,10 @@ func (rt *Runtime) executeCommandOnce(ctx context.Context, cmd dsl.Command) (res
 				// Perform interaction
 				rt.armNavigationWatch(ctx)
 				rt.acted = true
-				err = rt.page.Click(ctx, x, y)
+				err = rt.pointerAction(ctx, winner, func() error { return rt.page.Click(ctx, x, y) })
+				if errors.Is(err, errPointerSwallowed) {
+					res.FailureReason = explain.ReasonActionFailed
+				}
 				if err == nil {
 					// A click may trigger navigation or AJAX update.
 					if waitErr := rt.page.Wait(ctx, 500*time.Millisecond); waitErr != nil {
@@ -976,7 +979,7 @@ func (rt *Runtime) executeCommandOnce(ctx context.Context, cmd dsl.Command) (res
 				err = e
 			} else {
 				rt.acted = true
-				err = rt.page.DoubleClick(ctx, x, y)
+				err = rt.pointerAction(ctx, winner, func() error { return rt.page.DoubleClick(ctx, x, y) })
 				err = rt.settleAfterPointer(ctx, err)
 			}
 		case dsl.CmdRightClick:
@@ -985,7 +988,7 @@ func (rt *Runtime) executeCommandOnce(ctx context.Context, cmd dsl.Command) (res
 				err = e
 			} else {
 				rt.acted = true
-				err = rt.page.RightClick(ctx, x, y)
+				err = rt.pointerAction(ctx, winner, func() error { return rt.page.RightClick(ctx, x, y) })
 				err = rt.settleAfterPointer(ctx, err)
 			}
 		case dsl.CmdHover:

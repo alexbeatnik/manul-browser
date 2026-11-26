@@ -184,6 +184,12 @@ BiDi backend dispatches the drag events itself for such a source
 **A click goes to coordinates, not to an element.** Whatever is on top at that
 point receives it, and the step used to pass. `clickPoint` asks the page first
 (`pagejs.CoveredBy`) and fails the step if something else would get the click.
+What it cannot see is browser UI above the page: in a browser the engine did
+not launch, the password manager's prompt after a sign-in took the clicks, and
+CLICK passed with nothing clicked. `pointerAction` counts the pointer events
+the element's document receives (a capture listener on window, not on the
+element, which may replace itself under the pointer); none means a second try,
+then a failed step.
 
 **A page that is leaving still says `complete`.** After a click, a sort
 dropdown's change or Enter in a form, the old document keeps

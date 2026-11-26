@@ -22,9 +22,10 @@
   "protocolVersions": ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"],
   "versionNegotiation": "initialize answers with the protocolVersion the client asked for when it is one of protocolVersions, and with the first (newest) otherwise; the client decides whether it can continue.",
 
+  "connectorName": "manul-browser — the name the server reports, and the one the documentation registers it under (claude mcp add manul-browser, mcpServers.manul-browser). A client shows it, and names the tools after it: mcp__manul-browser__step.",
   "initializeResult": {
     "capabilities": { "tools": { "listChanged": false } },
-    "serverInfo": { "name": "manul", "title": "Manul Browser", "version": "<engine version, e.g. 0.1.6>", "websiteUrl": "https://github.com/alexbeatnik/manul-browser" },
+    "serverInfo": { "name": "manul-browser", "title": "Manul Browser", "version": "<engine version, e.g. 0.1.6>", "websiteUrl": "https://github.com/alexbeatnik/manul-browser" },
     "instructions": "A short paragraph on how the tools fit together: map to see the labelled controls, step with one line naming one of them, map again only on a new page, VERIFY to check, read/read_text to read, run_hunt for several steps; iframes and new tabs need nothing special."
   },
 

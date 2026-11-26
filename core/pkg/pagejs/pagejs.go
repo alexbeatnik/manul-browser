@@ -594,6 +594,30 @@ const CurrentURL = "window.location.href"
 // ReadyState is the expression whose value is the document's load state.
 const ReadyState = "document.readyState"
 
+// ArmPointerWatch counts the pointer events the document receives from now on,
+// on window in the capture phase, ahead of any handler of the page's that
+// could stop them. PointerReceived then says whether any came.
+//
+// A click is dispatched at coordinates; whether it arrives is the browser's
+// business. In a browser the engine did not launch, the password manager's
+// prompt after a sign-in took clicks meant for the page, and the step passed
+// with nothing clicked.
+const ArmPointerWatch = `(() => {
+	if (!window.__manulPointerHooked) {
+		window.__manulPointerHooked = true;
+		['pointerdown', 'mousedown', 'mouseup', 'click', 'dblclick', 'contextmenu'].forEach(function (t) {
+			window.addEventListener(t, function () { if (window.__manulPointer) window.__manulPointer.n++; }, true);
+		});
+	}
+	window.__manulPointer = {n: 0};
+	return true;
+})()`
+
+// PointerReceived is 1 when the document received a pointer event since
+// ArmPointerWatch, 0 when it received none, and 2 when it is another document
+// — the action navigated, which is an answer of its own.
+const PointerReceived = `(window.__manulPointer ? (window.__manulPointer.n > 0 ? 1 : 0) : 2)`
+
 // ArmNavigationWatch marks the current document before an action, so that
 // NavigationState can tell afterwards whether the action is replacing it.
 //

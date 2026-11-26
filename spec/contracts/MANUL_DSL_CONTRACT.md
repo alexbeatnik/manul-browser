@@ -109,7 +109,7 @@
       "uiText": "CLICK the ''",
       "snippet": "CLICK the '${1:target}'${2: button}",
       "regex": null,
-      "description": "Clicks a resolved element. Detected by the 'click' verb (case-insensitive). Element type hint (button, link, element) after the target is optional but recommended for scoring accuracy. The click is dispatched at the centre of the element, the pointer moved there first, so it would go to whatever is on top of it there. When that is not the element, something inside it, something it is inside, or the <label> it belongs to, the engine waits up to about 1.5s for it to clear and then fails the step naming what is in the way (for example an open date picker or a modal backdrop) — nothing is clicked. After the click the engine waits for any navigation it set off: it marks the document first, and if the page starts to leave it (beforeunload) waits, for at most nav_timeout, until another document has replaced it and finished loading. Until then the old document still reports readyState 'complete', so the next step would run on a page that is about to go. Interaction mode: clickable.",
+      "description": "Clicks a resolved element. Detected by the 'click' verb (case-insensitive). Element type hint (button, link, element) after the target is optional but recommended for scoring accuracy. The click is dispatched at the centre of the element, the pointer moved there first, so it would go to whatever is on top of it there. When that is not the element, something inside it, something it is inside, or the <label> it belongs to, the engine waits up to about 1.5s for it to clear and then fails the step naming what is in the way (for example an open date picker or a modal backdrop) — nothing is clicked. After the click the engine waits for any navigation it set off: it marks the document first, and if the page starts to leave it (beforeunload) waits, for at most nav_timeout, until another document has replaced it and finished loading. Until then the old document still reports readyState 'complete', so the next step would run on a page that is about to go. A click the page never receives fails the step too: the element's document counts the pointer events it gets during the click, and when none arrives — browser UI above the page took it, such as a password manager's prompt after a sign-in in a browser manul attached to — the click is made once more, which cannot act twice since the page saw nothing, and a second miss fails the step with failure_reason action_failed. A document that navigated, or a disabled control, is not counted as a miss. Interaction mode: clickable.",
       "category": "interaction",
       "interactionMode": "clickable"
     },
@@ -119,7 +119,7 @@
       "uiText": "DOUBLE CLICK the ''",
       "snippet": "DOUBLE CLICK the '${1:target}'",
       "regex": null,
-      "description": "Double-clicks a resolved element. Detected by the 'double' + 'click' verbs (case-insensitive). A covered target fails the step, as for CLICK. The snapshot cache is dropped afterwards, so the next step sees what the double click opened. Interaction mode: clickable.",
+      "description": "Double-clicks a resolved element. Detected by the 'double' + 'click' verbs (case-insensitive). A covered target fails the step, as for CLICK, and so does a double click the page never receives. The snapshot cache is dropped afterwards, so the next step sees what the double click opened. Interaction mode: clickable.",
       "category": "interaction",
       "interactionMode": "clickable"
     },
@@ -329,7 +329,7 @@
       "uiText": "RIGHT CLICK ''",
       "snippet": "RIGHT CLICK '${1:target}'",
       "regex": "\\bRIGHT\\s+CLICK\\b",
-      "description": "Right-clicks a resolved element to open a context menu. A covered target fails the step, as for CLICK. The snapshot cache is dropped afterwards, so the next step can target an item of the menu it opened.",
+      "description": "Right-clicks a resolved element to open a context menu. A covered target fails the step, as for CLICK, and so does a right click the page never receives. The snapshot cache is dropped afterwards, so the next step can target an item of the menu it opened.",
       "category": "interaction"
     },
     {

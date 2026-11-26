@@ -244,17 +244,39 @@ with `credentials_enable_service`, `password_manager_enabled` and
 `password_manager_leak_detection` off in `Default/Preferences` it did not. An
 attached browser's profile is not the engine's to rewrite.
 
-What would close it, roughly in order of cost:
+Done:
 
-- **Say so.** The contract and the attach docs should warn that a browser with
-  its password manager on can swallow clicks after a login.
-- **Detect it.** A click whose target received no `click` event is a click that
-  went somewhere else. `clickPoint` already asks the page what is on top before
-  clicking (`pagejs.CoveredBy`); asking afterwards whether the element saw the
-  event would turn this, and any other lost click, into a failed step instead
-  of a passing one.
-- **Avoid it.** Find a CDP way to dismiss or suppress the bubble for the
-  session without touching the profile.
+- **Said so**, in the DSL contract's CLICK and in the integration guide.
+- **Detected.** CLICK, DOUBLE CLICK and RIGHT CLICK count the pointer events
+  the element's document receives (`pagejs.ArmPointerWatch`,
+  `runtime.pointerAction`). None means the click went elsewhere: it is made
+  once more — the page saw nothing, so that cannot act twice — and a second
+  miss fails the step instead of passing it. A window listener in the capture
+  phase rather than one on the element, because an element may replace itself
+  under the pointer (the hover fixture).
+
+Still open:
+
+- **Intermittent, and not yet seen caught.** A local login form over http
+  never brought the trap back: Chrome's "Save password?" bubble takes no
+  clicks, in a window or headless, and the page got every event. On Sauce Demo
+  the likely culprit is the warning that the password was found in a
+  data breach (`secret_sauce` is in the breach lists), which needs a known
+  leaked password on a real site and a hash prefix of it sent to Google, so it
+  was checked by hand on 2026-11-26: it bit in the morning runs and once in
+  the evening, with the engine from before the click check, and not in ten
+  other runs — in a window and headless, with and without `--no-first-run`
+  and `--lang`, old engine and new alike. It depends, most likely, on whether
+  the breach check answers before the next click. The click check fired in
+  none of those runs, falsely or otherwise, and the e2e suite is green with
+  it; whether the second click gets through when the trap does bite, or only
+  the clear failure, is still unknown. The recipe that reproduced it: a fresh
+  headless Chrome profile with nothing written to it (password manager on),
+  the Sauce Demo sign-in and an Add to cart through `manul run --cdp`, run
+  several times with the old engine and the new in turn.
+- **Avoid it.** A CDP way to dismiss or suppress the prompt for the session,
+  without touching a profile that is not the engine's.
+- DRAG, HOVER and the custom-dropdown clicks inside SELECT are not counted.
 
 ### 9. Manul as a Claude app extension
 

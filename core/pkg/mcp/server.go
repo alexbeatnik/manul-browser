@@ -270,7 +270,7 @@ func (s *server) initialize(raw json.RawMessage) map[string]any {
 		"protocolVersion": version,
 		"capabilities":    map[string]any{"tools": map[string]any{"listChanged": false}},
 		"serverInfo": map[string]any{
-			"name":       "manul",
+			"name":       "manul-browser",
 			"title":      "Manul Browser",
 			"version":    s.opts.EngineVersion,
 			"websiteUrl": "https://github.com/alexbeatnik/manul-browser",

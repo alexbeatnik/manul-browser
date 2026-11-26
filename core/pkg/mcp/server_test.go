@@ -210,7 +210,7 @@ func TestInitialize_NegotiatesTheProtocolVersion(t *testing.T) {
 		if res.ProtocolVersion != want {
 			t.Errorf("asked %s, got %s, want %s", asked, res.ProtocolVersion, want)
 		}
-		if res.ServerInfo.Name != "manul" || res.ServerInfo.Version != "9.9.9" || res.Capabilities["tools"] == nil || res.Instructions == "" {
+		if res.ServerInfo.Name != "manul-browser" || res.ServerInfo.Version != "9.9.9" || res.Capabilities["tools"] == nil || res.Instructions == "" {
 			t.Errorf("initialize result: %+v", res)
 		}
 	}

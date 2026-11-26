@@ -207,11 +207,11 @@ Designed for LLM-driven authoring — the grouped output is easy for a model (or
 ### MCP server — Claude Desktop, Claude Code
 
 ```bash
-claude mcp add manul -- manul mcp          # Claude Code
+claude mcp add manul-browser -- manul mcp  # Claude Code
 ```
 
 ```json
-{ "mcpServers": { "manul": { "command": "manul", "args": ["mcp"] } } }
+{ "mcpServers": { "manul-browser": { "command": "manul", "args": ["mcp"] } } }
 ```
 
 The second is Claude Desktop's `claude_desktop_config.json`. `manul mcp` gives an MCP client five tools — `step`, `map`, `read`, `read_text`, `run_hunt` — over stdio, opens the browser with the first call and closes it when the client goes away. Flags such as `--browser firefox`, `--headless`, `--user-data-dir` and `--cdp` go after `mcp`. See [Integration](docs/integration.md#mcp-server-claude-desktop-claude-code) and [`MANUL_MCP_CONTRACT.md`](../spec/contracts/MANUL_MCP_CONTRACT.md).

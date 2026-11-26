@@ -48,7 +48,7 @@ One `Runtime` + `Page` + `ChromeProcess` per worker; register `CALL GO` handlers
 ```json
 {
   "mcpServers": {
-    "manul": { "command": "/usr/local/bin/manul", "args": ["mcp"] }
+    "manul-browser": { "command": "/usr/local/bin/manul", "args": ["mcp"] }
   }
 }
 ```
@@ -56,7 +56,7 @@ One `Runtime` + `Page` + `ChromeProcess` per worker; register `CALL GO` handlers
 **Claude Code**:
 
 ```bash
-claude mcp add manul -- manul mcp
+claude mcp add manul-browser -- manul mcp
 ```
 
 Add flags after `mcp` as needed:
@@ -69,7 +69,7 @@ Add flags after `mcp` as needed:
 | `--cdp http://127.0.0.1:9222` | drive a Chrome you started yourself instead of launching one |
 | `--locale uk-UA` | the language the browser asks pages for |
 
-Logs go to stderr, which Claude Desktop keeps in its MCP log. One caution for `--cdp` against your own browser: with its password manager on, a click after a sign-in can be taken by the manager's own UI ([ROADMAP](../../ROADMAP.md) §missing 8); a profile the engine launches has it off. What each tool returns is in [`MANUL_MCP_CONTRACT.md`](../../spec/contracts/MANUL_MCP_CONTRACT.md), and what it costs in tokens against Playwright MCP is in [token-efficiency.md](token-efficiency.md).
+Logs go to stderr, which Claude Desktop keeps in its MCP log. One caution for `--cdp` against your own browser: with its password manager on, a click after a sign-in can be taken by the manager's own UI. The step notices that the page never received the click, tries once more, and then fails saying so rather than passing ([ROADMAP](../../ROADMAP.md) §missing 8); a profile the engine launches has the manager off. What each tool returns is in [`MANUL_MCP_CONTRACT.md`](../../spec/contracts/MANUL_MCP_CONTRACT.md), and what it costs in tokens against Playwright MCP is in [token-efficiency.md](token-efficiency.md).
 
 ---
 
