@@ -46,13 +46,16 @@ var firefoxChannelBinaries = map[string][]string{
 // on stderr. A cold profile on a slow machine takes several seconds.
 const bidiBannerTimeout = 30 * time.Second
 
-// firefoxDefaultPort is the BiDi port Firefox is given when none is asked for.
-const firefoxDefaultPort = 9222
-
 // LaunchFirefox starts a Firefox process with the WebDriver BiDi agent
 // enabled. It blocks until Firefox has announced its BiDi endpoint (or the
 // context expires). If opts.UserDataDir is empty, a unique temp profile is
 // created and owned by the returned FirefoxProcess.
+//
+// opts.Port 0 lets Firefox take a free port, and the banner names the one it
+// took. Every launch used to ask for 9222, so a second Firefox — a hunt run
+// while `manul mcp --browser firefox` had one open — found the port taken by
+// the first one's agent, and was refused there: "Maximum number of active
+// sessions".
 func LaunchFirefox(ctx context.Context, opts LaunchOptions) (*FirefoxProcess, error) {
 	firefoxPath := opts.ExecutablePath
 	if firefoxPath == "" {
@@ -61,9 +64,6 @@ func LaunchFirefox(ctx context.Context, opts LaunchOptions) (*FirefoxProcess, er
 		if err != nil {
 			return nil, err
 		}
-	}
-	if opts.Port == 0 {
-		opts.Port = firefoxDefaultPort
 	}
 
 	ownsDir := false
@@ -143,7 +143,12 @@ func LaunchFirefox(ctx context.Context, opts LaunchOptions) (*FirefoxProcess, er
 		return nil, fmt.Errorf("firefox started but BiDi endpoint not announced: %w", ctx.Err())
 	case <-time.After(bidiBannerTimeout):
 		// No banner (a build that logs differently, or a redirected stderr).
-		// The port is the contract either way, so fall back to probing it.
+		// A port that was asked for is the contract either way, so fall back
+		// to probing it; a free port Firefox chose is known only from there.
+		if opts.Port == 0 {
+			_ = fp.Close()
+			return nil, fmt.Errorf("firefox started but did not announce its BiDi endpoint within %s", bidiBannerTimeout)
+		}
 		if err := waitForPort(ctx, opts.Port, 5*time.Second); err != nil {
 			_ = fp.Close()
 			return nil, fmt.Errorf("firefox started but BiDi not reachable at %s: %w", fallback, err)

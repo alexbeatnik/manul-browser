@@ -173,6 +173,16 @@ func TestMCP(t *testing.T) {
 			step("SWITCH TO TAB 1")
 			step("VERIFY that 'Shop front' is present")
 
+			// A single-page app's search: the map after Enter showed the
+			// suggestions and no results on YouTube, because the step returned
+			// on the new address before the results had come back.
+			step("NAVIGATE to " + o.site + "/spa.html")
+			step("FILL 'Search' field with 'manul'")
+			step("PRESS ENTER")
+			if m, _ := c.call("map", map[string]any{}); !strings.Contains(m, "'Manul in the snow' [link — CLICK]") {
+				t.Errorf("map after Enter does not show the results:\n%s", m)
+			}
+
 			// Values and prose.
 			step("NAVIGATE to " + o.site + "/extract.html")
 			if v, _ := c.call("read", map[string]any{"target": "Price"}); v != "$24.50" {

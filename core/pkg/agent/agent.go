@@ -49,8 +49,8 @@ import (
 type Options struct {
 	// Headless runs the browser without a visible window. Default: false.
 	Headless bool
-	// Port is the debug port for a Launch-managed browser. 0 → Chromium picks
-	// a free port; Firefox uses 9222.
+	// Port is the debug port for a Launch-managed browser. 0 → the browser
+	// picks a free port.
 	// Ignored by Attach. Connect uses it to both probe for an existing Chrome
 	// (0 → probes 9222) and, failing that, to Launch one.
 	Port int

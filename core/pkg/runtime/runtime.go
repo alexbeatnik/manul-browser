@@ -1995,6 +1995,7 @@ func (rt *Runtime) settleNavigation(ctx context.Context) {
 		}
 	}
 	_ = rt.page.WaitForLoad(limited)
+	rt.settleRoute(limited)
 }
 
 // withNavTimeout bounds ctx by nav_timeout. Zero means no limit, which is

@@ -199,6 +199,17 @@ On a slow server FILL then typed into it and passed. `armNavigationWatch`
 before the action and `settleNavigation` after it watch `beforeunload` instead,
 which fires before the request is sent.
 
+**A single-page app moves without leaving.** On YouTube, Enter in the search
+box changes the address with `pushState` and asks the server for the results:
+no new document, no `beforeunload`, `complete` throughout. The DOM did not
+change at all for the 600 ms the request took, so waiting for it to go quiet
+returns on the old page; the map after the step showed the search suggestions
+and no results. `settleRoute` waits, when the address moved, for the
+`fetch`/XHR requests the page started since `ArmNavigationWatch` and then for
+200 ms without a DOM change, at most 5s. It counts only requests made through
+`window.fetch` at call time and `XMLHttpRequest`; an app that changes its
+address only after its request returns is not seen moving.
+
 **An empty query matches everything.** Pass 3 ranks the controls beside a
 caption with `""`, and `strings.Contains(x, "")` is true — every labelled field
 got the label bonus, and the zip-code field beat the quantity box under 'Qty.'.
@@ -260,7 +271,11 @@ rather than opening a second view, so every page of one endpoint shares a
 single connection (`sharedConn` in `pkg/browser/bidi_backend.go`) and
 identifies itself by browsing-context id. Consequently `BiDiPage.Close` does
 **not** close the socket — doing so would cut off every sibling page,
-including the caller's own tab during a background `Lookup`.
+including the caller's own tab during a background `Lookup`. It is also why
+every launch asked for port 9222 was a trap: a second Firefox — a hunt run
+while `manul mcp --browser firefox` had one open — reached the first one's
+agent on that port and was refused ("Maximum number of active sessions").
+`LaunchFirefox` passes port 0 and reads the port Firefox took from its banner.
 
 **BiDi sends no events until asked.** `Conn.Subscribe` only opens a local
 channel; without `session.subscribe` for the event name, nothing arrives.

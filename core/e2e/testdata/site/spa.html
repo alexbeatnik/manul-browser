@@ -1,0 +1,37 @@
+<!doctype html><html><head><title>Video search</title></head>
+<body style="font-family:sans-serif">
+<h1>Video search</h1>
+<!-- A single-page app, the way YouTube's search is one: Enter changes the
+     address at once, with no new document and no beforeunload, and the
+     results are drawn when the app's own request comes back. Until then the
+     page is the old one, suggestions and all, under the new address. -->
+<form id="search">
+  <label for="q">Search</label> <input id="q" autocomplete="off">
+  <button type="submit">Search</button>
+</form>
+<ul id="suggest"></ul>
+<main id="view"><p>Results: <span>none yet</span></p></main>
+<script>
+var q = document.getElementById('q');
+var view = document.getElementById('view');
+q.oninput = function () {
+  document.getElementById('suggest').innerHTML = q.value
+    ? '<li>' + q.value + ' live</li><li>' + q.value + ' lyrics</li>' : '';
+};
+function show(page) {
+  history.pushState({}, '', '?q=' + encodeURIComponent(q.value) + '&page=' + page);
+  fetch('/slow?ms=900').then(function (r) { return r.text(); }).then(function () {
+    document.getElementById('suggest').innerHTML = '';
+    var titles = page === 1
+      ? ['Manul in the snow', 'Manul at the zoo', 'Manul kittens']
+      : ['Manul on the hunt', 'Manul yawns'];
+    view.innerHTML = '<p>Results: <span>' + titles.length + ' on page ' + page + '</span></p>' +
+      titles.map(function (t) { return '<p><a href="#">' + t + '</a></p>'; }).join('') +
+      (page === 1 ? '<p><a href="?page=2" id="next">Next page</a></p>' : '');
+    var next = document.getElementById('next');
+    if (next) next.onclick = function (e) { e.preventDefault(); show(2); };
+  });
+}
+document.getElementById('search').onsubmit = function (e) { e.preventDefault(); show(1); };
+</script>
+</body></html>

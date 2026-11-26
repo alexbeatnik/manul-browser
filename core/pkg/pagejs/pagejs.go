@@ -625,6 +625,11 @@ const PointerReceived = `(window.__manulPointer ? (window.__manulPointer.n > 0 ?
 // one's response arrives, and on a slow server the next step ran on the page
 // that was about to go away. beforeunload fires as the navigation starts,
 // before any request is sent.
+//
+// It also notes the address, and from now on counts the requests the page
+// starts (fetch and XMLHttpRequest) and the time of its last change, for
+// RouteState: a single-page app changes its address without a new document,
+// and draws what the new address shows when its own request comes back.
 const ArmNavigationWatch = `(() => {
 	window.__manulStay = true;
 	window.__manulLeaving = false;
@@ -632,7 +637,55 @@ const ArmNavigationWatch = `(() => {
 		window.__manulWatching = true;
 		window.addEventListener("beforeunload", () => { window.__manulLeaving = true; });
 	}
+	window.__manulHref = location.href;
+	if (!window.__manulNet) {
+		const net = window.__manulNet = {cur: {n: 0}, last: 0};
+		const touch = () => { net.last = performance.now(); };
+		try {
+			new MutationObserver(touch).observe(document, {subtree: true, childList: true, characterData: true});
+		} catch (e) {}
+		const fetch0 = window.fetch;
+		if (typeof fetch0 === "function") {
+			try {
+				window.fetch = function () {
+					const p = fetch0.apply(this, arguments);
+					const a = net.cur;
+					a.n++;
+					const done = () => { a.n--; touch(); };
+					p.then(done, done);
+					return p;
+				};
+			} catch (e) {}
+		}
+		const X = window.XMLHttpRequest;
+		if (X && X.prototype && typeof X.prototype.send === "function") {
+			const send0 = X.prototype.send;
+			try {
+				X.prototype.send = function () {
+					const a = net.cur;
+					let open = true;
+					const done = () => { if (open) { open = false; a.n--; touch(); } };
+					a.n++;
+					this.addEventListener("loadend", done);
+					try { return send0.apply(this, arguments); } catch (e) { done(); throw e; }
+				};
+			} catch (e) {}
+		}
+	}
+	window.__manulNet.cur = {n: 0};
+	window.__manulNet.last = performance.now();
 	return 1;
+})()`
+
+// RouteState says, as JSON, whether the armed document's address has changed
+// (moved), how many of the requests it started since ArmNavigationWatch are
+// still in flight (pending), and for how many milliseconds neither its DOM nor
+// those requests have changed (idle). A document that was never armed has not
+// moved. JSON in a string, because EvalJS hands strings back unquoted.
+const RouteState = `(() => {
+	const net = window.__manulNet;
+	if (!net || window.__manulHref === undefined) return JSON.stringify({moved: false, pending: 0, idle: 0});
+	return JSON.stringify({moved: location.href !== window.__manulHref, pending: net.cur.n, idle: Math.round(performance.now() - net.last)});
 })()`
 
 // NavigationState is 0 when the armed document is still here and nothing is

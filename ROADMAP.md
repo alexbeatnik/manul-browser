@@ -293,10 +293,28 @@ is missing is everything between it and a person installing it:
   Extensions `.dxt` became MCPB).
 - **A Claude Code plugin** — the MCP server configuration plus the
   `hunt-authoring` skill.
-- **Not yet driven by a real Claude app.** The tests speak the protocol the
-  way the official SDK does; neither Claude Desktop nor Claude Code has run it.
+- **Driven by real Claude apps, by hand only.** Claude Desktop started it
+  from `claude_desktop_config.json` and a Claude Code session used its tools
+  on live sites (books.toscrape, YouTube on Firefox); what that found is
+  fixed and has fixtures. No ordinary chat in Claude Desktop has been tried.
 - **§missing 8 first.** An extension will usually be pointed at a person's
   own browser, which is exactly where the password manager swallows clicks.
+
+### 10. Single-page apps the route wait does not see
+
+A CLICK, PRESS or SELECT that changes the address without a new document
+now waits for the requests the page started and for its DOM to go still
+(`runtime.settleRoute`, the `spa` hunt). What it does not cover:
+
+- **An app that changes its address after its request returns**, as routers
+  with data loaders can: when the step looks, the address has not moved, so
+  nothing is waited for, and the step reports the old address.
+- **Requests the page makes through a `fetch` it saved before the step**
+  (`const f = window.fetch` at start-up), through a service worker, or
+  through WebSocket. The DOM wait still applies; the request is not seen.
+- **A click that only fetches** (Add to cart) is not waited for at all. The
+  next step waits for its own target, which covers most of it, but not a
+  target that is already there with its old value.
 
 ---
 

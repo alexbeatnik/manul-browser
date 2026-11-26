@@ -1,0 +1,14 @@
+@title: A step that changes the address waits for what the new address shows
+# expect-output: first=[3 on page 1]
+# expect-output: second=[2 on page 2]
+STEP 1: Enter changes the address; the results come from a request
+    NAVIGATE to @SITE@/spa.html
+    FILL 'Search' field with 'manul'
+    PRESS ENTER
+    EXTRACT the 'Results' into {first}
+    PRINT "first=[{first}]"
+STEP 2: So does a link that the app handles itself
+    CLICK the 'Next page' link
+    EXTRACT the 'Results' into {second}
+    PRINT "second=[{second}]"
+DONE.

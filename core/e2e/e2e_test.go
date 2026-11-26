@@ -36,6 +36,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -92,6 +93,15 @@ func serve(t *testing.T, o *origins) string {
 		if r.URL.Path == "/echo-lang" {
 			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 			_, _ = w.Write([]byte(r.Header.Get("Accept-Language")))
+			return
+		}
+		// A server that takes its time, for the single-page app's own
+		// request: /slow?ms=900.
+		if r.URL.Path == "/slow" {
+			ms, _ := strconv.Atoi(r.URL.Query().Get("ms"))
+			time.Sleep(time.Duration(ms) * time.Millisecond)
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			_, _ = w.Write([]byte("ok"))
 			return
 		}
 		if !strings.HasSuffix(r.URL.Path, ".html") {

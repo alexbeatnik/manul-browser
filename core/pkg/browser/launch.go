@@ -37,8 +37,7 @@ type LaunchOptions struct {
 	// Browser selects the engine: "chromium" (default) or "firefox".
 	Browser string
 	// Port for the browser's remote debugging protocol. 0 (the default) lets
-	// Chromium pick a free port, reported by Process.Endpoint; Firefox uses
-	// 9222.
+	// the browser pick a free port, reported by Process.Endpoint.
 	Port int
 	// UserDataDir is the browser profile directory.
 	// If empty, a unique temp directory is created per run and cleaned up on Close.
