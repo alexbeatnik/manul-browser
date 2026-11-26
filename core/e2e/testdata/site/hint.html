@@ -1,0 +1,26 @@
+<!doctype html><html><head><title>Animated hint</title></head>
+<body style="font-family:sans-serif">
+<h1>Shop</h1>
+<!-- Comfy's search box: the field has no label, only a placeholder, and the
+     page types example searches into the placeholder a letter at a time. The
+     hint the map named the field by is gone by the step that uses it. -->
+<form id="search">
+  <input id="q" name="q" placeholder="Search products">
+  <button type="submit">Find</button>
+</form>
+<p id="out"></p>
+<script>
+var q = document.getElementById('q');
+document.getElementById('search').onsubmit = function (e) {
+  e.preventDefault();
+  document.getElementById('out').textContent = 'Searching for ' + q.value;
+};
+var examples = ['power bank', 'blender', 'kettle'], w = 0, n = 0;
+setTimeout(function tick() {
+  var word = examples[w % examples.length];
+  q.placeholder = word.slice(0, ++n);
+  if (n >= word.length) { n = 0; w++; }
+  setTimeout(tick, 120);
+}, 1500);
+</script>
+</body></html>

@@ -271,7 +271,17 @@ const FULL_SCAN_JS = `() => {
         const ariaLabel = el.getAttribute('aria-label') || '';
         if (ariaLabel.trim()) return ariaLabel.trim();
         const ph = el.getAttribute('placeholder') || '';
-        if (ph.trim()) return ph.trim();
+        if (ph.trim()) {
+            // A label taken from the placeholder is remembered on the
+            // element, where the snapshot probe (pkg/heuristics) records too:
+            // a page may change the placeholder before the step that uses it.
+            const seen = el.__manulPh || (el.__manulPh = []);
+            if (seen.indexOf(ph.trim()) === -1) {
+                seen.push(ph.trim());
+                if (seen.length > 32) seen.shift();
+            }
+            return ph.trim();
+        }
         // A <select>'s text is its options, not its name.
         const text = tag === 'SELECT' ? '' : (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
         if (text && text.length <= 80) return text;

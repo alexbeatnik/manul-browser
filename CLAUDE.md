@@ -216,6 +216,16 @@ got the label bonus, and the zip-code field beat the quantity box under 'Qty.'.
 A scorer that compares the query against an attribute returns 0 for an empty
 query.
 
+**A placeholder is not always the same placeholder.** Comfy's search box has
+no label, and the page types example searches into its placeholder a letter
+at a time. The map named it 'Пошук товарів'; by the FILL that used the name
+the placeholder said 'павер', nothing matched, and the step failed telling the
+agent the label was made up. Both probes — the snapshot's and the map's scan,
+which are different scripts — record every placeholder they see on the
+element (`el.__manulPh`), and `scorePlaceholder` matches any of them. A fixture
+for this needs the map to see a hint that no later one contains: typed
+letter by letter, 'po' is still inside 'power b', and the old scorer passed.
+
 **A new tab is listed before it has a page.** A `target="_blank"` click
 returns with the tab already listed (Chrome's `openerId`, Firefox's
 `originalOpener`) but still on `about:blank`, so following it at once took a

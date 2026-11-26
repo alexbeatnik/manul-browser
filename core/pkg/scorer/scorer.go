@@ -450,15 +450,28 @@ func scoreLabel(q string, el *dom.ElementSnapshot) float64 {
 	return 0.0
 }
 
-// scorePlaceholder returns how well the element's placeholder attribute matches.
+// scorePlaceholder returns how well the element's placeholder attribute
+// matches: the placeholder it shows now, or any it has shown a probe before.
+// A field is the same field when its page animates the hint in it, and the
+// label the map gave it came from the hint shown then.
 func scorePlaceholder(q string, el *dom.ElementSnapshot) float64 {
-	if el.NormPlaceholder == "" || q == "" {
+	best := placeholderMatch(q, el.NormPlaceholder)
+	for _, p := range el.NormPlaceholdersSeen {
+		if s := placeholderMatch(q, p); s > best {
+			best = s
+		}
+	}
+	return best
+}
+
+func placeholderMatch(q, placeholder string) float64 {
+	if placeholder == "" || q == "" {
 		return 0.0
 	}
-	if el.NormPlaceholder == q {
+	if placeholder == q {
 		return 0.7
 	}
-	if strings.Contains(el.NormPlaceholder, q) {
+	if strings.Contains(placeholder, q) {
 		return 0.4
 	}
 	return 0.0

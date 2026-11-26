@@ -183,6 +183,27 @@ func TestMCP(t *testing.T) {
 				t.Errorf("map after Enter does not show the results:\n%s", m)
 			}
 
+			// A field named only by a placeholder the page animates, as
+			// Comfy's search box is: the label the map gave was gone by the
+			// step, and FILL found nothing that matched it.
+			step("NAVIGATE to " + o.site + "/hint.html")
+			m, _ := c.call("map", map[string]any{})
+			hint := ""
+			for _, line := range strings.Split(m, "\n") {
+				if i := strings.Index(line, "' [textbox — FILL]"); i > 0 {
+					if j := strings.Index(line, "'"); j >= 0 && j < i {
+						hint = line[j+1 : i]
+					}
+				}
+			}
+			if hint == "" {
+				t.Fatalf("map shows no field:\n%s", m)
+			}
+			time.Sleep(2 * time.Second) // what a model takes to answer; the hint moves on
+			step("FILL '" + hint + "' field with 'kettle'")
+			step("CLICK the 'Find' button")
+			step("VERIFY that 'Searching for kettle' is present")
+
 			// Values and prose.
 			step("NAVIGATE to " + o.site + "/extract.html")
 			if v, _ := c.call("read", map[string]any{"target": "Price"}); v != "$24.50" {

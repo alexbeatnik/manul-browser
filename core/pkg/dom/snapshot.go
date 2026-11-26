@@ -53,6 +53,11 @@ type ElementSnapshot struct {
 	AccessibleName string `json:"accessible_name,omitempty"`
 	// Placeholder is the placeholder attribute (inputs/textareas).
 	Placeholder string `json:"placeholder,omitempty"`
+	// PlaceholdersSeen is every placeholder a probe has seen the element
+	// show, the current one included, when there has been more than one. A
+	// page that animates its placeholder changes it between the map that
+	// named the field and the step that uses the name.
+	PlaceholdersSeen []string `json:"placeholders_seen,omitempty"`
 	// Title is the title attribute.
 	Title string `json:"title,omitempty"`
 	// DataQA is the data-qa attribute value.
@@ -110,6 +115,8 @@ type ElementSnapshot struct {
 	NormAriaLabel string `json:"-"`
 	// NormPlaceholder is the lowercase-trimmed placeholder.
 	NormPlaceholder string `json:"-"`
+	// NormPlaceholdersSeen is PlaceholdersSeen, lowercase-trimmed.
+	NormPlaceholdersSeen []string `json:"-"`
 	// NormLabelText is the lowercase-trimmed label text.
 	NormLabelText string `json:"-"`
 	// NormDataQA is the lowercase-trimmed data-qa value.
@@ -124,6 +131,10 @@ func (e *ElementSnapshot) Normalize() {
 	e.NormText = norm(e.VisibleText)
 	e.NormAriaLabel = norm(e.AriaLabel)
 	e.NormPlaceholder = norm(e.Placeholder)
+	e.NormPlaceholdersSeen = nil
+	for _, p := range e.PlaceholdersSeen {
+		e.NormPlaceholdersSeen = append(e.NormPlaceholdersSeen, norm(p))
+	}
 	e.NormLabelText = norm(e.LabelText)
 	e.NormDataQA = norm(e.DataQA)
 	e.NormHTMLId = norm(e.HTMLId)
@@ -156,7 +167,7 @@ func (e *ElementSnapshot) IsInteractive(mode string) bool {
 func (e *ElementSnapshot) AllTextSignals() []string {
 	seen := map[string]bool{}
 	var out []string
-	for _, s := range []string{
+	for _, s := range append([]string{
 		e.NormText,
 		e.NormAriaLabel,
 		e.NormPlaceholder,
@@ -170,7 +181,7 @@ func (e *ElementSnapshot) AllTextSignals() []string {
 		norm(e.NameAttr),
 		norm(e.Value),
 		norm(e.IconClasses),
-	} {
+	}, e.NormPlaceholdersSeen...) {
 		if s != "" && !seen[s] {
 			seen[s] = true
 			out = append(out, s)

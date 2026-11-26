@@ -230,6 +230,20 @@
         const labelText   = getLabelText(el);
         const accessibleName = getAccessibleName(el);
 
+        // Every placeholder a probe has seen this element show, the map's
+        // scan included (pkg/scan records into the same expando). Comfy types
+        // example searches into its search box's placeholder a letter at a
+        // time, so the label the map showed had changed before the step that
+        // used it ran, and nothing on the page matched it any more.
+        const placeholder = el.getAttribute('placeholder') || '';
+        if (placeholder.trim()) {
+            const seenPh = el.__manulPh || (el.__manulPh = []);
+            if (seenPh.indexOf(placeholder.trim()) === -1) {
+                seenPh.push(placeholder.trim());
+                if (seenPh.length > 32) seenPh.shift();
+            }
+        }
+
         // Extract icon classes from <i>, <span>, or <svg> children — but not
         // from inside a link or button of their own. Those icons name that
         // control; collected here they made the header around a.cart-icon a
@@ -275,7 +289,8 @@
             input_type:     el.type || '',
             visible_text:   visibleText,
             aria_label:     el.getAttribute('aria-label') || '',
-            placeholder:    el.getAttribute('placeholder') || '',
+            placeholder:    placeholder,
+            placeholders_seen: (el.__manulPh && el.__manulPh.length > 1) ? el.__manulPh.slice() : undefined,
             title:          el.getAttribute('title') || '',
             data_qa:        el.getAttribute('data-qa') || '',
             data_testid:    el.getAttribute('data-testid') || el.getAttribute('data-test') || '',

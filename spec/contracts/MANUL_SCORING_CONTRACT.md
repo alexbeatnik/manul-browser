@@ -190,6 +190,7 @@
       { "key": "accessible_name",     "type": "string",   "description": "aria-label, the text of every <label for> the field has, title or alt; for a link or button with none of those, the alt text of the images inside it. A text signal like the visible text, so <a><img alt='Cart'></a> is the 'Cart' link." },
       { "key": "aria_label",          "type": "string",   "description": "aria-label, title, or aria-labelledby resolved text." },
       { "key": "placeholder",         "type": "string",   "description": "placeholder / data-placeholder / aria-placeholder (lowercased)." },
+      { "key": "placeholders_seen",   "type": "[]string", "description": "Every placeholder a probe has seen the element show — the snapshot probe's and the map's scan, which record into the same expando on the element (at most 32) — the current one included, sent when there has been more than one. The placeholder signals match any of them: a page that animates its placeholder (Comfy types example searches into its search box) has changed it between the map that named the field and the step that uses the name." },
       { "key": "role",                "type": "string",   "description": "ARIA role attribute." },
       { "key": "disabled",            "type": "boolean",  "description": "True if @disabled or .disabled." },
       { "key": "aria_disabled",       "type": "string",   "description": "aria-disabled value ('true' | 'false' | '')." },
