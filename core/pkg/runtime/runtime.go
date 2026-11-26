@@ -2142,6 +2142,24 @@ type enteredFrame struct {
 	dx, dy float64
 }
 
+// FrameView is one iframe the engine enters, as a page of its own: whatever
+// is evaluated on Page runs inside the frame.
+type FrameView struct {
+	URL  string
+	Page browser.Page
+}
+
+// Frames lists the iframes the engine enters — the same ones the snapshot,
+// text VERIFY and EXTRACT read — for callers that look at a page through
+// their own probe, as agent.Map does.
+func (rt *Runtime) Frames(ctx context.Context) []FrameView {
+	var out []FrameView
+	for _, f := range rt.enteredFrames(ctx) {
+		out = append(out, FrameView{URL: f.URL, Page: browser.InFrame(rt.page, f.Index)})
+	}
+	return out
+}
+
 // frameElements snapshots every entered iframe, each element tagged with its
 // frame and its box moved onto the top-level viewport — where proximity is
 // measured and clicks land.

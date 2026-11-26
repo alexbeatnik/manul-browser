@@ -113,6 +113,11 @@ func main() {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			os.Exit(1)
 		}
+	case "mcp":
+		if err := cmdMCP(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
 	case "scan":
 		if err := cmdScan(os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -154,7 +159,7 @@ func main() {
 // `manul ./pages` still runs such a directory.
 var subcommands = map[string]bool{
 	"run": true, "run-step": true, "read": true, "map": true, "schema": true,
-	"serve": true, "scan": true, "record": true, "daemon": true, "pages": true,
+	"serve": true, "mcp": true, "scan": true, "record": true, "daemon": true, "pages": true,
 	"controls": true, "help": true,
 }
 
@@ -1271,6 +1276,7 @@ Usage:
   manul read '<target>' [flags]        Read one value off an open page (zero-scan; --selector for region text)
   manul map [flags]                    Compact landmark-grouped JSON map of the open page (for LLM agents)
   manul schema [--json]                Emit the DSL grammar + agent JSON shapes as an LLM contract
+  manul mcp [flags]                    Serve the engine to MCP clients (Claude Desktop, Claude Code) over stdio
   manul scan <URL> [flags]             Scan a URL and generate a draft .hunt file (--full for grouped scan)
   manul record <URL> [flags]           Record interactions and generate a .hunt file
   manul daemon <directory> [flags]     Run scheduled .hunt files continuously

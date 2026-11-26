@@ -1,0 +1,15 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Travel</title></head>
+<body style="font-family:sans-serif">
+<!-- A bookshop category page, as books.toscrape draws one: the category list
+     beside the books. 'It's Only the Himalayas' used to be read as the target
+     "It", which the category "Spirituality" contains. -->
+<aside>
+  <a href="#" onclick="out.textContent='opened category Spirituality';return false">Spirituality</a>
+  <a href="#" onclick="out.textContent='opened category Travel';return false">Travel</a>
+</aside>
+<main>
+  <a href="#" onclick="out.textContent='opened book Himalayas';return false">It's Only the Himalayas</a>
+  <label for="lic">Driver's licence</label> <input id="lic">
+</main>
+<p id="out">nothing opened</p>
+</body></html>

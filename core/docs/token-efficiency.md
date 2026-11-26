@@ -6,12 +6,15 @@
 
 ## In short
 
-- **Seeing a page.** `manul map` is **2.8–21× smaller** than Playwright MCP's
+- **Seeing a page.** `manul map` is **1.7–18× smaller** than Playwright MCP's
   page snapshot on the pages measured, with its default budget of 8 elements
-  per group. Without any budget it is **2.1–8.9× smaller**.
+  per group. Without any budget it is **1.7–8.9× smaller**.
 - **One task, end to end.** Sign in, add a product, open the cart and check
-  it on Sauce Demo: **916 tokens with Manul against 4,314 with Playwright MCP
-  (4.7× fewer)**. Both finished the task.
+  it on Sauce Demo: **570 tokens through `manul mcp`, 916 through Manul's
+  CLI, against 4,314 through Playwright MCP — 7.6× and 4.7× fewer**. All three
+  finished the task.
+- **Sent with every request.** Manul's five MCP tools and its instructions are
+  **1,165 tokens**; Playwright MCP's 25 tools are **4,484**.
 - **Why.** Playwright acts on elements through refs taken from a snapshot,
   and every action invalidates every ref. So the agent needs a new snapshot
   before each action that targets an element. Manul acts on a label (`CLICK
@@ -27,16 +30,17 @@
 |---|---|
 | Date | 2026-11-26 |
 | Playwright MCP | `@playwright/mcp` 0.0.86 (playwright-core 1.66.0-alpha-2026-11-18), default options |
-| Manul | 0.1.6, its agent CLI: `manul map`, `manul run-step` |
+| Manul | 0.1.6: its MCP server (`manul mcp`) and its agent CLI (`manul map`, `manul run-step`) |
 | Browser | Chrome 157, headless, 1366×768, en-US, password manager off |
 | Tokenizer | `cl100k_base` (js-tiktoken) |
 | Raw data | [`examples/token-bench/results/2026-11-26.json`](../../examples/token-bench/results/2026-11-26.json) |
 
-Both tools attach to **one** Chrome over CDP and read the **same tab**.
-Playwright MCP is driven through its own MCP server over stdio, exactly as an
-agent calls it. What is counted is the text content of each tool's reply,
-which is what the model reads. Manul is called as an agent calls it: one CLI
-command per step, counting what it prints.
+Both tools attach to **one** Chrome over CDP. Playwright MCP and `manul mcp`
+are each driven through their MCP server over stdio, exactly as a Claude app
+calls them, and what is counted is the text content of each tool's reply,
+which is what the model reads. Manul's CLI is called the way a shell-driven
+agent calls it, one command per step, counting what it prints: JSON, where
+`manul mcp` answers in plain language.
 
 Claude's tokenizer is not public. Absolute counts differ between tokenizers;
 the ratios are what this page is about. Two runs gave the same numbers to
@@ -48,14 +52,14 @@ What an agent feeds the model so it can decide what to do next.
 
 | Page | Raw HTML | Playwright snapshot | `manul map`, full | `manul map` (default) | Snapshot ÷ map | Snapshot ÷ full map |
 |---|---:|---:|---:|---:|---:|---:|
-| Local fixture: form in iframes | 172 | 375 | 67 | 67 | 5.6× | 5.6× |
+| Local fixture: form in iframes | 172 | 375 | 225 | 225 | 1.7× | 1.7× |
 | Local fixture: order summary | 208 | 258 | 29 | 29 | 8.9× | 8.9× |
 | the-internet: home | 4,397 | 5,706 | 1,681 | 334 | 17.1× | 3.4× |
-| Sauce Demo: login | 711 | 303 | 110 | 110 | 2.8× | 2.8× |
+| Sauce Demo: login | 711 | 290 | 110 | 110 | 2.6× | 2.6× |
 | Books to Scrape: catalogue | 9,820 | 8,675 | 2,081 | 1,276 | 6.8× | 4.2× |
-| Wikipedia: *Web browser* | 199,072 | 38,008 | 18,476 | 3,126 | 12.2× | 2.1× |
-| GitHub: microsoft/playwright | 182,157 | 20,203 | 4,021 | 1,321 | 15.3× | 5.0× |
-| MDN: `<button>` reference | 37,466 | 60,581 | 11,346 | 2,944 | 20.6× | 5.3× |
+| Wikipedia: *Web browser* | 199,076 | 38,042 | 18,476 | 3,126 | 12.2× | 2.1× |
+| GitHub: microsoft/playwright | 182,116 | 20,207 | 4,021 | 1,321 | 15.3× | 5.0× |
+| MDN: `<button>` reference | 37,466 | 60,580 | 11,690 | 3,288 | 18.4× | 5.2× |
 
 Reading the table:
 
@@ -68,6 +72,9 @@ Reading the table:
   "Form Authentication" was not in the default map. `run-step` still clicked
   it, because Manul finds a target by its label rather than from the map, but
   an agent that had only the map would not have known the link was there.
+- The map covers iframes as steps do. Until `manul mcp` was written it did
+  not, so the iframe fixture's map was a third of its real size (67 tokens
+  against 225) and this table was kinder to Manul than the page.
 - Raw HTML is shown for scale. It includes scripts and styles, which no
   reasonable agent sends. A snapshot can still be larger than the HTML: on
   MDN it is 60,581 tokens against 37,466.
@@ -80,13 +87,15 @@ The reply to a single click, each tool from the same freshly loaded page.
 |---|---:|---:|
 | Local fixture: form in iframes | 131 | 63 |
 | the-internet: home | 194 | 56 |
-| Sauce Demo: login | 122 | 55 |
-| Books to Scrape: catalogue | 206 | 64 |
+| Sauce Demo: login | 111 | 55 |
+| Books to Scrape: catalogue | 208 | 64 |
 | Wikipedia: *Web browser* | 200 | 58 |
 | GitHub: microsoft/playwright | 123 | 65 |
 | MDN: `<button>` reference | 213 | 66 |
 
-Both replies are small. This version of Playwright MCP writes the new page's
+Both replies are small, and `manul mcp`'s are smaller still: a plain-language
+line such as *"OK: CLICK the 'Login' button — the page is now …"* is 23–29
+tokens. This version of Playwright MCP writes the new page's
 snapshot to a file and replies with a link to it, instead of inlining it as
 earlier versions did. The difference that matters is not in the reply. It is
 what each tool needs before it can act:
@@ -101,7 +110,7 @@ what each tool needs before it can act:
 
 Sauce Demo: sign in, add the first product to the cart, open the cart, and
 check the product is in it. Each tool got its cheapest honest route, and the
-benchmark checked that both ended on the cart page with one item in it.
+benchmark checked that each ended on the cart page with the product in it.
 
 **Playwright MCP: 10 calls, 4,314 tokens.** It takes a snapshot only when it
 needs refs it does not have, and checks with `browser_wait_for` rather than
@@ -120,8 +129,23 @@ another snapshot.
 | 9 | `browser_click` Cart | 114 |
 | 10 | `browser_wait_for` "Sauce Labs Backpack" | 130 |
 
-**Manul: 9 calls, 916 tokens.** It maps each new page once and checks with
-`VERIFY`.
+**Manul through `manul mcp`: 9 calls, 570 tokens.** It maps each new page
+once and checks with `VERIFY`.
+
+| # | Call | Tokens |
+|---:|---|---:|
+| 1 | `step` NAVIGATE to https://www.saucedemo.com/ | 29 |
+| 2 | `map`: the login form | 76 |
+| 3 | `step` FILL 'Username' field with 'standard_user' | 27 |
+| 4 | `step` FILL 'Password' field with 'secret_sauce' | 28 |
+| 5 | `step` CLICK the 'Login' button | 24 |
+| 6 | `map`: the product page | 310 |
+| 7 | `step` CLICK the 'Add to cart' button | 26 |
+| 8 | `step` CLICK the 'Cart' button | 23 |
+| 9 | `step` VERIFY that 'Sauce Labs Backpack' is present | 27 |
+
+**Manul through its CLI: 9 calls, 916 tokens.** The same calls, answered in
+JSON.
 
 | # | Call | Tokens |
 |---:|---|---:|
@@ -143,11 +167,15 @@ input on every later turn.
 
 ## Sent with every request
 
-Playwright MCP's 25 tool definitions are **4,484 tokens**. The model receives
-them with every request, whatever the page, unless the client caches them.
-Manul is not an MCP server: how much describing it costs depends on how it is
-exposed, such as a shell tool or a binding, so that cost is not counted here.
-`manul schema` prints the agent API's own description, about 5.7k characters.
+| | Tools | Tokens |
+|---|---:|---:|
+| Playwright MCP: tool definitions | 25 | 4,484 |
+| `manul mcp`: tool definitions | 5 | 997 |
+| `manul mcp`: server instructions | | 168 |
+
+The model receives these with every request, whatever the page, unless the
+client caches them. Manul's CLI is not counted here: how much describing it
+costs depends on how it is exposed, such as a shell tool or a binding.
 
 ## What this does not show
 

@@ -10,11 +10,11 @@
   "pages": [
     {
       "page": "Local fixture: form in iframes",
-      "url": "http://127.0.0.1:51242/frames.html",
+      "url": "http://127.0.0.1:53341/frames.html",
       "rawHTML": 172,
       "playwrightSnapshot": 375,
-      "manulMap": 67,
-      "manulMapFull": 67,
+      "manulMap": 225,
+      "manulMapFull": 225,
       "manulMapTruncated": false,
       "clickTarget": "button \"Host button\"",
       "playwrightClick": 131,
@@ -24,7 +24,7 @@
     },
     {
       "page": "Local fixture: order summary",
-      "url": "http://127.0.0.1:51242/extract.html",
+      "url": "http://127.0.0.1:53341/extract.html",
       "rawHTML": 208,
       "playwrightSnapshot": 258,
       "manulMap": 29,
@@ -49,12 +49,12 @@
       "page": "Sauce Demo: login",
       "url": "https://www.saucedemo.com/",
       "rawHTML": 711,
-      "playwrightSnapshot": 303,
+      "playwrightSnapshot": 290,
       "manulMap": 110,
       "manulMapFull": 110,
       "manulMapTruncated": false,
       "clickTarget": "button \"Login\"",
-      "playwrightClick": 122,
+      "playwrightClick": 111,
       "manulStep": 55,
       "manulStepOK": true,
       "targetInManulMap": true
@@ -68,7 +68,7 @@
       "manulMapFull": 2081,
       "manulMapTruncated": true,
       "clickTarget": "link \"Travel\"",
-      "playwrightClick": 206,
+      "playwrightClick": 208,
       "manulStep": 64,
       "manulStepOK": true,
       "targetInManulMap": true
@@ -76,8 +76,8 @@
     {
       "page": "Wikipedia: Web browser",
       "url": "https://en.wikipedia.org/wiki/Web_browser",
-      "rawHTML": 199072,
-      "playwrightSnapshot": 38008,
+      "rawHTML": 199076,
+      "playwrightSnapshot": 38042,
       "manulMap": 3126,
       "manulMapFull": 18476,
       "manulMapTruncated": true,
@@ -90,8 +90,8 @@
     {
       "page": "GitHub: microsoft/playwright",
       "url": "https://github.com/microsoft/playwright",
-      "rawHTML": 182157,
-      "playwrightSnapshot": 20203,
+      "rawHTML": 182116,
+      "playwrightSnapshot": 20207,
       "manulMap": 1321,
       "manulMapFull": 4021,
       "manulMapTruncated": true,
@@ -105,9 +105,9 @@
       "page": "MDN: <button> reference",
       "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/button",
       "rawHTML": 37466,
-      "playwrightSnapshot": 60581,
-      "manulMap": 2944,
-      "manulMapFull": 11346,
+      "playwrightSnapshot": 60580,
+      "manulMap": 3288,
+      "manulMapFull": 11690,
       "manulMapTruncated": true,
       "clickTarget": "link \"Specifications\"",
       "playwrightClick": 213,
@@ -211,10 +211,64 @@
       ],
       "done": true,
       "totalTokens": 916
+    },
+    "manulMCP": {
+      "calls": [
+        {
+          "tool": "step NAVIGATE to https://www.saucedemo.com/",
+          "tokens": 29,
+          "ok": true
+        },
+        {
+          "tool": "map",
+          "tokens": 76,
+          "ok": true
+        },
+        {
+          "tool": "step FILL 'Username' field with 'standard_user'",
+          "tokens": 27,
+          "ok": true
+        },
+        {
+          "tool": "step FILL 'Password' field with 'secret_sauce'",
+          "tokens": 28,
+          "ok": true
+        },
+        {
+          "tool": "step CLICK the 'Login' button",
+          "tokens": 24,
+          "ok": true
+        },
+        {
+          "tool": "map",
+          "tokens": 310,
+          "ok": true
+        },
+        {
+          "tool": "step CLICK the 'Add to cart' button",
+          "tokens": 26,
+          "ok": true
+        },
+        {
+          "tool": "step CLICK the 'Cart' button",
+          "tokens": 23,
+          "ok": true
+        },
+        {
+          "tool": "step VERIFY that 'Sauce Labs Backpack' is present",
+          "tokens": 27,
+          "ok": true
+        }
+      ],
+      "done": true,
+      "totalTokens": 570
     }
   },
   "overhead": {
     "playwrightTools": 25,
-    "playwrightToolDefinitions": 4484
+    "playwrightToolDefinitions": 4484,
+    "manulMCPTools": 5,
+    "manulMCPToolDefinitions": 997,
+    "manulMCPInstructions": 168
   }
 }

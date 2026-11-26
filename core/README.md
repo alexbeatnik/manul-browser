@@ -19,13 +19,13 @@ This is the engine itself, and the only implementation of it: the `.hunt` DSL, t
 
 ### Built for agents — and it's measurably cheaper on tokens
 
-An agent has to *see* a page before it can act. Playwright MCP shows it an accessibility snapshot of the whole page, and acts on elements through refs taken from it — refs that every action invalidates, so the next action needs a fresh snapshot. `manul map` emits a compact, landmark-grouped view of the labelled, interactive elements, and `manul run-step` acts on a label, which does not go stale. Measured on the same Chrome tab with `cl100k_base` (2026-11-26, `@playwright/mcp` 0.0.86):
+An agent has to *see* a page before it can act. Playwright MCP shows it an accessibility snapshot of the whole page, and acts on elements through refs taken from it — refs that every action invalidates, so the next action needs a fresh snapshot. `manul map` emits a compact, landmark-grouped view of the labelled, interactive elements, and a step acts on a label, which does not go stale. `manul mcp` serves the same to Claude Desktop, Claude Code and any MCP client. Measured on the same Chrome with `cl100k_base` (2026-11-26, `@playwright/mcp` 0.0.86):
 
-| | Playwright MCP | Manul | |
+| | Playwright MCP | `manul mcp` | |
 | --- | ---: | ---: | --- |
-| Seeing a page — 8 pages, from a local fixture to Wikipedia and MDN | 258 – 60,581 | 29 – 3,126 | **2.8–21× fewer** (2.1–8.9× with no budget on `map`) |
-| A whole task — sign in, add to cart, check the cart on Sauce Demo | 4,314 (10 calls) | 916 (9 calls) | **4.7× fewer** |
-| Tool definitions sent with every request | 4,484 | — | |
+| Seeing a page — 8 pages, from a local fixture to Wikipedia and MDN | 258 – 60,580 | 29 – 3,288 | **1.7–18× fewer** (1.7–8.9× with no budget on `map`) |
+| A whole task — sign in, add to cart, check the cart on Sauce Demo | 4,314 (10 calls) | 570 (9 calls) | **7.6× fewer** |
+| Tool definitions and instructions, sent with every request | 4,484 | 1,165 | **3.8× fewer** |
 
 A snapshot and a map do not hold the same thing — the snapshot also carries the page's text — and the method, the caveats and a script to rerun it all are in [Token efficiency](docs/token-efficiency.md).
 
@@ -204,6 +204,18 @@ manul scan https://example.com --full
 
 Designed for LLM-driven authoring — the grouped output is easy for a model (or a human) to read and trim into a real hunt. For live agentic perception, prefer `manul map` (below), which emits the same structure as token-lean JSON without writing a file.
 
+### MCP server — Claude Desktop, Claude Code
+
+```bash
+claude mcp add manul -- manul mcp          # Claude Code
+```
+
+```json
+{ "mcpServers": { "manul": { "command": "manul", "args": ["mcp"] } } }
+```
+
+The second is Claude Desktop's `claude_desktop_config.json`. `manul mcp` gives an MCP client five tools — `step`, `map`, `read`, `read_text`, `run_hunt` — over stdio, opens the browser with the first call and closes it when the client goes away. Flags such as `--browser firefox`, `--headless`, `--user-data-dir` and `--cdp` go after `mcp`. See [Integration](docs/integration.md#mcp-server-claude-desktop-claude-code) and [`MANUL_MCP_CONTRACT.md`](../spec/contracts/MANUL_MCP_CONTRACT.md).
+
 ### Agent commands — drive the engine from an external LLM
 
 For agentic use, Manul Browser exposes a small set of **JSON-emitting CLI commands** (the CLI face of the embeddable [`pkg/agent`](#embedding-go-api) API). They attach to an **already-running Chrome over CDP**, so an external model keeps one browser open and issues stateless calls against it. The JSON payload goes to **stdout**; all engine logs go to **stderr**, so a driver can pipe the output straight into a prompt.
@@ -316,6 +328,7 @@ The same runtime and the same DSL serve four use cases:
 - **The same page on both engines** — Chrome and Firefox ask for the same language (`locale`, default `en-US`), and every hunt in `e2e/` runs on both in CI.
 - **Explainability** — `--explain` prints top-5 candidate rankings with per-channel score breakdowns, and `explain-next` previews the scoring of a step before it runs.
 - **Interactive debugger** — `--debug` pauses before every step with a browser modal UI; breakpoint lines (`--break-lines`); `explain-next` previews the scoring for the upcoming (or an overridden) step without executing it.
+- **MCP server** — `manul mcp` serves the engine to Claude Desktop, Claude Code and any MCP client: five tools, plain-language answers, a fifth of Playwright MCP's per-request overhead.
 - **Embeddable agent API (`pkg/agent`)** — `agent.Session` owns Chrome and exposes compact, agent-friendly calls: `Read` (zero-scan), `ReadText`, `Step`/`Run` (typed `Reason` + `Near` candidates), `Map` (budgeted scan). CLI `read` / `run-step --compact` are thin wrappers over it.
   ```go
   import "github.com/alexbeatnik/manul-browser/core/pkg/agent"
@@ -339,6 +352,7 @@ The same runtime and the same DSL serve four use cases:
 
 ```
 cmd/manul           CLI entry point → produces `manul` binary
+pkg/mcp             MCP server over stdio (`manul mcp`): five tools over pkg/agent
 pkg/agent           Embedding facade: agent.Session over runtime/cdp/scorer —
                     Launch/Attach/Connect (owns Chrome), Read/ReadText/Step/Run/Map
 pkg/cdp             Low-level CDP WebSocket transport and domain wrappers (Chromium)

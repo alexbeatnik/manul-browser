@@ -50,6 +50,7 @@ existed — it just needed a session that outlives a single command.
 | `core/e2e` | Every hunt in it run against real Chrome and Firefox, in CI, on a local site — iframes of any origin, new tabs, drag and drop, late-loading content |
 | `spec/contracts/` | Current, describes shipped behaviour |
 | `spec/protocol.md` | Implemented as `manul serve --stdio` |
+| MCP server | `manul mcp` — five tools for Claude Desktop, Claude Code and any MCP client; packaging as a Claude extension is next (ROADMAP §missing 9) |
 | `bindings/python` | Working — `manul-browser` on PyPI |
 | `bindings/node` | Working — `manul-browser` on npm |
 | `conformance/` | Not started |
@@ -104,6 +105,7 @@ manul checkout.hunt
 manul checkout.hunt --browser firefox --locale uk-UA
 manul run-step "CLICK the 'Login' button" --cdp http://127.0.0.1:9222
 manul run hunts/ --hooks manul_hooks.py
+manul mcp                                   # an MCP server for Claude Desktop, Claude Code
 ```
 
 `--hooks` points the engine at a script that supplies custom controls, `CALL
@@ -153,6 +155,7 @@ is one static binary with `gorilla/websocket` as its only dependency.
 - [`examples/quickstart/`](examples/quickstart/) — the language one idea at a time, offline
 - [`examples/python-demo/`](examples/python-demo/) — every feature in one project
 - [`examples/node-demo/`](examples/node-demo/) — the same, from Node
+- [`core/docs/integration.md`](core/docs/integration.md#mcp-server-claude-desktop-claude-code) — `manul mcp` in Claude Desktop and Claude Code
 - [`core/docs/token-efficiency.md`](core/docs/token-efficiency.md) — tokens an agent spends, against Playwright MCP; rerun it with [`examples/token-bench/`](examples/token-bench/)
 - [`core/examples/`](core/examples/) — sample `.hunt` files
 - [`CLAUDE.md`](CLAUDE.md) — working notes: invariants and traps

@@ -39,7 +39,7 @@
     {
       "name": "Launch",
       "signature": "Launch(ctx context.Context, opts Options) (*Session, error)",
-      "description": "Spawns a Chrome process owned by Manul Browser, attaches to its first page, and returns a ready Session. ctx bounds the launch only: the Session, its browser and its page connection outlive it and end with Close, which tears the process (and temp profile) down."
+      "description": "Spawns a Chrome process owned by Manul Browser, attaches to its first page, and returns a ready Session. Config's locale and channel apply to the launch, as they do for manul run. ctx bounds the launch only: the Session, its browser and its page connection outlive it and end with Close, which tears the process (and temp profile) down."
     },
     {
       "name": "Attach",
@@ -82,7 +82,7 @@
     {
       "name": "Map",
       "signature": "(*Session) Map(ctx context.Context, budget MapBudget) (PageMap, error)",
-      "description": "Returns a landmark-grouped, budgeted scan of the current page (one full-scan JS probe; no navigation). The bounded alternative to dumping the DOM — deduped, ranked, per-group capped. A form control is listed under the text of the <label> bound to it (by for= or by wrapping it, a trailing ':' or '*' dropped), then its aria-label, placeholder, own text, title, name and id in that order; a <select> is never named after its options."
+      "description": "Returns a landmark-grouped, budgeted scan of the current page (one full-scan JS probe; no navigation), and of every iframe the engine enters — the same frames steps reach into, each scanned with a 2-second bound — whose groups are named '<group> (in frame <host>)'. The bounded alternative to dumping the DOM — deduped, ranked, per-group capped. A form control is listed under the text of the <label> bound to it (by for= or by wrapping it, a trailing ':' or '*' dropped), then its aria-label, placeholder, own text, title, name and id in that order; a <select> is never named after its options."
     }
   ],
 

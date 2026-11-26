@@ -1,0 +1,10 @@
+@title: A label with an apostrophe is the whole label
+STEP 1: Click it
+    NAVIGATE to @SITE@/apostrophe.html
+    CLICK the 'It's Only the Himalayas' link
+    VERIFY that 'opened book Himalayas' is present
+    VERIFY that 'opened category Spirituality' is NOT present
+STEP 2: Fill it, and check it
+    FILL 'Driver's licence' field with 'O'Brien 123'
+    VERIFY 'Driver's licence' field has value 'O'Brien 123'
+DONE.

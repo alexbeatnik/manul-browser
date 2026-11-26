@@ -28,7 +28,7 @@
         }
       ],
       "isDefault": true,
-      "targetDetection": "A first argument that is '.', ends in .hunt, or names an existing directory is run as a target — unless it is a subcommand's name (run, run-step, read, map, schema, serve, scan, record, daemon, pages, controls, help), which always means the subcommand. A directory with such a name is run as `manul run pages/` or `manul ./pages`."
+      "targetDetection": "A first argument that is '.', ends in .hunt, or names an existing directory is run as a target — unless it is a subcommand's name (run, run-step, read, map, schema, serve, mcp, scan, record, daemon, pages, controls, help), which always means the subcommand. A directory with such a name is run as `manul run pages/` or `manul ./pages`."
     },
     {
       "id": "scan",
@@ -142,6 +142,12 @@
           "description": "One DSL line, e.g. \"Click the 'Login' button\"."
         }
       ]
+    },
+    {
+      "id": "mcp",
+      "syntax": "manul mcp [--browser <engine>] [--headless] [--cdp <url> | --attach] [--channel <name>] [--executable-path <path>] [--user-data-dir <dir>] [--locale <tag>] [--verbose]",
+      "description": "Serves the engine to MCP clients (Claude Desktop, Claude Code, any Model Context Protocol client) over stdio: JSON-RPC 2.0 on stdin/stdout, logs on stderr. Five tools — step, map, read, read_text, run_hunt — over the pkg/agent API. The browser is opened by the first tool call (launched, or attached to with --cdp/--attach) and closed at end of input. The protocol, the tools and their annotations are MANUL_MCP_CONTRACT.md.",
+      "positionalArgs": []
     }
   ],
   "flags": [

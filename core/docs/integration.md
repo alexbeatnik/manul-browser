@@ -39,6 +39,40 @@ One `Runtime` + `Page` + `ChromeProcess` per worker; register `CALL GO` handlers
 
 ---
 
+## MCP server (Claude Desktop, Claude Code)
+
+`manul mcp` serves the engine to any client of the Model Context Protocol over stdio. It gives five tools: `step` (one line of the DSL), `map` (the labelled controls of the page, iframes included), `read` (one labelled value), `read_text` (prose, by CSS region) and `run_hunt` (a whole script). The browser starts with the first tool call and closes when the client goes away; `step` and `run_hunt` are marked destructive, so a client that asks before acting asks before them.
+
+**Claude Desktop** — in `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "manul": { "command": "/usr/local/bin/manul", "args": ["mcp"] }
+  }
+}
+```
+
+**Claude Code**:
+
+```bash
+claude mcp add manul -- manul mcp
+```
+
+Add flags after `mcp` as needed:
+
+| Flag | |
+|---|---|
+| `--browser firefox` | Firefox over WebDriver BiDi instead of Chrome |
+| `--headless` | no window (the default shows the browser, so you can watch it work) |
+| `--user-data-dir <dir>` | a profile kept between sessions, so sign-ins survive |
+| `--cdp http://127.0.0.1:9222` | drive a Chrome you started yourself instead of launching one |
+| `--locale uk-UA` | the language the browser asks pages for |
+
+Logs go to stderr, which Claude Desktop keeps in its MCP log. One caution for `--cdp` against your own browser: with its password manager on, a click after a sign-in can be taken by the manager's own UI ([ROADMAP](../../ROADMAP.md) §missing 8); a profile the engine launches has it off. What each tool returns is in [`MANUL_MCP_CONTRACT.md`](../../spec/contracts/MANUL_MCP_CONTRACT.md), and what it costs in tokens against Playwright MCP is in [token-efficiency.md](token-efficiency.md).
+
+---
+
 ## Agent commands (external LLM drivers)
 
 For a driver that keeps one Chrome open and issues stateless calls:

@@ -12,6 +12,7 @@ import (
 
 	"github.com/alexbeatnik/manul-browser/core/pkg/config"
 	"github.com/alexbeatnik/manul-browser/core/pkg/dom"
+	"github.com/alexbeatnik/manul-browser/core/pkg/explain"
 	"github.com/alexbeatnik/manul-browser/core/pkg/runtime"
 	"github.com/alexbeatnik/manul-browser/core/pkg/utils"
 )
@@ -533,5 +534,26 @@ func TestRunFile_DataDrivenHuntRunsOncePerRow(t *testing.T) {
 	}
 	if out.Results[0].Value != "hello ann" || out.Results[1].Value != "hello bob" {
 		t.Errorf("rows printed %q, %q", out.Results[0].Value, out.Results[1].Value)
+	}
+}
+
+// Three "Add to basket" buttons named three times told an agent nothing, and
+// pushed out the labels it might have used instead.
+func TestTopCandidates_OneLabelOnce(t *testing.T) {
+	c := func(text string, score float64) explain.Candidate {
+		var x explain.Candidate
+		x.VisibleText = text
+		x.Score.Total = score
+		return x
+	}
+	got := topCandidates([]explain.Candidate{
+		c("Add to basket", 0.3), c("Add to basket", 0.3), c("add to basket ", 0.3), c("Basket", 0.2), c("Checkout", 0.1),
+	}, 3)
+	var labels []string
+	for _, g := range got {
+		labels = append(labels, g.Text)
+	}
+	if strings.Join(labels, "|") != "Add to basket|Basket|Checkout" {
+		t.Errorf("near = %v", labels)
 	}
 }

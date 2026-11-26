@@ -1518,31 +1518,31 @@ func unquote(s string) string {
 
 // extractFirstQuoted returns the content of the first single- or double-quoted
 // substring in s, or empty string if none.
+//
+// Quotes are found by the rule maskQuoted uses: an opening quote has no letter
+// or digit before it, and a closing one none after it. So the apostrophe in
+// 'It's Only the Himalayas' is part of the label. Taking the first quote
+// character as the end made the target 'It', which matched the link
+// "Spirituality" — CLICK passed on the wrong page, and VERIFY that 'It's …'
+// checked for "It" and passed on almost any page.
 func extractFirstQuoted(s string) string {
-	startSingle := strings.IndexByte(s, '\'')
-	startDouble := strings.IndexByte(s, '"')
-	var start int
-	var q byte
-	if startSingle < 0 && startDouble < 0 {
-		return ""
-	} else if startSingle < 0 {
-		start = startDouble
-		q = '"'
-	} else if startDouble < 0 {
-		start = startSingle
-		q = '\''
-	} else if startSingle < startDouble {
-		start = startSingle
-		q = '\''
-	} else {
-		start = startDouble
-		q = '"'
-	}
-	end := strings.IndexByte(s[start+1:], q)
-	if end < 0 {
+	b := []byte(s)
+	for i := 0; i < len(b); i++ {
+		q := b[i]
+		if q != '\'' && q != '"' {
+			continue
+		}
+		if i > 0 && isWordByte(b[i-1]) {
+			continue
+		}
+		for j := i + 1; j < len(b); j++ {
+			if b[j] == q && (j+1 == len(b) || !isWordByte(b[j+1])) {
+				return s[i+1 : j]
+			}
+		}
 		return ""
 	}
-	return s[start+1 : start+1+end]
+	return ""
 }
 
 func splitShellTokens(s string) []string {

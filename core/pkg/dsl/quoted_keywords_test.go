@@ -317,3 +317,30 @@ func TestMaskQuoted(t *testing.T) {
 		}
 	}
 }
+
+// A label with an apostrophe was cut at it: 'It's Only the Himalayas' became
+// the target "It", which matched the link "Spirituality", and VERIFY that
+// 'It's …' checked for "It". An apostrophe between letters is part of the
+// label, as maskQuoted already treated it.
+func TestQuotedTargetsKeepTheirApostrophes(t *testing.T) {
+	for line, want := range map[string]string{
+		"CLICK the 'It's Only the Himalayas' link":         "It's Only the Himalayas",
+		"CLICK the 'Scott Pilgrim's Precious Little' link": "Scott Pilgrim's Precious Little",
+		"CLICK the 'Don't have an account?' link":          "Don't have an account?",
+		"FILL 'Ім'я' field with 'Ада'":                     "Ім'я",
+		`CLICK the "It's free" button`:                     "It's free",
+	} {
+		if got := parseLine(t, line).Target; got != want {
+			t.Errorf("%q: target %q, want %q", line, got, want)
+		}
+	}
+	if c := parseLine(t, "FILL 'Driver's licence' field with 'O'Brien'"); c.Target != "Driver's licence" || c.Value != "O'Brien" {
+		t.Errorf("FILL: target %q value %q", c.Target, c.Value)
+	}
+	if c := parseLine(t, "VERIFY that 'It's Only the Himalayas' is present"); c.VerifyText != "It's Only the Himalayas" {
+		t.Errorf("VERIFY: %q", c.VerifyText)
+	}
+	if c := parseLine(t, "SELECT 'Women's' from the 'Department' dropdown"); c.Value != "Women's" || c.Target != "Department" {
+		t.Errorf("SELECT: value %q target %q", c.Value, c.Target)
+	}
+}

@@ -179,17 +179,27 @@ async function taskPlaywright() {
     if (!m) throw new Error(`no ref matching ${re}`);
     return m[1];
   };
+  // A snapshot taken while the next page is still arriving lacks what the
+  // agent looks for; an agent takes another. Each one is counted.
+  const snapshotWith = async (re) => {
+    for (let i = 0; i < 4; i++) {
+      const snap = await call('browser_snapshot', {});
+      if (re.test(snap)) return snap;
+      await sleep(500);
+    }
+    throw new Error(`no ref matching ${re} after 4 snapshots`);
+  };
   await call('browser_navigate', { url: 'https://www.saucedemo.com/' });
-  let snap = await call('browser_snapshot', {});
+  let snap = await snapshotWith(/textbox "Username"/);
   await call('browser_type', { element: 'Username', target: ref(snap, /textbox "Username" \[ref=(\w+)\]/), text: 'standard_user' });
   await call('browser_type', { element: 'Password', target: ref(snap, /textbox "Password" \[ref=(\w+)\]/), text: 'secret_sauce' });
   await call('browser_click', { element: 'Login', target: ref(snap, /button "Login" \[ref=(\w+)\]/) });
-  snap = await call('browser_snapshot', {});
+  snap = await snapshotWith(/button "Add to cart"/);
   await call('browser_click', { element: 'Add to cart', target: ref(snap, /button "Add to cart" \[ref=(\w+)\]/) });
   // An action invalidates every ref ("Ref … not found in the current page
   // snapshot. Try capturing new snapshot."), so the next one needs a new
   // snapshot — or the file the action wrote, which costs the same to read.
-  snap = await call('browser_snapshot', {});
+  snap = await snapshotWith(/button "Cart[^"]*"/);
   await call('browser_click', { element: 'Cart', target: ref(snap, /button "Cart[^"]*" \[ref=(\w+)\]/) });
   await call('browser_wait_for', { text: 'Sauce Labs Backpack' });
   const check = await tool('browser_evaluate', { function: cartCheck });
@@ -220,8 +230,65 @@ async function taskManul() {
   return { calls, done: calls.every((c) => c.ok !== false) && /cart\.html 1/.test(check) };
 }
 
+// ── Manul as an MCP server: `manul mcp`, attached to the same Chrome ────────
+// What a Claude app sees: the same five tools in every request, and replies
+// in plain language rather than the CLI's JSON.
+function mcpClient(command, args) {
+  const proc = spawn(command, args, { stdio: ['pipe', 'pipe', 'ignore'], cwd: scratch });
+  let pending = '';
+  let id = 0;
+  const waits = new Map();
+  proc.stdout.on('data', (d) => {
+    pending += d;
+    let nl;
+    while ((nl = pending.indexOf('\n')) >= 0) {
+      const line = pending.slice(0, nl);
+      pending = pending.slice(nl + 1);
+      if (!line.trim()) continue;
+      const msg = JSON.parse(line);
+      if (msg.id && waits.has(msg.id)) { waits.get(msg.id)(msg); waits.delete(msg.id); }
+    }
+  });
+  const call = (method, params) => new Promise((resolve) => {
+    const n = ++id;
+    waits.set(n, resolve);
+    proc.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: n, method, params }) + '\n');
+  });
+  return { proc, call };
+}
+
+const manulMCP = mcpClient(manul, ['mcp', '--cdp', CDP]);
+const manulInit = await manulMCP.call('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'token-bench', version: '1' } });
+manulMCP.proc.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n');
+const manulDefs = await manulMCP.call('tools/list', {});
+
+async function taskManulMCP() {
+  const calls = [];
+  const callTool = async (name, args) => {
+    const r = await manulMCP.call('tools/call', { name, arguments: args });
+    const out = (r.result?.content || []).map((c) => c.text).join('\n');
+    calls.push({ tool: name === 'step' ? `step ${args.step}` : name, tokens: tokens(out), ok: !r.result?.isError });
+    return out;
+  };
+  // Signed out, on the site; not counted.
+  await tool('browser_navigate', { url: 'https://www.saucedemo.com/' });
+  await tool('browser_evaluate', { function: "() => { localStorage.clear(); sessionStorage.clear(); document.cookie.split(';').forEach((c) => { document.cookie = c.split('=')[0].trim() + '=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/'; }); }" });
+  await callTool('step', { step: 'NAVIGATE to https://www.saucedemo.com/' });
+  await callTool('map', {});
+  await callTool('step', { step: "FILL 'Username' field with 'standard_user'" });
+  await callTool('step', { step: "FILL 'Password' field with 'secret_sauce'" });
+  await callTool('step', { step: "CLICK the 'Login' button" });
+  await callTool('map', {});
+  await callTool('step', { step: "CLICK the 'Add to cart' button" });
+  const cart = await callTool('step', { step: "CLICK the 'Cart' button" });
+  await callTool('step', { step: "VERIFY that 'Sauce Labs Backpack' is present" });
+  // manul mcp drives a tab of its own, so the check is its own: every step
+  // passed, and the cart click landed on the cart page.
+  return { calls, done: calls.every((c) => c.ok) && /cart\.html/.test(cart) };
+}
+
 const task = {};
-for (const [name, run] of [['playwright', taskPlaywright], ['manul', taskManul]]) {
+for (const [name, run] of [['playwright', taskPlaywright], ['manul', taskManul], ['manulMCP', taskManulMCP]]) {
   try {
     const t = await run();
     task[name] = { ...t, totalTokens: t.calls.reduce((n, c) => n + c.tokens, 0) };
@@ -235,7 +302,11 @@ const defs = await rpc('tools/list', {});
 const overhead = {
   playwrightTools: defs.result.tools.length,
   playwrightToolDefinitions: tokens(JSON.stringify(defs.result.tools)),
+  manulMCPTools: manulDefs.result.tools.length,
+  manulMCPToolDefinitions: tokens(JSON.stringify(manulDefs.result.tools)),
+  manulMCPInstructions: tokens(manulInit.result.instructions || ''),
 };
+manulMCP.proc.stdin.end();
 
 const versions = {
   date: new Date().toISOString().slice(0, 10),

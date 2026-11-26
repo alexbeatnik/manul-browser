@@ -69,6 +69,12 @@ JavaScript lives in `pkg/pagejs` precisely so the two backends cannot grow
 their own dialects of FILL or CHECK. A behaviour that belongs to the page goes
 there; only framing belongs in `pkg/cdp` or `pkg/bidi`.
 
+**MCP is a protocol front too.** `manul mcp` (`pkg/mcp`) serves five tools over
+`agent.Session` and the `pkg/agent` renderers; like `serve` it decides nothing
+about scoring, the DSL or the browser, and stdout is its protocol. Its tests
+hold `tools/list` to the tools block of `MANUL_MCP_CONTRACT.md`, so a tool
+changed in one and not the other fails `go test`.
+
 **A declared verb must be executable.** `pkg/runtime` carries a guard test that
 walks every `CommandType` and fails on "not yet implemented". `WAIT FOR` and
 `HIGHLIGHT` both shipped declared-but-dead; that is what the guard is for.

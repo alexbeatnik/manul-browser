@@ -67,6 +67,9 @@
     "runtime": "case-insensitive",
     "note": "All DSL keywords are case-insensitive at runtime. classify_step() converts step text to uppercase before pattern matching; detect_mode() converts to lowercase for verb detection. Any mix of cases is accepted (e.g. 'navigate', 'Navigate', 'NAVIGATE' all work). The canonical form shown in labels and examples is ALL UPPERCASE."
   },
+  "quoting": {
+    "rule": "A target, value or text is written in single or double quotes. An opening quote has no letter or digit just before it, and a closing quote none just after it, so an apostrophe between letters belongs to the text: CLICK the 'It's Only the Himalayas' link targets \"It's Only the Himalayas\", FILL 'Ім'я' field with 'O'Brien' fills \"Ім'я\" with \"O'Brien\". A label whose apostrophe is followed by a space or ends a word, such as 'The Boys' Club', is written in double quotes."
+  },
   "elementTypeHint": {
     "rule": "optional_but_recommended",
     "note": "Element type hints (button, link, field, dropdown, checkbox, radio, element, input) placed outside quotes after the target name are optional. Including them provides a strong heuristic signal that boosts scoring accuracy. Examples: CLICK the 'Login' button (with hint) vs CLICK the 'Login' (without hint — still works).",

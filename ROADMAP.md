@@ -256,6 +256,26 @@ What would close it, roughly in order of cost:
 - **Avoid it.** Find a CDP way to dismiss or suppress the bubble for the
   session without touching the profile.
 
+### 9. Manul as a Claude app extension
+
+`manul mcp` exists (`MANUL_MCP_CONTRACT.md`): five tools over stdio, tested by
+unit tests against a fake backend and end to end on Chrome and Firefox. What
+is missing is everything between it and a person installing it:
+
+- **An MCP Bundle (`.mcpb`) for Claude Desktop** — a `manifest.json` and the
+  platform binaries, with the browser, headless, profile directory, `--cdp`
+  endpoint and locale as user settings. The release workflow already builds
+  the six binaries; the bundle would be one more artifact on the release.
+  Check the current MCPB manifest format and the extension directory's
+  submission requirements first: they have changed before (Desktop
+  Extensions `.dxt` became MCPB).
+- **A Claude Code plugin** — the MCP server configuration plus the
+  `hunt-authoring` skill.
+- **Not yet driven by a real Claude app.** The tests speak the protocol the
+  way the official SDK does; neither Claude Desktop nor Claude Code has run it.
+- **§missing 8 first.** An extension will usually be pointed at a person's
+  own browser, which is exactly where the password manager swallows clicks.
+
 ---
 
 ## Suggested order

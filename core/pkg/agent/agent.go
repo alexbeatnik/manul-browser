@@ -27,10 +27,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/alexbeatnik/manul-browser/core/pkg/browser"
 	"github.com/alexbeatnik/manul-browser/core/pkg/config"
@@ -102,6 +104,15 @@ func Launch(ctx context.Context, opts Options) (*Session, error) {
 	}
 	if opts.UserDataDir != "" {
 		launchOpts.UserDataDir = opts.UserDataDir
+	}
+	// The language and the binary come from the engine configuration, as
+	// they do for `manul run`; Launch used to drop both, so a session asked
+	// for en-US whatever `locale` said.
+	if opts.Config != nil {
+		launchOpts.Locale = opts.Config.Locale
+		if opts.Config.Channel != nil {
+			launchOpts.Channel = *opts.Config.Channel
+		}
 	}
 
 	proc, err := browser.Launch(ctx, launchOpts)
@@ -620,14 +631,19 @@ func outcomeFrom(res explain.ExecutionResult, execErr error) StepOutcome {
 // topCandidates trims the ranked list to the n most descriptive labels.
 func topCandidates(cands []explain.Candidate, n int) []Cand {
 	out := make([]Cand, 0, n)
+	// One label once: three "Add to basket" buttons told an agent nothing it
+	// could act on, and took the places of the labels that might have.
+	seen := map[string]bool{}
 	for _, c := range cands {
 		if len(out) >= n {
 			break
 		}
 		label := candidateLabel(c)
-		if label == "" {
+		key := strings.ToLower(strings.TrimSpace(label))
+		if label == "" || seen[key] {
 			continue
 		}
+		seen[key] = true
 		out = append(out, Cand{Text: label, Score: c.Score.Total})
 	}
 	if len(out) == 0 {
@@ -705,6 +721,24 @@ func (s *Session) Map(ctx context.Context, budget MapBudget) (PageMap, error) {
 	if err != nil {
 		return PageMap{}, fmt.Errorf("agent: map: %w", err)
 	}
+	// Every iframe the engine enters, as steps reach into them: a payment
+	// form or a widget in a frame used to be missing from the map while
+	// CLICK and FILL found it, so an agent was never shown what it could
+	// act on there. A frame's groups are named after the frame; one that
+	// cannot be scanned is left out, as the snapshot leaves it out.
+	for _, f := range s.rt.Frames(ctx) {
+		fctx, cancel := context.WithTimeout(ctx, frameScanTimeout)
+		fg, ferr := scan.ScanCurrentPageFull(fctx, f.Page)
+		cancel()
+		if ferr != nil {
+			continue
+		}
+		where := frameName(f.URL)
+		for name, els := range fg {
+			key := name + " (in frame " + where + ")"
+			groups[key] = append(groups[key], els...)
+		}
+	}
 
 	max := budget.MaxPerGroup
 	if max <= 0 {
@@ -740,6 +774,22 @@ func (s *Session) Map(ctx context.Context, budget MapBudget) (PageMap, error) {
 		pm.Groups = append(pm.Groups, g)
 	}
 	return pm, nil
+}
+
+// frameScanTimeout bounds the scan of one iframe, so an ad frame that hangs
+// does not stall the map.
+const frameScanTimeout = 2 * time.Second
+
+// frameName is how a frame's groups are told apart in the map: its host, or
+// its URL when it has none (about:blank, a data: URL).
+func frameName(raw string) string {
+	if u, err := url.Parse(raw); err == nil && u.Host != "" {
+		return u.Host
+	}
+	if raw == "" {
+		return "about:blank"
+	}
+	return raw
 }
 
 // dedupeUseful drops unlabeled (unless allowed) and duplicate-label elements,
