@@ -180,7 +180,19 @@ VERIFY "Save" button has text "Save Changes"
 VERIFY "Search" input has placeholder "Type to search..."
 ```
 
-Explicit waits poll element visibility over CDP instead of hardcoded sleeps. `WAIT FOR RESPONSE` blocks until a matching network response arrives. Strict assertions resolve the element through heuristics and compare exact text, value, or placeholder with `==`.
+Actions wait on their own: a `CLICK`, `FILL`, `SELECT` or `EXTRACT` whose target is not on the page yet — products loaded after the page, a form that appears after a click — looks again until it is there or `timeout` (default 5s) passes, and a step that has already typed or clicked is never run twice. `WAIT FOR` is for waiting on something else, such as a spinner going away while the old content is still showing; like `VERIFY`, it polls the page on both engines. `WAIT FOR RESPONSE` blocks until a matching network response arrives. Strict assertions resolve the element through heuristics and compare exact text, value, or placeholder with `==`.
+
+### Frames and tabs
+
+```text
+FILL 'Card number' field with '4242 4242 4242 4242'
+CLICK the 'Pay now' button
+CLICK the 'Open the product' link
+CLICK the 'Add to cart' button
+SWITCH TO TAB 1
+```
+
+Nothing to switch into for an iframe: same-origin, cross-origin and cross-site frames — a payment form, an embedded example, a widget in a shadow root — are read, filled, clicked, uploaded to and verified like the page itself. A tab a step opens (`target="_blank"`, `window.open`) is where the next step runs, and a popup that closes itself hands back to the tab that opened it. `SWITCH TO TAB <n>` or `SWITCH TO TAB '<title or URL>'` goes back to a tab that is still open.
 
 ### Page scanning for LLM agents
 
@@ -242,6 +254,7 @@ manul --html-report --screenshot on-fail path/   # reports + failure screenshots
 manul --explain path/to/file.hunt                # per-step scoring breakdown
 manul --debug path/to/file.hunt                  # pause before every step
 manul --workers 4 path/to/hunts/                 # run files in parallel
+manul --browser firefox --locale uk-UA file.hunt # Firefox, asking pages for Ukrainian
 manul scan https://example.com                   # scan a page → draft.hunt
 manul daemon path/to/hunts/ --headless           # run scheduled hunts
 ```
@@ -264,7 +277,7 @@ Why own the protocol layer:
 
 - **One small dependency, fully inspectable.** The whole browser driver is a handful of readable Go packages (`pkg/cdp` transport, `pkg/browser` launcher, `pkg/dom` element model) rather than a large vendored toolchain. What the engine sends to Chrome is exactly what you can read.
 - **Trusted input by default.** Clicks and keystrokes are dispatched via CDP `Input.*` events at real coordinates, and form values go through the native value setter so React/Vue/Angular state updates fire — no `force` hacks needed. `PRESS Enter` sends a real character event (`text:"\r"`) so forms actually submit.
-- **Per-frame execution contexts.** A selector is resolved once inside the owning frame's execution context, then every operation runs against that handle — so same-origin iframes (and OOPIF child targets) are first-class, not an afterthought.
+- **Per-frame execution contexts.** Every element is resolved and acted on inside its own frame's execution context — same-origin, cross-origin, or a cross-site frame Chrome runs in a process of its own (attached as a session of its own); Firefox gets pointer actions and keys routed into the frame's context, because a click it dispatches from the top never reaches a cross-site frame. Frames are first-class, not an afterthought.
 - **Two protocols, one engine.** CDP is Chrome's, so Firefox is driven over **WebDriver BiDi** instead (`--browser firefox`) — Firefox deprecated CDP in 129 and removed it, along with the `remote.active-protocols` preference, in 141. The scorer, the DSL and the in-page JavaScript (`pkg/pagejs`) are shared; only the transport differs, and `--cdp` picks it from the endpoint scheme (`http://…` CDP, `ws://…/session` BiDi). WebKit/Safari are not supported. Pick the concrete binary with `--channel` (`chrome`, `msedge`, `chromium`, `firefox-esr`, …) or `--executable-path`.
 
 ### True concurrency (goroutines)
@@ -298,6 +311,9 @@ The same runtime and the same DSL serve four use cases:
 
 - **Conditional branching & loops** — `IF` / `ELIF` / `ELSE` for adaptive flows; `REPEAT`, `FOR EACH`, `WHILE` for iterating data, retrying actions, and polling dynamic state. Full nesting support (`WHILE` capped at 100 iterations; `REPEAT` exposes a `{i}` 0-based counter).
 - **Deterministic targeting** — 4-channel heuristic scorer ranks every candidate with explicit signal breakdowns; contextual qualifiers (`NEAR`, `ON HEADER/FOOTER`, `INSIDE`) restrict candidates spatially and structurally. Shadow DOM, 3-pass proximity resolution, and anti-phantom guards included.
+- **Frames and tabs** — iframes of any origin, frames inside shadow roots, new tabs and popups followed automatically, `SWITCH TO TAB` to go back. See [Frames and tabs](#frames-and-tabs).
+- **Waits for what is still loading** — an action whose target has not arrived yet looks again until `timeout`, never acting twice.
+- **The same page on both engines** — Chrome and Firefox ask for the same language (`locale`, default `en-US`), and every hunt in `e2e/` runs on both in CI.
 - **Explainability** — `--explain` prints top-5 candidate rankings with per-channel score breakdowns, and `explain-next` previews the scoring of a step before it runs.
 - **Interactive debugger** — `--debug` pauses before every step with a browser modal UI; breakpoint lines (`--break-lines`); `explain-next` previews the scoring for the upcoming (or an overridden) step without executing it.
 - **Embeddable agent API (`pkg/agent`)** — `agent.Session` owns Chrome and exposes compact, agent-friendly calls: `Read` (zero-scan), `ReadText`, `Step`/`Run` (typed `Reason` + `Near` candidates), `Map` (budgeted scan). CLI `read` / `run-step --compact` are thin wrappers over it.
@@ -314,7 +330,7 @@ The same runtime and the same DSL serve four use cases:
 - **Custom controls** — `RegisterCustomControl(page, target, handler)` lets you handle complex widgets (datepickers, virtual tables, canvas elements) with raw CDP while the hunt file keeps a single readable step.
 - **Page-name registry** — `pages/<site>.json` maps URLs to human-readable labels for reports; unknown URLs auto-populate as `Auto: domain/path` placeholders. See [docs/loops-and-pages.md](docs/loops-and-pages.md).
 - **Reliable keyboard input** — `PRESS` dispatches real character events (Enter carries `text:"\r"` so forms submit); key names are normalized (`enter`/`esc`/`space`/`down` → DOM key values).
-- **HTML reports** — `--html-report` generates per-hunt styled reports plus an aggregate `index.html` for parallel runs.
+- **HTML reports** — `--html-report` writes one styled report per hunt (per data row for `@data:`). The Go API can also write an aggregate `index.html` (`report.GenerateIndex`); the CLI does not.
 - **Single static binary** — `go build` produces one self-contained `manul` executable. No runtime, no interpreter, no `node_modules`; ideal for CI images and `scratch`/distroless containers.
 
 ---
@@ -337,7 +353,7 @@ pkg/heuristics      In-page JS probes (SnapshotProbe, VisibleTextProbe, ExtractD
 pkg/scorer          Deterministic 4-channel [0.0–1.0] scoring and ranking
 pkg/dsl             .hunt file parser, import resolver, command AST with block nesting
 pkg/explain         Structured execution results and explainability types
-pkg/report          Styled HTML report generation + aggregate index.html
+pkg/report          Styled per-hunt HTML reports; GenerateIndex for an aggregate
 pkg/config          Runtime configuration
 pkg/core            Shared enums (e.g. ScrollStrategy)
 pkg/pages           Page-name registry: URL → human-readable label
@@ -396,20 +412,20 @@ manul --headless --html-report examples/         # CI mode with reports
 |---|---|---|
 | `headless` | `false` | Hide the browser window. |
 | `browser` | `"chromium"` | `chromium` (launch system Chrome, CDP), `firefox` (launch system Firefox, WebDriver BiDi), or `electron` (deprecated spelling of `browser_mode: attach`). |
-| `browser_args` | `[]` | Extra browser launch flags. |
 | `disable_cache` | `false` | Disable the in-session DOM snapshot cache (env: `MANUL_DISABLE_CACHE`, or the inverse `MANUL_SEMANTIC_CACHE_ENABLED`). |
-| `timeout` | `5000` | Action timeout, milliseconds. |
+| `timeout` | `5000` | How long a step waits, milliseconds: for a target that is not on the page yet, and for `VERIFY`. `0` turns waiting for a target off. |
 | `nav_timeout` | `30000` | Navigation timeout, milliseconds. |
 | `workers` | `1` | Max parallel hunt files. |
 | `channel` | `null` | Chrome/Chromium binary to launch (`chrome`, `msedge`, `chromium`, …). |
 | `executable_path` | `null` | Explicit path to a Chrome/Chromium (or Electron) executable. |
-| `retries` | `0` | Retry failed steps N times. |
+| `locale` | `"en-US"` | Language the launched browser uses and asks pages for (`navigator.language`, `Accept-Language`), the same on both engines. |
+| `retries` | `0` | Run a failed hunt file again, up to N times; one that passes on a retry is reported as flaky. |
 | `screenshot` | `"on-fail"` | `none`, `on-fail`, or `always`. |
 | `html_report` | `false` | Generate an HTML report. |
 | `explain_mode` | `false` | Per-channel scoring breakdown in output. |
 | `debug_mode` | `false` | Pause before every step for interactive stepping. |
 
-Environment variables (`MANUL_HEADLESS`, `MANUL_BROWSER`, `MANUL_CHANNEL`, `MANUL_WORKERS`, etc.) override JSON config; CLI flags override everything:
+Environment variables (`MANUL_HEADLESS`, `MANUL_BROWSER`, `MANUL_CHANNEL`, `MANUL_LOCALE`, `MANUL_WORKERS`, etc.) override JSON config; CLI flags override everything:
 
 ```
 CLI flags  >  MANUL_* env vars  >  manul.config.json  >  config.Default()
@@ -472,7 +488,8 @@ import (
 
 func runSuite(ctx context.Context, hunts []*dsl.Hunt) error {
     cfg := config.Default()
-    results, err := worker.RunHuntsInParallel(ctx, cfg, hunts, 4, logger)
+    // The last argument is the suite's GlobalContext, for suite hooks; nil without them.
+    results, err := worker.RunHuntsInParallel(ctx, cfg, hunts, 4, logger, nil)
     if err != nil {
         return err
     }
@@ -493,7 +510,8 @@ func runSuite(ctx context.Context, hunts []*dsl.Hunt) error {
 
 | Component | Role | Links |
 |-----------|------|-------|
-| **Python binding** | Thin client over this engine — ships the binary, speaks the stdio protocol. Not a second implementation. | [`bindings/python`](../bindings/python) · `manul-browser` on PyPI, not yet published |
+| **Python binding** | Thin client over this engine — ships the binary, speaks the stdio protocol. Not a second implementation. | [`bindings/python`](../bindings/python) · `manul-browser` on PyPI |
+| **Node binding** | The same, for Node ≥ 22 — npm picks the engine package for the platform. | [`bindings/node`](../bindings/node) · `manul-browser` on npm |
 | **Manul Browser** | This project — the Go runtime. Single static binary, goroutine parallelism, embeddable `pkg/agent`. | [GitHub](https://github.com/alexbeatnik/manul-browser) |
 
 ### Contributing and running tests
@@ -506,6 +524,7 @@ cd manul-browser/core
 go build ./...                                   # build everything
 go test ./...                                    # full unit + synthetic suite
 go test -race ./pkg/worker/...                   # concurrency safety
+go test -tags e2e ./e2e/                         # every hunt in e2e/ on real Chrome and Firefox
 ```
 
 ### Development guides
@@ -534,6 +553,8 @@ Manul Browser is alpha-stage and solo-developed. If deterministic, explainable b
 - 32+ DSL commands, full control flow (`IF`/`ELIF`/`ELSE`, `WHILE`, `REPEAT N TIMES`, `FOR EACH`)
 - 4-channel deterministic scoring with contextual qualifiers (`NEAR`, `ON HEADER/FOOTER`, `INSIDE`)
 - Shadow DOM support, 3-pass proximity resolution, anti-phantom guards
+- Iframes of any origin, new tabs and popups, `SWITCH TO TAB`; actions that wait for a target still loading
+- Chrome over CDP and Firefox over WebDriver BiDi, with a real-browser e2e suite for both in CI
 - `[SETUP]` / `[TEARDOWN]` hook blocks with fail-fast setup and guaranteed teardown; `@script:` aliases for `CALL GO` handlers
 - Import system (`@import:`, `USE`/`CALL` expansion) and the page-name registry (`pages/<site>.json`)
 - HTML reporting, screenshots, debug mode, explain mode

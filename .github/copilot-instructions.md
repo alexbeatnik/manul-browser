@@ -65,7 +65,7 @@ pkg/
                            (SINGLE-GOROUTINE — see "Concurrency contract" below)
   worker/                  Worker, WorkerPool, PortAllocator (parallel execution substrate)
   explain/                 Score breakdown and debugging visualization
-  report/                  Per-hunt HTML report + aggregate index.html
+  report/                  Per-hunt HTML reports; GenerateIndex writes an aggregate (Go API only, not the CLI)
   config/                  Runtime configuration (20 fields); config.Default() + JSON + env-var loading
   utils/                   Logger (dual-output: stdout+ANSI, file+stripped) + error types
   pages/                   URL → human-readable page label registry; lean/wrapped JSON
@@ -194,6 +194,7 @@ STEP 2: Enter credentials
 * `EXTRACT [target] into {variable_name}`
 * `VERIFY that [target] is [present|not present|checked|enabled|disabled]`
 * `VERIFY [Target] has [text|placeholder|value] "[Expected]"`
+* `SWITCH TO TAB [n | 'title or URL']` (1 is the hunt's first tab; a tab a step opens is followed without it)
 * `USE [BlockName]` (Inlines imported step block)
 * `CALL [BlockName]` (Functional alias for USE)
 * `DONE.`
@@ -216,7 +217,8 @@ The `Scorer` ranks candidates using weighted categories:
 * **Shadow DOM:** Standard XPaths fail inside shadow roots. The Go engine uses a custom `ShadowHostPath` and JS-based resolution to bridge shadow boundaries.
 * **Invisible Inputs:** React/Vue often hide the real `<input type="checkbox">` behind a styled `<div>`. The engine collects these hidden inputs and uses `Pass 2` anchors to find them.
 * **Scroll Lag:** Dynamic dropdowns and lists often need a `WAIT 1` after clicking to allow the DOM to populate.
-* **Pagination:** After clicking table pagination links, use `WAIT 1` in the `.hunt` file to let AJAX updates settle before the next targeting probe. Do not use `time.Sleep` in Go production code for this.
+* **Pagination:** After clicking table pagination links, use `WAIT 1` in the `.hunt` file to let AJAX updates settle before the next targeting probe. Do not use `time.Sleep` in Go production code for this. An action whose target is not on the page *yet* needs no wait — it looks again until `timeout` (`pkg/runtime/wait.go`); the old rows still being there is what this pitfall is about.
+* **Frames and tabs:** iframes of any origin are part of the page — no frame switching in a hunt. Cross-site frames are OOPIF sessions on CDP and are reached by routing input into the frame's context on BiDi. A tab a step opens is followed before the next step; `SWITCH TO TAB` goes back. Details and traps in the root `CLAUDE.md`.
 
 ## Interaction Robustness
 
@@ -399,6 +401,7 @@ If no match is found the engine **auto-populates** the file with `Auto: domain/p
 ## Testing expectations
 
 - **Default to `-race`:** `go test -race ./...`. CI runs race on every package.
+- **Real browsers:** `go test -tags e2e ./e2e/` runs every hunt in `core/e2e/testdata/hunts` on Chrome and Firefox against a local site; CI runs it with both required. A bug found on a live site gets its smallest local page there.
 - **Worker tests use `AdoptWorker`:** `pkg/worker/worker_test.go` dispatches 16
   hunts across 16 adopted workers with `MockPage`. That is the canonical
   pattern for verifying "no state bleed" when adding new Runtime state.
