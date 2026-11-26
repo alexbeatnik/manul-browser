@@ -1,0 +1,10 @@
+<!doctype html><html><head><title>Disabled field</title></head>
+<body style="font-family:sans-serif">
+<label for="edit">Edit Field</label> <input id="edit" disabled>
+<button onclick="setTimeout(function(){document.getElementById('edit').disabled=false},300)">Enable the field</button>
+<p id="out"></p>
+<script>
+document.getElementById('edit').addEventListener('change', function(e){
+  document.getElementById('out').textContent = 'Value changed to: ' + e.target.value; });
+</script>
+</body></html>

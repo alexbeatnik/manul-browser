@@ -1,0 +1,13 @@
+@context: Data-driven from JSON — one pass per object, keys become {placeholders}.
+@title: data_driven_cart
+@tags: regression, data
+@data: ../data/products.json
+
+STEP 1: Buy {qty} x {product}
+    NAVIGATE to {base_url}/catalog.html
+    VERIFY that 'Loaded 3 products' is present
+    REPEAT {qty} TIMES:
+        CLICK the 'Add to cart' button NEAR '{product}'
+    VERIFY that 'Cart: {qty}' is present
+
+DONE.

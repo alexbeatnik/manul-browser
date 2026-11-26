@@ -1,0 +1,25 @@
+@context: A login flow — fill fields by their label, press a button, check both outcomes.
+@title: login
+@tags: smoke
+
+@var: {site} = http://localhost:8000
+
+STEP 1: A wrong password is refused
+    NAVIGATE to {site}/login.html
+    FILL 'Username' field with 'ada'
+    FILL 'Password' field with 'wrong'
+    CLICK the 'Sign in' button
+    VERIFY that 'Invalid username or password' is present
+
+STEP 2: The right one gets in
+    # FILL replaces whatever the field held, so no clearing is needed.
+    FILL 'Password' field with 'lovelace'
+    CLICK the 'Sign in' button
+    VERIFY that 'Welcome, ada' is present
+    VERIFY that 'Invalid username or password' is NOT present
+
+STEP 3: Log out again
+    CLICK the 'Logout' button
+    VERIFY that 'Sign in' is present
+
+DONE.

@@ -1,0 +1,17 @@
+<!doctype html><html><head><title>Embedded widget</title></head>
+<body style="font-family:sans-serif">
+<h1>Docs page</h1>
+<!-- A web component that keeps its cross-site frame in its shadow root, as
+     MDN's live examples do: querySelectorAll on the page finds no iframe. -->
+<live-example></live-example>
+<script>
+customElements.define('live-example', class extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({mode: 'open'}).innerHTML =
+      '<style>iframe{border:3px solid #369;margin:20px 0 0 40px}</style>' +
+      '<iframe src="@XSITE@/cross.html" width="400" height="140"></iframe>';
+  }
+});
+</script>
+</body></html>

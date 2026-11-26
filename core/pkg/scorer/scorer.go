@@ -10,8 +10,11 @@ package scorer
 
 import (
 	"math"
+	"regexp"
 	"sort"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/alexbeatnik/manul-browser/core/pkg/dom"
 	"github.com/alexbeatnik/manul-browser/core/pkg/explain"
@@ -230,9 +233,24 @@ func Rank(query, typeHint, mode string, elements []dom.ElementSnapshot, topN int
 	// Sort: highest raw score first; DOM order as deterministic tie-breaker.
 	// RawScore is unclamped so that small differences in proximity/semantics
 	// are preserved even when Total confidence hits 1.0.
+	//
+	// On a tie a descendant beats its ancestor. A wrapper whose only content
+	// is the target scores exactly what the target does, and DOM order alone
+	// put the wrapper first: DRAG 'Card' took the column holding the card and
+	// pressed the mouse on empty column. Descendants first, otherwise
+	// document order, is post-order — a total order, so the sort stays sound.
 	sort.SliceStable(all, func(i, j int) bool {
 		if all[i].bd.RawScore != all[j].bd.RawScore {
 			return all[i].bd.RawScore > all[j].bd.RawScore
+		}
+		// Paths only nest within one document: every frame has an /html[1].
+		if all[i].elem.FrameIndex == all[j].elem.FrameIndex {
+			if IsXPathAncestor(all[j].elem.XPath, all[i].elem.XPath) {
+				return true
+			}
+			if IsXPathAncestor(all[i].elem.XPath, all[j].elem.XPath) {
+				return false
+			}
 		}
 		return all[i].idx < all[j].idx // earlier in DOM wins on tie
 	})
@@ -282,14 +300,65 @@ func MatchesQuery(query string, el *dom.ElementSnapshot) bool {
 	if q == "" {
 		return true
 	}
+	// A number is what tells 'Under 4 minutes' from 'Under 3 minutes', and
+	// word overlap drops it as a one-letter word. Some signal of the element
+	// has to carry every number the query names.
+	if !numbersAgreeAny(q, el) {
+		return false
+	}
+	// A word that only names what kind of control it is says nothing about
+	// which one: 'Cross button' shares "button" with 'Host button', the word
+	// overlap was 1/2, and the host page's button was clicked for one inside a
+	// frame the engine cannot enter. The query is matched without those words,
+	// unless they are all it has.
+	if rest := withoutRoleWords(q); rest != "" {
+		q = rest
+	}
+	return matchesText(q, el)
+}
+
+// roleWords name a kind of control rather than a particular one.
+var roleWords = map[string]bool{
+	"button": true, "link": true, "field": true, "checkbox": true,
+	"dropdown": true, "tab": true, "icon": true,
+}
+
+func withoutRoleWords(q string) string {
+	var kept []string
+	for _, w := range strings.Fields(q) {
+		if !roleWords[w] {
+			kept = append(kept, w)
+		}
+	}
+	return strings.Join(kept, " ")
+}
+
+func matchesText(q string, el *dom.ElementSnapshot) bool {
 	return scoreExactText(q, el) > 0 ||
-		scoreNormText(q, el) > 0 ||
+		textCarries(q, el) ||
 		scoreLabel(q, el) > 0 ||
 		scorePlaceholder(q, el) > 0 ||
 		scoreAria(q, el) > 0 ||
 		scoreDataQA(q, el) > 0 ||
 		scoreID(q, el) > 0 ||
 		scoreClassName(q, el) > 0
+}
+
+// textCarries reports whether one of el's text signals carries the query:
+// the whole phrase, or more than half of its significant words — the bar
+// scoreLabel already set for a label. Half was enough before, and 'Add to
+// cart' matched the paragraph "Cart: 0" by the one word they share; with the
+// products not loaded yet, CLICK clicked the paragraph and passed.
+func textCarries(q string, el *dom.ElementSnapshot) bool {
+	for _, s := range el.AllTextSignals() {
+		if s == "" || !numbersAgree(q, s) {
+			continue
+		}
+		if strings.Contains(s, q) || wordOverlap(q, s) > 0.5 {
+			return true
+		}
+	}
+	return false
 }
 
 // ContainsQuery reports whether el carries the query whole: as a phrase inside
@@ -347,8 +416,13 @@ func scoreNormText(q string, el *dom.ElementSnapshot) float64 {
 }
 
 // scoreLabel returns how well the element's associated <label> text matches.
+//
+// This and the attribute scorers below score nothing for an empty query. Pass 3
+// ranks the controls beside a caption with one, and strings.Contains(x, "") is
+// true: every field with a label of its own got +0.5 for it, so the zip-code
+// field across the form beat the unlabelled quantity box under 'Qty.'.
 func scoreLabel(q string, el *dom.ElementSnapshot) float64 {
-	if el.NormLabelText == "" {
+	if el.NormLabelText == "" || q == "" {
 		return 0.0
 	}
 	if el.NormLabelText == q {
@@ -358,7 +432,7 @@ func scoreLabel(q string, el *dom.ElementSnapshot) float64 {
 		return 0.5
 	}
 	// Word-overlap for multi-word queries like "CPU of Chrome".
-	if sigWords := SignificantWords(q); len(sigWords) >= 2 {
+	if sigWords := SignificantWords(q); len(sigWords) >= 2 && numbersAgree(q, el.NormLabelText) {
 		hits := 0
 		for _, w := range sigWords {
 			if strings.Contains(el.NormLabelText, w) {
@@ -378,7 +452,7 @@ func scoreLabel(q string, el *dom.ElementSnapshot) float64 {
 
 // scorePlaceholder returns how well the element's placeholder attribute matches.
 func scorePlaceholder(q string, el *dom.ElementSnapshot) float64 {
-	if el.NormPlaceholder == "" {
+	if el.NormPlaceholder == "" || q == "" {
 		return 0.0
 	}
 	if el.NormPlaceholder == q {
@@ -392,7 +466,7 @@ func scorePlaceholder(q string, el *dom.ElementSnapshot) float64 {
 
 // scoreAria returns how well the element's aria-label matches.
 func scoreAria(q string, el *dom.ElementSnapshot) float64 {
-	if el.NormAriaLabel == "" {
+	if el.NormAriaLabel == "" || q == "" {
 		return 0.0
 	}
 	if el.NormAriaLabel == q {
@@ -406,7 +480,7 @@ func scoreAria(q string, el *dom.ElementSnapshot) float64 {
 
 // scoreDataQA returns how well the element's data-qa / data-testid matches.
 func scoreDataQA(q string, el *dom.ElementSnapshot) float64 {
-	if el.NormDataQA == "" {
+	if el.NormDataQA == "" || q == "" {
 		return 0.0
 	}
 	if el.NormDataQA == q {
@@ -420,7 +494,7 @@ func scoreDataQA(q string, el *dom.ElementSnapshot) float64 {
 
 // scoreID returns how well the element's html id attribute matches.
 func scoreID(q string, el *dom.ElementSnapshot) float64 {
-	if el.NormHTMLId == "" {
+	if el.NormHTMLId == "" || q == "" {
 		return 0.0
 	}
 	normalized := el.NormHTMLId
@@ -593,8 +667,13 @@ func scoreNear(el *dom.ElementSnapshot, anchor *AnchorContext) float64 {
 	const threshold = 500.0
 	cx := el.Rect.Left + el.Rect.Width/2
 	cy := el.Rect.Top + el.Rect.Height/2
-	ax := anchor.Rect.Left + anchor.Rect.Width/2
-	ay := anchor.Rect.Top + anchor.Rect.Height/2
+	// Measured to the nearest point of the anchor, not to its middle. A
+	// caption in a <p> spans the page, so its middle was 600px from the field
+	// right under it, past the threshold, and "<p>Number</p><input>" could
+	// not be filled at all. For an anchor no wider than a button the two
+	// barely differ.
+	ax := clamp(cx, anchor.Rect.Left, anchor.Rect.Left+anchor.Rect.Width)
+	ay := clamp(cy, anchor.Rect.Top, anchor.Rect.Top+anchor.Rect.Height)
 	dist := math.Sqrt((cx-ax)*(cx-ax) + (cy-ay)*(cy-ay))
 	if dist > threshold {
 		return 0.0
@@ -695,6 +774,9 @@ func partialMatch(q, s string) float64 {
 	if s == q {
 		return 1.0
 	}
+	if !numbersAgree(q, s) {
+		return 0.0
+	}
 	score := 0.0
 	// Forward containment only: element text contains the query.
 	if strings.Contains(s, q) {
@@ -725,6 +807,71 @@ func wordOverlap(q, s string) float64 {
 		}
 	}
 	return clamp(float64(hits)/float64(len(qWords)), 0, 1)
+}
+
+// numbersAgree reports whether s carries every number q names, each as a
+// number of its own: "page 1" does not agree with "page 10", nor "under 4
+// minutes" with "under 3 minutes". A query with no number agrees with
+// anything.
+func numbersAgree(q, s string) bool {
+	want := standaloneNumbers(q)
+	if len(want) == 0 {
+		return true
+	}
+	have := map[string]bool{}
+	for _, n := range standaloneNumbers(s) {
+		have[n] = true
+	}
+	for _, n := range want {
+		if !have[n] {
+			return false
+		}
+	}
+	return true
+}
+
+// numbersAgreeAny is numbersAgree against any one of el's text signals or
+// its id.
+func numbersAgreeAny(q string, el *dom.ElementSnapshot) bool {
+	if len(standaloneNumbers(q)) == 0 {
+		return true
+	}
+	for _, s := range append(el.AllTextSignals(), el.NormHTMLId) {
+		if numbersAgree(q, s) {
+			return true
+		}
+	}
+	return false
+}
+
+// standaloneNumbers returns the numbers in s that stand as words of their
+// own: "24.50" and "1,299" are one number each, while the 4 of "4K", the 180
+// of "VR180" and the 2 of "button2" are part of a word and not numbers at all.
+// YouTube's filter dialog says "4K", and with it counted as a 4 the whole
+// dialog matched 'Under 4 minutes' and was clicked in the middle.
+func standaloneNumbers(s string) []string {
+	var out []string
+	for _, loc := range numberPattern.FindAllStringIndex(s, -1) {
+		before, _ := utf8.DecodeLastRuneInString(s[:loc[0]])
+		after, _ := utf8.DecodeRuneInString(s[loc[1]:])
+		if loc[0] > 0 && isWordRune(before) || loc[1] < len(s) && isWordRune(after) {
+			continue
+		}
+		out = append(out, s[loc[0]:loc[1]])
+	}
+	return out
+}
+
+func isWordRune(r rune) bool { return unicode.IsLetter(r) || unicode.IsDigit(r) }
+
+// numberPattern is a run of digits with any decimal or thousands separators
+// inside it.
+var numberPattern = regexp.MustCompile(`\d+(?:[.,]\d+)*`)
+
+// IsXPathAncestor reports whether the element at xpath anc contains the one at
+// xpath desc, judged by the snapshot's absolute paths.
+func IsXPathAncestor(anc, desc string) bool {
+	return anc != "" && len(desc) > len(anc)+1 && strings.HasPrefix(desc, anc) && desc[len(anc)] == '/'
 }
 
 // xpathParts splits an XPath string into its non-empty path components.

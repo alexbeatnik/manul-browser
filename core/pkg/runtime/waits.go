@@ -55,7 +55,8 @@ func (rt *Runtime) waitForElement(ctx context.Context, cmd dsl.Command) error {
 	for {
 		// The snapshot cache exists to make resolution cheap within a step;
 		// here it would make the wait blind to the change it is waiting for.
-		rt.invalidateSnapshot()
+		// So would a tab opened since the last look.
+		rt.pollTick(ctx)
 
 		satisfied, err := rt.elementStateSatisfied(ctx, cmd, target, state)
 		if err != nil {
@@ -153,6 +154,7 @@ func (rt *Runtime) waitForSelector(ctx context.Context, selector string) error {
 
 	deadline := time.Now().Add(defaultWaitTimeout)
 	for {
+		rt.followTabs(ctx)
 		raw, err := rt.page.EvalJS(ctx, js)
 		if err == nil {
 			// EvalJS returns booleans as JSON but strings as bare bytes, so the

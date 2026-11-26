@@ -1,0 +1,9 @@
+@context: Tagged `quarantine`; the before_group hook refuses it, so a suite counts it as skipped.
+@title: quarantined
+@tags: quarantine
+
+STEP 1: Never runs inside a suite
+    NAVIGATE to {base_url}/index.html
+    VERIFY that 'This text does not exist' is present
+
+DONE.

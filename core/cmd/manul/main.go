@@ -53,10 +53,10 @@ import (
 
 // version is the single source of truth for the engine version. Reported by
 // `manul --version` and emitted in the agent schema, so it is kept WITHOUT a
-// `v` prefix to match the contracts (contracts/*.md `"version": "0.1.5"`). The
-// git module tag adds the prefix Go requires (`go get ...@v0.1.5`). Bump this
+// `v` prefix to match the contracts (contracts/*.md `"version": "0.1.6"`). The
+// git module tag adds the prefix Go requires (`go get ...@v0.1.6`). Bump this
 // together with the tag.
-const version = "0.1.5"
+const version = "0.1.6"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -74,7 +74,7 @@ func main() {
 
 	// If the first arg is a flag (starts with -), or it's a known target-like string,
 	// treat the whole execution as an implicit "run".
-	if strings.HasPrefix(firstArg, "-") || looksLikeTarget(firstArg) {
+	if isImplicitRun(firstArg) {
 		if err := cmdRun(os.Args[1:]); err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			os.Exit(1)
@@ -147,6 +147,23 @@ func main() {
 	}
 }
 
+// subcommands are the words that always mean a subcommand, even when the
+// working directory has a directory of the same name. The registry itself lives
+// in pages/, so letting the directory win made `manul pages list` unreachable
+// from exactly the place it is meant to be run. `manul run pages/` or
+// `manul ./pages` still runs such a directory.
+var subcommands = map[string]bool{
+	"run": true, "run-step": true, "read": true, "map": true, "schema": true,
+	"serve": true, "scan": true, "record": true, "daemon": true, "pages": true,
+	"controls": true, "help": true,
+}
+
+// isImplicitRun reports whether the first argument starts a run with no `run`
+// subcommand: a flag, or a target that is not also a subcommand's name.
+func isImplicitRun(arg string) bool {
+	return strings.HasPrefix(arg, "-") || (!subcommands[arg] && looksLikeTarget(arg))
+}
+
 // looksLikeTarget returns true if the argument appears to be a .hunt file,
 // a directory path, or "." — i.e. something to run directly.
 func looksLikeTarget(arg string) bool {
@@ -182,6 +199,7 @@ func cmdRun(args []string) error {
 	htmlReport := fs.Bool("html-report", false, "generate HTML report after run (default off; opt-in)")
 	executablePath := fs.String("executable-path", "", "absolute path to a custom browser or Electron app executable")
 	channel := fs.String("channel", "", "browser channel to launch (chrome, chrome-beta, chromium, msedge, firefox, firefox-esr, firefox-dev, firefox-nightly)")
+	locale := fs.String("locale", "", "language the browser uses and asks pages for, e.g. en-US or uk-UA (default en-US)")
 	tags := fs.String("tags", "", "comma-separated tags to filter hunt files")
 	retries := fs.Int("retries", 0, "number of retries for failed steps")
 	disableCache := fs.Bool("disable-cache", false, "disable DOM snapshot caching")
@@ -306,6 +324,9 @@ func cmdRun(args []string) error {
 	if *channel != "" {
 		c := *channel
 		cfg.Channel = &c
+	}
+	if *locale != "" {
+		cfg.Locale = *locale
 	}
 	// CLI --workers wins over JSON/env (MANUL_WORKERS). Default 1 = sequential;
 	// >1 routes multi-file/dir runs through runParallel + pkg/worker.WorkerPool.
@@ -588,6 +609,7 @@ func runSequential(ctx context.Context, cfg config.Config, hunts []*dsl.Hunt, op
 		if cfg.Channel != nil && *cfg.Channel != "" {
 			opts.Channel = *cfg.Channel
 		}
+		opts.Locale = cfg.Locale
 		engine, err := browser.NormalizeEngine(opts.Browser)
 		if err != nil {
 			logger.Error("%v", err)

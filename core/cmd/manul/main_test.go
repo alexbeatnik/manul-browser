@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"os"
 	"strings"
 	"testing"
 
@@ -148,5 +149,30 @@ func TestFilterByTags(t *testing.T) {
 	}
 	if got := filterByTags(hunts, []string{"nightly"}); len(got) != 0 {
 		t.Errorf("nightly → %q", titles(got))
+	}
+}
+
+// A directory named like a subcommand must not swallow it: pages/ is where the
+// page registry lives, so `manul pages list` is run from beside one.
+func TestSubcommandBeatsSameNamedDirectory(t *testing.T) {
+	t.Chdir(t.TempDir())
+	for _, dir := range []string{"pages", "controls", "hunts"} {
+		if err := os.Mkdir(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cases := map[string]bool{
+		"pages":    false, // the subcommand, not the directory
+		"controls": false,
+		"./pages":  true, // still reachable as a directory
+		"hunts":    true, // a directory that is no subcommand runs as before
+		"x.hunt":   true,
+		"--json":   true,
+		"schema":   false,
+	}
+	for arg, want := range cases {
+		if got := isImplicitRun(arg); got != want {
+			t.Errorf("isImplicitRun(%q) = %v, want %v", arg, got, want)
+		}
 	}
 }

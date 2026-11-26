@@ -1,0 +1,6 @@
+@title: A disabled field says so
+# expect-fail: is disabled
+STEP 1: Fill
+    NAVIGATE to @SITE@/disabled.html
+    FILL 'Edit Field' field with 'hello'
+DONE.

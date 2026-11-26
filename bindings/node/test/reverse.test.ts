@@ -156,6 +156,25 @@ describe('suite hooks', () => {
     assert.equal(published['step'], '12');
   });
 
+  it('publishes through set(), and keeps metadata to itself', async () => {
+    beforeAll((ctx) => {
+      ctx.set('count', 3);
+      ctx.metadata['started'] = 'now';
+    });
+    beforeAll((ctx) => {
+      ctx.set('seen', String(ctx.metadata['started']));
+    });
+    const s = await openFake();
+    after(() => s.close());
+    const published = (await raw(s).call('fire-hook', { hook: 'before_all' })) as Record<
+      string,
+      string
+    >;
+    assert.equal(published['count'], '3');
+    assert.equal(published['seen'], 'now');
+    assert.equal('started' in published, false);
+  });
+
   it('supports an async handler', async () => {
     beforeAll(async (ctx) => {
       await new Promise((r) => setTimeout(r, 1));

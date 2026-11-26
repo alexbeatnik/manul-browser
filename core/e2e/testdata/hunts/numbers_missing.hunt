@@ -1,0 +1,8 @@
+@title: A number that is not on the page is not found
+# expect-fail: Page 4
+# Word overlap drops digits, so 'Page 4' used to match "Page 2" completely
+# and click it.
+STEP 1: Click
+    NAVIGATE to @SITE@/numbers.html
+    CLICK the 'Page 4' link
+DONE.

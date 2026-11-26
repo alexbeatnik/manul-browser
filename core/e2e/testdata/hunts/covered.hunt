@@ -1,0 +1,6 @@
+@title: A covered field is not typed into
+# expect-fail: nothing was typed
+STEP 1: Fill
+    NAVIGATE to @SITE@/covered.html
+    FILL 'Name' field with 'Manul'
+DONE.

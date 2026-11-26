@@ -17,6 +17,10 @@ type msgReq struct {
 	ID     int64       `json:"id"`
 	Method string      `json:"method"`
 	Params interface{} `json:"params,omitempty"`
+	// SessionID addresses a target attached to this one in flat mode — an
+	// out-of-process iframe (Target.setAutoAttach with flatten). Empty is the
+	// connection's own target.
+	SessionID string `json:"sessionId,omitempty"`
 }
 
 // msgResp represents a JSON-RPC 2.0 response or event.
@@ -26,6 +30,9 @@ type msgResp struct {
 	Params json.RawMessage `json:"params,omitempty"`
 	Result json.RawMessage `json:"result,omitempty"`
 	Error  *msgError       `json:"error,omitempty"`
+	// SessionID is the attached target an event came from; empty for the
+	// connection's own target.
+	SessionID string `json:"sessionId,omitempty"`
 }
 
 type msgError struct {
@@ -167,6 +174,23 @@ func (c *Conn) Close() error {
 	return closeErr
 }
 
+// URL returns the WebSocket URL this connection was dialed on.
+func (c *Conn) URL() string { return c.wsURL }
+
+// Closed reports whether the connection has been torn down — by Close, or by
+// the browser closing the socket, which it does when the tab goes away.
+func (c *Conn) Closed() bool {
+	if c == nil {
+		return true
+	}
+	select {
+	case <-c.ctx.Done():
+		return true
+	default:
+		return false
+	}
+}
+
 func (c *Conn) readLoop() {
 	// Calling Close() (idempotent via closeOnce) ensures subscription channels
 	// are closed when the read loop exits for any reason — including unexpected
@@ -253,6 +277,12 @@ func (c *Conn) unsubscribe(id uint64) {
 
 // Call sends a JSON-RPC request and waits for the response.
 func (c *Conn) Call(ctx context.Context, method string, params interface{}) (json.RawMessage, error) {
+	return c.CallSession(ctx, "", method, params)
+}
+
+// CallSession is Call addressed to an attached target's session; an empty
+// sessionID is Call itself.
+func (c *Conn) CallSession(ctx context.Context, sessionID, method string, params interface{}) (json.RawMessage, error) {
 	// Honor the Dial-time parent context up front: once it's cancelled the
 	// connection is being (or about to be) torn down, so fail deterministically
 	// instead of racing the async teardown goroutine.
@@ -270,9 +300,10 @@ func (c *Conn) Call(ctx context.Context, method string, params interface{}) (jso
 	c.pendingMu.Unlock()
 
 	req := msgReq{
-		ID:     id,
-		Method: method,
-		Params: params,
+		ID:        id,
+		Method:    method,
+		Params:    params,
+		SessionID: sessionID,
 	}
 
 	c.writeMu.Lock()

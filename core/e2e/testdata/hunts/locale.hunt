@@ -1,0 +1,8 @@
+@title: Both browsers ask for the same language
+# Left to themselves, headless Chrome asked for en-US and Firefox for the
+# system's language. The default is en-US on both.
+STEP 1: navigator.language and Accept-Language
+    NAVIGATE to @SITE@/locale.html
+    VERIFY that 'navigator: en-US' is present
+    VERIFY that 'header: en-US' is present
+DONE.

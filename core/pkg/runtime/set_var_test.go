@@ -117,3 +117,28 @@ func TestRuntime_VarScoping_MissionLevel(t *testing.T) {
 		t.Errorf("base_url scope level = %d, want LevelMission (%d)", level, LevelMission)
 	}
 }
+
+// Imported @var: values sit below everything else: the importing hunt's own
+// @var: wins, and an imported name nobody else declares still resolves.
+func TestRuntime_VarScoping_ImportLevel(t *testing.T) {
+	mock := &MockPage{}
+	rt := New(config.Config{}, mock, utils.NewLogger(nil))
+
+	hunt := &dsl.Hunt{
+		Vars:       map[string]string{"user": "grace"},
+		ImportVars: map[string]string{"user": "ada", "site": "http://localhost:8000"},
+		Commands: []dsl.Command{
+			{Type: dsl.CmdNavigate, URL: "{site}/{user}"},
+		},
+	}
+	if _, err := rt.RunHunt(context.Background(), hunt); err != nil {
+		t.Fatalf("RunHunt failed: %v", err)
+	}
+
+	if mock.LastNavigate != "http://localhost:8000/grace" {
+		t.Errorf("navigated to %q, want http://localhost:8000/grace", mock.LastNavigate)
+	}
+	if _, level, _ := rt.vars.ResolveLevel("site"); level != LevelImport {
+		t.Errorf("site scope level = %d, want LevelImport (%d)", level, LevelImport)
+	}
+}

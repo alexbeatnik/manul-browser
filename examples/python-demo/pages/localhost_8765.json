@@ -1,0 +1,9 @@
+{
+  "site": "http://localhost:8765/",
+  "Domain": "Manul Demo Shop",
+  "http://localhost:8765/index.html": "Login Page",
+  "http://localhost:8765/dashboard.html": "Dashboard",
+  "http://localhost:8765/forms.html": "Forms Page",
+  "http://localhost:8765/widgets.html": "Widgets Page",
+  ".*/catalog\\.html": "Catalog"
+}

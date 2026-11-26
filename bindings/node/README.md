@@ -68,8 +68,19 @@ customControl({ page: '*', target: 'Cookie Consent' }, async (ctx) => {
 });
 
 // Runs once for a whole suite; what it publishes becomes {placeholders}.
-beforeAll((ctx) => { ctx.variables.env = 'staging'; });
+beforeAll((ctx) => {
+  ctx.set('env', 'staging');        // same as ctx.variables.env = 'staging'
+  ctx.metadata.started = Date.now(); // scratch space for later hooks; never reaches a hunt
+});
 ```
+
+`session.runSuite(paths)` runs hunts with these hooks applied and resolves to a
+`SuiteResult` whose `vars` are the variables the hooks published. A hunt that a
+`beforeGroup` hook refused is `skipped`, and the rest still run.
+
+`session.run({ path })` is one hunt, not a suite: no suite hook fires, and a
+hunt with a failing step rejects with `EngineError` (`code === 'step_failed'`)
+instead of resolving `ok: false`.
 
 Inside a handler the engine is paused mid-step, so only `ctx.eval` and
 `ctx.url` are available — anything else would re-enter the step that is running.

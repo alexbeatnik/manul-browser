@@ -1,0 +1,42 @@
+@context: IF / ELIF / ELSE, WHILE, REPEAT, FOR EACH, SET, PRINT, DEBUG VARS and soft assertions.
+@title: control_flow
+@tags: regression
+@import: Login from 'lib/auth.hunt'
+@var: {max_clicks} = 2
+
+STEP 1: Branch on page state and variables
+    USE Login
+    EXTRACT the 'Role' into {role}
+    IF {role} == 'admin':
+        PRINT "admin path"
+        SET {greeting} = 'Hello, boss'
+    ELIF {role} contains 'member':
+        SET {greeting} = 'Hello, member'
+    ELSE:
+        SET {greeting} = 'Hello, stranger'
+    IF 'Welcome, ada' is present:
+        PRINT "{greeting}"
+    IF button 'Delete everything' exists:
+        PRINT "this never prints"
+    ELSE:
+        PRINT "no dangerous button"
+
+STEP 2: Loops
+    WHILE button 'Load More' exists:
+        CLICK the 'Load More' button
+    VERIFY that 'Feed item 4' is present
+    REPEAT 3 TIMES:
+        PRINT "repeat pass {i}"
+    REPEAT {max_clicks} TIMES as {n}:
+        PRINT "named counter {n}"
+    SET {names} = Ada Lovelace, Grace Hopper
+    FOR EACH {name} IN {names}:
+        CLICK the 'Edit' button INSIDE 'Users' row with '{name}'
+        VERIFY that 'Editing {name}' is present
+
+STEP 3: Soft checks keep going
+    VERIFY SOFTLY that 'Optional promo banner' is present
+    VERIFY SOFTLY that 'Logout' is enabled
+    DEBUG VARS
+
+DONE.

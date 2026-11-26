@@ -1,0 +1,56 @@
+@context: Mouse, keyboard, waits, shadow DOM, scrolling containers, JS dialogs and custom controls on non-standard widgets.
+@title: widgets
+@tags: regression, widgets
+
+STEP 1: Waits
+    NAVIGATE to {base_url}/widgets.html
+    WAIT FOR 'Loading widgets...' to disappear
+    CLICK the 'Reveal panel' button
+    WAIT FOR SELECTOR '.lazy-panel'
+    WAIT FOR 'Panel ready' to be visible
+    WAIT 0.2
+
+STEP 2: Mouse
+    DRAG 'Card A' and drop it into 'Done column'
+    VERIFY that 'Card A moved to Done' is present
+    HOVER over the 'Profile'
+    VERIFY that 'Signed in as Manul' is present
+    DOUBLE CLICK the 'Copy Text' button
+    VERIFY that 'Copied!' is present
+    RIGHT CLICK the 'Context Area'
+    CLICK the 'Rename' button
+    VERIFY that 'Renamed!' is present
+
+STEP 3: Keyboard
+    FILL 'Shortcut box' field with 'hello'
+    PRESS Enter
+    VERIFY that 'Enter pressed' is present
+    PRESS Control+A ON 'Shortcut box'
+    VERIFY that 'Select all pressed' is present
+    CLICK the 'Open dialog' button
+    VERIFY that 'Modal is open' is present
+    PRESS Escape
+    VERIFY that 'Modal is open' is NOT present
+
+STEP 4: Dialogs are accepted automatically
+    CLICK the 'Show alert' button
+    VERIFY that 'Alert accepted' is present
+
+STEP 5: Scrolling
+    SCROLL DOWN inside the 'Product List'
+    VERIFY that 'Product 40' is present
+    SCROLL DOWN
+    SCROLL UP
+
+STEP 6: Shadow DOM
+    TYPE 'from the shadows' into the 'Shadow Field' field
+    VERIFY that 'Echo: from the shadows' is present
+
+STEP 7: Custom controls
+    # {signer} comes from the beforeAll hook (or setVars in scripts).
+    CLICK the 'Signature Pad'
+    VERIFY that 'Signed by {signer}' is present
+    SELECT '4' from the 'Star Rating' dropdown
+    VERIFY that 'Rating: 4' is present
+
+DONE.

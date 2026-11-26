@@ -1,6 +1,6 @@
 # Reports & Explainability
 
-> **Manul Browser 0.1.5**
+> **Manul Browser 0.1.6**
 
 Manul Browser provides multiple layers of observability: HTML reports with screenshots, per-channel scoring breakdowns, and an interactive debugger with a read-only explain-next preview.
 
@@ -14,7 +14,7 @@ manul --html-report --screenshot on-fail examples/   # screenshots on failure
 manul --html-report --screenshot always examples/    # screenshot every step
 ```
 
-Each hunt gets a styled per-hunt HTML report under `reports/`; parallel/directory runs additionally get an aggregate `reports/index.html` with one row per hunt and worker attribution.
+Each hunt gets a styled HTML report of its own, `reports/report_<title>_<YYYYMMDD_HHMMSS>_<seq>.html` — a hunt with `@data:` gets one per row. Directory and parallel runs produce the same per-hunt files; there is no aggregate index.
 
 ### Screenshot modes
 
@@ -36,7 +36,7 @@ Each test run appends a JSON Lines entry to `reports/run_history.json`:
 
 Each row is `{file, name, timestamp, status, duration_ms}`, so a dashboard can read the file to display sparkline history per hunt file.
 
-> **Note:** there is no report-session merging — the engine writes one report per run, plus the aggregate index.
+> **Note:** there is no report-session merging and no aggregate report — the engine writes one report per hunt result.
 
 ---
 
@@ -71,8 +71,8 @@ The channels behind the total (text · id · semantics · proximity, plus visibi
 For drivers and CI, prefer the structured outputs over parsing logs:
 
 ```bash
-manul run --json file.hunt        # full HuntResult JSON on stdout
-manul run --jsonl file.hunt       # per-step JSON Lines + final HuntResult
+manul run --json file.hunt        # one HuntResult JSON document per hunt (per @data row)
+manul run --jsonl file.hunt       # {"event":"step",…} per step, then {"event":"result",…} per hunt
 manul run-step "Click 'Login'"    # compact StepOutcome JSON (default)
 ```
 

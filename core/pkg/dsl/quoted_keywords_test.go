@@ -202,6 +202,19 @@ func TestInlineComments(t *testing.T) {
 	if cmd := parseLine(t, "PRINT 'Issue # 5'"); cmd.PrintText != "Issue # 5" {
 		t.Errorf("print=%q", cmd.PrintText)
 	}
+
+	// The examples in the docs and the hunt-authoring skill.
+	if cmd := parseLine(t, "PRESS Tab ON 'Username'    # fires key event on a specific element"); cmd.PressKey != "Tab" || cmd.PressTarget != "Username" {
+		t.Errorf("PRESS: key=%q target=%q", cmd.PressKey, cmd.PressTarget)
+	}
+	// A '#' that ends the line is the key, not an empty comment: it used to
+	// be stripped and leave a step that parsed as nothing.
+	if cmd := parseLine(t, "PRESS #"); cmd.Type != CmdPress || cmd.PressKey != "#" {
+		t.Errorf("PRESS #: type=%s key=%q", cmd.Type, cmd.PressKey)
+	}
+	if cmd := parseLine(t, "PRESS #  # the hash key"); cmd.Type != CmdPress || cmd.PressKey != "#" {
+		t.Errorf("PRESS # with a comment: type=%s key=%q", cmd.Type, cmd.PressKey)
+	}
 }
 
 func TestNumberedCommands(t *testing.T) {

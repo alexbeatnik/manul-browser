@@ -1,0 +1,10 @@
+<!doctype html><html><head><title>Covered field</title></head>
+<body style="font-family:sans-serif">
+<!-- The field is in the layout, but a sibling sits on top of its middle.
+     A click there lands on the overlay, so typing would go nowhere. -->
+<div style="position:relative;width:320px">
+  <label for="name">Name</label>
+  <input id="name" style="width:300px">
+  <div class="overlay" style="position:absolute;left:0;top:0;width:320px;height:60px;background:#eee">Overlay</div>
+</div>
+</body></html>

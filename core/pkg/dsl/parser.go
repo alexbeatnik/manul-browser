@@ -70,6 +70,7 @@ const (
 	CmdPause           CommandType = "PAUSE"
 	CmdDebugVars       CommandType = "DEBUG_VARS"
 	CmdMock            CommandType = "MOCK"
+	CmdSwitchTab       CommandType = "SWITCH_TAB"
 	CmdUnknown         CommandType = "UNKNOWN"
 )
 
@@ -268,6 +269,11 @@ type Hunt struct {
 	// parse time: the ones the hunt itself assigns to, and all of them when
 	// the hunt is data-driven. See lazyVarNames.
 	LazyVars map[string]bool
+	// ImportVars holds the @var: declarations of the files this hunt imports,
+	// directly or through another import. The runtime keeps them at the
+	// import level, below every other scope, so they are defaults the
+	// importing hunt, a data row or a global can override.
+	ImportVars map[string]string
 	// ScriptAliases maps @script: aliases to their full dotted paths.
 	ScriptAliases map[string]string
 	// Imports contains parsed @import directives.
@@ -358,6 +364,10 @@ func expandCommands(cmds []Command, blueprints map[string][]Command, visited map
 // Parse reads a .hunt file from r and returns the parsed Hunt.
 // Variable substitution of @var declarations is applied during parsing.
 func Parse(r io.Reader) (*Hunt, error) {
+	return parse(r, false)
+}
+
+func parse(r io.Reader, library bool) (*Hunt, error) {
 	hunt := &Hunt{Vars: map[string]string{}}
 	scanner := bufio.NewScanner(r)
 	var lines []string
@@ -367,7 +377,7 @@ func Parse(r io.Reader) (*Hunt, error) {
 	if err := scanner.Err(); err != nil {
 		return nil, err
 	}
-	if err := parseLines(hunt, lines); err != nil {
+	if err := parseLines(hunt, lines, library); err != nil {
 		return nil, err
 	}
 	return hunt, nil
@@ -375,12 +385,24 @@ func Parse(r io.Reader) (*Hunt, error) {
 
 // ParseFile reads a .hunt file from the filesystem and returns the parsed Hunt.
 func ParseFile(path string) (*Hunt, error) {
+	return parseFile(path, false)
+}
+
+// parseLibrary reads a file another hunt imports. Its @var: values are left
+// as {placeholders} in its steps rather than written into them: they are
+// defaults, and written in they could no longer be overridden by the hunt
+// that imports them.
+func parseLibrary(path string) (*Hunt, error) {
+	return parseFile(path, true)
+}
+
+func parseFile(path string, library bool) (*Hunt, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("parse %q: %w", path, err)
 	}
 	defer f.Close()
-	hunt, err := Parse(f)
+	hunt, err := parse(f, library)
 	if err != nil {
 		return nil, err
 	}
@@ -389,7 +411,7 @@ func ParseFile(path string) (*Hunt, error) {
 }
 
 // parseLines is the main parsing loop, implementing stack-based block AST building via indentation.
-func parseLines(hunt *Hunt, lines []string) error {
+func parseLines(hunt *Hunt, lines []string, library bool) error {
 	var currentStep string
 	var currentTags []string
 	var inSetup, inTeardown bool
@@ -402,6 +424,9 @@ func parseLines(hunt *Hunt, lines []string) error {
 	var stack []stackFrame
 
 	hunt.LazyVars = lazyVarNames(lines)
+	if library {
+		hunt.LazyVars["*"] = true
+	}
 
 	appendCmd := func(cmd Command) *Command {
 		if len(stack) == 0 {
@@ -1237,6 +1262,18 @@ func parseCommandLine(line string) Command {
 	case upper == "DEBUG VARS":
 		cmd.Type = CmdDebugVars
 
+	// ── SWITCH TO TAB ─────────────────────────────────────────────────────────
+	// "SWITCH TO TAB 2" by position, "SWITCH TO TAB 'Checkout'" by title or
+	// URL. The position goes to Value, a quoted text to Target.
+	case strings.HasPrefix(upper, "SWITCH TO TAB ") || strings.HasPrefix(upper, "SWITCH TAB "):
+		cmd.Type = CmdSwitchTab
+		rest := strings.TrimSpace(stripPrefix(line, "SWITCH TO TAB", "SWITCH TAB"))
+		if q := extractFirstQuoted(rest); q != "" {
+			cmd.Target = q
+		} else {
+			cmd.Value = rest
+		}
+
 	// ── MOCK GET/POST/PUT/PATCH/DELETE ────────────────────────────────────────
 	case strings.HasPrefix(upper, "MOCK "):
 		cmd.Type = CmdMock
@@ -1610,15 +1647,23 @@ func keywordIndex(s, keyword string) int {
 }
 
 // stripInlineComment drops a trailing "# comment". Only a '#' that stands
-// alone — whitespace before it, whitespace or nothing after — and sits outside
-// quotes counts, so URL fragments, CSS ids and colours are left intact.
+// alone — whitespace before it and after it — and sits outside quotes
+// counts, so URL fragments, CSS ids and colours are left intact. A '#' that
+// ends the line with nothing after it is not a comment either: it is the key
+// in `PRESS #`, which used to be stripped and leave a step that parsed as
+// nothing.
 func stripInlineComment(line string) string {
 	masked := maskQuoted(line)
-	for i := 1; i < len(masked); i++ {
+	start := 1
+	// The key of PRESS # stands alone too; it is never the comment.
+	if up := strings.ToUpper(line); strings.HasPrefix(up, "PRESS # ") || up == "PRESS #" {
+		start = len("PRESS #")
+	}
+	for i := start; i < len(masked); i++ {
 		if masked[i] != '#' || (masked[i-1] != ' ' && masked[i-1] != '\t') {
 			continue
 		}
-		if i+1 == len(masked) || masked[i+1] == ' ' || masked[i+1] == '\t' {
+		if i+1 < len(masked) && (masked[i+1] == ' ' || masked[i+1] == '\t') {
 			return strings.TrimSpace(line[:i])
 		}
 	}

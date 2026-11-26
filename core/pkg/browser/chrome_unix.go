@@ -3,7 +3,11 @@
 package browser
 
 import (
+	"os"
 	"os/exec"
+	"regexp"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -37,5 +41,33 @@ func killProcessTree(cmd *exec.Cmd) {
 	case <-time.After(3 * time.Second):
 		_ = syscall.Kill(-pid, syscall.SIGKILL)
 		<-done
+	}
+}
+
+// killProfileStragglers kills every process still running with profileDir on
+// its command line.
+//
+// Killing the process group is not always enough for Firefox. When an update
+// has been downloaded, Firefox starts the updater, exits, and the updater
+// relaunches Firefox with the same arguments — outside the group the engine
+// started, so the group kill misses it. That Firefox then holds the BiDi port,
+// and every later launch fails with "Maximum number of active sessions". The
+// profile directory is a temp dir unique to this launch, which makes it a safe
+// way to find such a process. Best effort: without pgrep nothing is killed.
+func killProfileStragglers(profileDir string) {
+	if profileDir == "" {
+		return
+	}
+	out, err := exec.Command("pgrep", "-f", "--", regexp.QuoteMeta(profileDir)).Output()
+	if err != nil {
+		return // exit status 1 is "no match"; anything else, nothing to do
+	}
+	self := os.Getpid()
+	for _, field := range strings.Fields(string(out)) {
+		pid, err := strconv.Atoi(field)
+		if err != nil || pid == self || pid <= 1 {
+			continue
+		}
+		_ = syscall.Kill(pid, syscall.SIGKILL)
 	}
 }

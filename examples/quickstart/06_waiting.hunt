@@ -1,0 +1,22 @@
+@context: Pages that are slow — what waits on its own, and how to wait for the rest.
+@title: waiting
+
+@var: {site} = http://localhost:8000
+
+STEP 1: VERIFY already waits
+    NAVIGATE to {site}/dynamic.html
+    # 'Report ready' appears 1.5 s after the click. VERIFY keeps looking until
+    # the timeout (5 s by default, --timeout to change), so no WAIT is needed.
+    CLICK the 'Build report' button
+    VERIFY that 'Report ready: 3 orders' is present
+
+STEP 2: Wait for something to go away
+    WAIT FOR 'Loading page...' to disappear
+    CLICK the 'Save settings' button
+    WAIT FOR 'Settings saved' to be visible
+    WAIT FOR 'Settings saved' to disappear
+
+STEP 3: A fixed pause, when nothing on the page says "done"
+    WAIT 0.5
+
+DONE.

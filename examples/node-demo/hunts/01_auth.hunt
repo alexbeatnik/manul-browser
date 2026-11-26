@@ -1,0 +1,39 @@
+@context: Login/logout via imported blocks, [SETUP]/[TEARDOWN], CALL HOST, @script aliases.
+@title: auth
+@tags: smoke, auth
+@import: Login, Logout from 'lib/auth.hunt'
+@import: OpenDashboard as Home from 'lib/auth.hunt'
+@script: {db} = demo
+@script: {shout} = demo.upper
+
+[SETUP]
+    PRINT "Seeding backend for {env_name}"
+    CALL HOST {db}.seed_db into {seed_state}
+[END SETUP]
+
+STEP 1: Wrong password shows an error
+    NAVIGATE to {base_url}/index.html
+    FILL 'Username' field with 'ada'
+    FILL 'Password' field with 'wrong'
+    CLICK the 'Sign in' button
+    VERIFY that 'Invalid username or password' is present
+    VERIFY that 'Welcome' is NOT present
+
+STEP 2: Log in with the imported block
+    USE Login
+    VERIFY that '{seed_state}' is NOT present
+    CALL HOST {shout} with args: "logged in as" "{login_user}" into {banner}
+    PRINT "{banner} (token {api_token})"
+
+STEP 3: Aliased import and logout
+    USE Home
+    EXTRACT the 'Order total' into {order_total}
+    CALL HOST demo.assert_equal "{order_total}" "142.50"
+    USE Logout
+
+[TEARDOWN]
+    CALL GO {db}.cleanup_db
+    PRINT "Teardown done"
+[END TEARDOWN]
+
+DONE.

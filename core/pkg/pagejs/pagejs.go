@@ -127,6 +127,56 @@ const checkable = `
 		};
 `
 
+// CaptionedBox picks, out of the checkboxes and radios inside the element at
+// ID or XPath, the one captioned with caption. Its completion value is a JSON
+// string: {"count":n,"xpath":"…"}, with xpath empty when no single box is
+// captioned so, or when there are fewer than two boxes to choose between.
+//
+// A box's caption is its <label>, or the text that follows it up to the next
+// box or line break: <input type=checkbox> checkbox 1<br><input …> checkbox 2.
+// No element holds such a caption alone, so the step resolved to the form
+// holding both, and manulCheckable took the first box in it — UNCHECK
+// 'checkbox 2' unchecked checkbox 1, and passed.
+func CaptionedBox(id int, xpath, caption string) string {
+	return fmt.Sprintf(`(() => {
+		var el = (window.__manulReg && window.__manulReg[%[1]d]) || document.evaluate(%[2]q, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+		if (!el || !el.querySelectorAll) return JSON.stringify({count: 0, xpath: ""});
+		var boxes = Array.from(el.querySelectorAll('input[type=checkbox], input[type=radio]'));
+		if (boxes.length < 2) return JSON.stringify({count: boxes.length, xpath: ""});
+		var fold = function(t) { return (t || '').replace(/\s+/g, ' ').trim().toLowerCase(); };
+		var want = fold(%[3]q);
+		var captionOf = function(box) {
+			var t = Array.from(box.labels || []).map(function(l) { return l.innerText; }).join(' ');
+			for (var n = box.nextSibling; n; n = n.nextSibling) {
+				if (n.nodeType === Node.ELEMENT_NODE) {
+					if (n.tagName === 'BR' || n.matches('input[type=checkbox], input[type=radio]') ||
+						n.querySelector('input[type=checkbox], input[type=radio]')) break;
+					t += ' ' + n.innerText;
+				} else if (n.nodeType === Node.TEXT_NODE) {
+					t += ' ' + n.textContent;
+				}
+			}
+			return fold(t);
+		};
+		var pick = function(test) {
+			var hits = boxes.filter(function(b) { return test(captionOf(b)); });
+			return hits.length === 1 ? hits[0] : null;
+		};
+		var box = pick(function(c) { return c === want; }) || pick(function(c) { return c.indexOf(want) >= 0; });
+		if (!box) return JSON.stringify({count: boxes.length, xpath: ""});
+		var parts = [];
+		for (var node = box; node && node.nodeType === Node.ELEMENT_NODE; ) {
+			var tag = node.tagName.toLowerCase(), idx = 1;
+			for (var sib = node.previousElementSibling; sib; sib = sib.previousElementSibling) {
+				if (sib.tagName.toLowerCase() === tag) idx++;
+			}
+			parts.unshift(tag + '[' + idx + ']');
+			node = node.parentElement || (node.parentNode && node.parentNode.host) || null;
+		}
+		return JSON.stringify({count: boxes.length, xpath: '/' + parts.join('/')});
+	})()`, id, xpath, caption)
+}
+
 // CheckedState reports the state of the checkbox, radio or ARIA-checkable
 // control that the element at ID or XPath stands for. Its completion value is
 // a JSON string: {"found":true,"checked":…}, or {"found":false} when there is
@@ -544,6 +594,29 @@ const CurrentURL = "window.location.href"
 // ReadyState is the expression whose value is the document's load state.
 const ReadyState = "document.readyState"
 
+// ArmNavigationWatch marks the current document before an action, so that
+// NavigationState can tell afterwards whether the action is replacing it.
+//
+// readyState alone cannot: the old document stays "complete" until the new
+// one's response arrives, and on a slow server the next step ran on the page
+// that was about to go away. beforeunload fires as the navigation starts,
+// before any request is sent.
+const ArmNavigationWatch = `(() => {
+	window.__manulStay = true;
+	window.__manulLeaving = false;
+	if (!window.__manulWatching) {
+		window.__manulWatching = true;
+		window.addEventListener("beforeunload", () => { window.__manulLeaving = true; });
+	}
+	return 1;
+})()`
+
+// NavigationState is 0 when the armed document is still here and nothing is
+// leaving it, 1 while it is being navigated away from, and 2 once another
+// document has replaced it. It is a number because EvalJS hands strings back
+// unquoted.
+const NavigationState = `(window.__manulStay !== true ? 2 : (window.__manulLeaving === true ? 1 : 0))`
+
 func looksLikeXPath(locator string) bool {
 	locator = strings.TrimSpace(locator)
 	if locator == "" {
@@ -571,4 +644,174 @@ func locatorExpression(locator string) string {
 		return fmt.Sprintf("document.evaluate(%q, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue", trimmed)
 	}
 	return fmt.Sprintf("document.querySelector(%q)", trimmed)
+}
+
+// FrameOffset, evaluated inside a frame, returns where that frame's viewport
+// sits in the top-level one: {"ok":true,"x":…,"y":…}, adding up every
+// <iframe> between them — its box, border and padding — as long as each
+// parent is a document this one may look at. {"ok":false} when one is not
+// (a cross-origin parent hides window.frameElement); IframeOffsetByURL asks
+// the top document instead.
+const FrameOffset = `(() => {
+	var x = 0, y = 0, w = window;
+	try {
+		while (w !== w.top) {
+			var fe = w.frameElement;
+			if (!fe) return JSON.stringify({ok: false});
+			var r = fe.getBoundingClientRect();
+			var cs = w.parent.getComputedStyle(fe);
+			x += r.left + fe.clientLeft + (parseFloat(cs.paddingLeft) || 0);
+			y += r.top + fe.clientTop + (parseFloat(cs.paddingTop) || 0);
+			w = w.parent;
+		}
+	} catch (_) {
+		return JSON.stringify({ok: false});
+	}
+	return JSON.stringify({ok: true, x: x, y: y});
+})()`
+
+// frameBoxBody measures an <iframe> element `f` from the document holding it:
+// where its content box starts in that document's viewport, and its size.
+const frameBoxBody = `var r = f.getBoundingClientRect(), cs = getComputedStyle(f);
+		var pl = parseFloat(cs.paddingLeft) || 0, pt = parseFloat(cs.paddingTop) || 0;
+		var pr = parseFloat(cs.paddingRight) || 0, pb = parseFloat(cs.paddingBottom) || 0;
+		var shown = cs.display !== 'none' && cs.visibility !== 'hidden';
+		return JSON.stringify({x: r.left + f.clientLeft + pl, y: r.top + f.clientTop + pt,
+			w: shown ? Math.max(0, f.clientWidth - pl - pr) : 0, h: shown ? Math.max(0, f.clientHeight - pt - pb) : 0});`
+
+// allFrames lists every <iframe> and <frame> of the document, open shadow
+// roots included: a web component that embeds a frame keeps it in its shadow
+// root, where querySelectorAll does not look. MDN's live examples are five
+// cross-site frames, none of them in the light DOM.
+const allFrames = `function () {
+		var out = [];
+		(function walk(root) {
+			root.querySelectorAll('*').forEach(function (e) {
+				if (/^I?FRAME$/.test(e.tagName)) out.push(e);
+				if (e.shadowRoot) walk(e.shadowRoot);
+			});
+		})(document);
+		return out;
+	}`
+
+// FrameWindows lists the window of every frame of the document, in the order
+// allFrames finds them. Over WebDriver BiDi a window serializes to its
+// browsing-context id, even a cross-origin one, which is what ties a frame's
+// context to the element that holds it; FrameBox(i) then measures the i-th.
+const FrameWindows = `(` + allFrames + `)().map(function (f) { return f.contentWindow; })`
+
+// FrameBoxes measures every frame of the document in one evaluation: for
+// each, [its window, x, y, w, h] as FrameBox gives them. Placing every frame
+// of a page one at a time cost several round trips each, and a page with ten
+// ad frames spent seconds on it in every step.
+const FrameBoxes = `(` + allFrames + `)().map(function (f) {
+	var b = JSON.parse((function () { ` + frameBoxBody + ` })());
+	return [f.contentWindow, b.x, b.y, b.w, b.h];
+})`
+
+// FrameBox measures the i-th <iframe> or <frame> of the document: where its
+// content box starts in this document's viewport, and its width and height
+// (0 for one not displayed). A cross-origin frame cannot measure itself —
+// window.frameElement is null there — so it is measured from outside.
+func FrameBox(i int) string {
+	return fmt.Sprintf(`(() => {
+		var f = (%s)()[%d];
+		if (!f) return JSON.stringify(null);
+		%s
+	})()`, allFrames, i, frameBoxBody)
+}
+
+// FrameBoxOn is FrameBox for an element handed over as this — Chrome's
+// Runtime.callFunctionOn, on the node DOM.getFrameOwner names.
+const FrameBoxOn = `function () { var f = this; ` + frameBoxBody + ` }`
+
+// CrossFrameAt reports the cross-origin frame at viewport point (x, y), if
+// that is what is there: [its window, where its content box starts]. A
+// same-origin frame answers null — a click dispatched at this document
+// reaches into it — and so does anything else.
+func CrossFrameAt(x, y float64) string { return frameAt(x, y, false) }
+
+// FrameAt is CrossFrameAt for any frame, same-origin ones too: what a drag
+// needs to find the element it starts on, which elementFromPoint at the top
+// reports as the <iframe> itself.
+func FrameAt(x, y float64) string { return frameAt(x, y, true) }
+
+func frameAt(x, y float64, anyOrigin bool) string {
+	return fmt.Sprintf(`(() => {
+		var f = document.elementFromPoint(%[1]g, %[2]g);
+		// Into open shadow roots: from outside, the point is over the host.
+		while (f && f.shadowRoot) {
+			var d = f.shadowRoot.elementFromPoint(%[1]g, %[2]g);
+			if (!d || d === f) break;
+			f = d;
+		}
+		if (!f || !/^I?FRAME$/.test(f.tagName)) return null;
+		var same = false;
+		try { same = !!f.contentDocument; } catch (_) {}
+		if (same && !%[4]t) return null;
+		var b = JSON.parse((function () { %[3]s })());
+		return [f.contentWindow, b.x, b.y];
+	})()`, x, y, frameBoxBody, anyOrigin)
+}
+
+// CrossFrameFocused answers the window of the cross-origin frame that holds
+// the focus, or null: a key dispatched at this document goes no further.
+const CrossFrameFocused = `(() => {
+	var f = document.activeElement;
+	while (f && f.shadowRoot && f.shadowRoot.activeElement) f = f.shadowRoot.activeElement;
+	if (!f || !/^I?FRAME$/.test(f.tagName)) return null;
+	try { if (f.contentDocument) return null; } catch (_) {}
+	return [f.contentWindow];
+})()`
+
+// SeedFrameIDs starts a frame's element-ID counter far from every other
+// frame's, before its first snapshot. Each window numbers its own elements
+// from zero, so element 7 of an iframe and element 7 of the page were the
+// same ID; a random base a million apart keeps them distinct while every
+// lookup still happens in the frame's own registry.
+const SeedFrameIDs = `(() => {
+	if (window.__manulIdCounter === undefined) {
+		window.__manulIdCounter = (1 + Math.floor(Math.random() * 2000)) * 1000000;
+	}
+	return true;
+})()`
+
+// HTML5DragAt performs an HTML5 drag and drop from viewport point (x1, y1) to
+// (x2, y2) by dispatching the drag events themselves, when what is at the
+// first point is, or is inside, an element with draggable="true". Its
+// completion value is "1" when it did, "0" when there is no such element and
+// the drag is left to the pointer.
+//
+// Firefox starts no drag session from WebDriver pointer actions, so on a page
+// built on draggable="true" the pointer drag moved the mouse, fired nothing
+// the page listens for, and the step passed with both columns where they
+// were. The events follow the order a browser fires them in — dragstart and
+// drag on the source, dragenter and dragover on the target, drop only if
+// dragover was cancelled (a target that does not cancel it refuses the drop),
+// dragend on the source — sharing one DataTransfer, so what dragstart stores
+// is what drop reads.
+func HTML5DragAt(x1, y1, x2, y2 float64) string {
+	return fmt.Sprintf(`(() => {
+		var at = document.elementFromPoint(%[1]f, %[2]f);
+		var src = at && at.closest('[draggable="true"]');
+		if (!src) return "0";
+		var dst = document.elementFromPoint(%[3]f, %[4]f) || document.body;
+		var dt = new DataTransfer();
+		var fire = function(el, type, x, y) {
+			var ev = new DragEvent(type, {bubbles: true, cancelable: true, composed: true,
+				clientX: x, clientY: y, dataTransfer: dt});
+			el.dispatchEvent(ev);
+			return ev;
+		};
+		if (fire(src, 'dragstart', %[1]f, %[2]f).defaultPrevented) return "1";
+		fire(src, 'drag', %[1]f, %[2]f);
+		fire(dst, 'dragenter', %[3]f, %[4]f);
+		if (fire(dst, 'dragover', %[3]f, %[4]f).defaultPrevented) {
+			fire(dst, 'drop', %[3]f, %[4]f);
+		} else {
+			fire(dst, 'dragleave', %[3]f, %[4]f);
+		}
+		fire(src, 'dragend', %[3]f, %[4]f);
+		return "1";
+	})()`, x1, y1, x2, y2)
 }

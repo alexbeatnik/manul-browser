@@ -8,12 +8,17 @@
 
     const normalize = (v) => (v || '').replace(/\s+/g, ' ').trim();
 
+    // A native <select> made transparent and laid over a styled facade is
+    // still the thing a click lands on — a sort dropdown at opacity .001 over
+    // the label it shows. Counting it as invisible left that dropdown out of
+    // the snapshot, and SELECT had nothing to choose from. Text fields are not
+    // let through the same way: a transparent one is as often a bot trap.
     const isVisible = (el) => {
         const cs = window.getComputedStyle(el);
         const rect = el.getBoundingClientRect();
         return cs.display !== 'none'
             && cs.visibility !== 'hidden'
-            && parseFloat(cs.opacity) >= 0.01
+            && (parseFloat(cs.opacity) >= 0.01 || el.tagName === 'SELECT')
             && rect.width > 0
             && rect.height > 0;
     };
@@ -31,6 +36,10 @@
         // Table data cells — needed for EXTRACT and disambiguation.
         if (tag === 'td' || tag === 'th' || tag === 'li' || tag === 'span' ||
             tag === 'p' || tag === 'div' || tag === 'section') return true;
+        // Headings: the usual NEAR anchor ("Add to cart" NEAR 'Manul Plush').
+        // Without them a product title was no element at all, and the anchor
+        // fell to whatever container held its text — often the whole list.
+        if (/^h[1-6]$/.test(tag)) return true;
         if (el.tagName.includes('-')) return true; // custom elements
         return false;
     };
@@ -38,10 +47,15 @@
     // ── Label resolution ───────────────────────────────────────────────────────
 
     const getLabelText = (el) => {
-        // 1. Explicit <label for="id">
+        // 1. Explicit <label for="id"> — every one of them. A page can point
+        // two labels at one field; querySelector took the first, and the
+        // order form's name field was labelled "Total: 790" rather than "Name:".
         if (el.id) {
-            const lbl = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
-            if (lbl) return normalize(lbl.innerText || lbl.textContent);
+            const forLabels = el.labels
+                ? [...el.labels].filter(l => !l.contains(el))
+                : [...document.querySelectorAll(`label[for="${CSS.escape(el.id)}"]`)];
+            const text = forLabels.map(l => normalize(l.innerText || l.textContent)).filter(Boolean).join(' ');
+            if (text) return text;
         }
         // 2. Wrapping <label>
         const parent = el.closest('label');
@@ -60,7 +74,26 @@
                 .join(' ');
             if (text) return text;
         }
-        // 4. Fieldset legend context for grouped controls.
+        // 4. A checkbox or radio with no label is captioned by the text that
+        // follows it, up to the next box or <br> — "<input type=checkbox>
+        // checkbox 2". Without this the box had no text at all and was found
+        // only when a container around it happened to be in the snapshot.
+        // pagejs.CaptionedBox reads captions by the same rule.
+        if (el.tagName === 'INPUT' && (el.type === 'checkbox' || el.type === 'radio')) {
+            let t = '';
+            for (let n = el.nextSibling; n; n = n.nextSibling) {
+                if (n.nodeType === Node.ELEMENT_NODE) {
+                    if (n.tagName === 'BR' || n.matches('input,select,textarea,button') ||
+                        n.querySelector('input,select,textarea,button')) break;
+                    t += ' ' + (n.innerText || n.textContent || '');
+                } else if (n.nodeType === Node.TEXT_NODE) {
+                    t += ' ' + n.textContent;
+                }
+            }
+            t = normalize(t);
+            if (t) return t;
+        }
+        // 5. Fieldset legend context for grouped controls.
         if (['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName)) {
             const fieldset = el.closest('fieldset');
             if (fieldset) {
@@ -72,7 +105,7 @@
                 }
             }
         }
-        // 5. Table column header context for <td>
+        // 6. Table column header context for <td>
         if (el.tagName === 'TD' || el.tagName === 'TH') {
             const tr = el.closest('tr');
             if (tr) {
@@ -109,6 +142,10 @@
 
     // ── Accessible name ────────────────────────────────────────────────────────
 
+    const CONTROL_SELECTOR = 'a, button, [role="button"], [role="link"]';
+    const NAMED_BY_CONTENT = /^(A|BUTTON)$/;
+    const NAMED_BY_CONTENT_ROLE = /^(link|button|menuitem|tab)$/;
+
     const getAccessibleName = (el) => {
         const ariaLabel = el.getAttribute('aria-label');
         if (ariaLabel) return normalize(ariaLabel);
@@ -118,6 +155,14 @@
         if (title) return normalize(title);
         const alt = el.getAttribute('alt');
         if (alt) return normalize(alt);
+        // A link or button that is only a picture is named by the picture:
+        // <a class="cart-icon"><img alt="Cart"> 1</a> is the "Cart" link.
+        // Without this it had no name at all, and 'Cart' went to the first
+        // "ADD TO CART" button on the page.
+        if (NAMED_BY_CONTENT.test(el.tagName) || NAMED_BY_CONTENT_ROLE.test(el.getAttribute('role') || '')) {
+            const alts = [...el.querySelectorAll('img[alt]')].map(img => normalize(img.alt)).filter(Boolean);
+            if (alts.length) return alts.join(' ');
+        }
         return '';
     };
 
@@ -185,11 +230,16 @@
         const labelText   = getLabelText(el);
         const accessibleName = getAccessibleName(el);
 
-        // Extract icon classes from <i>, <span>, or <svg> children.
+        // Extract icon classes from <i>, <span>, or <svg> children — but not
+        // from inside a link or button of their own. Those icons name that
+        // control; collected here they made the header around a.cart-icon a
+        // better match for 'cart-icon' than the link itself.
         const iconClasses = (() => {
             const icons = el.querySelectorAll("i, span, svg, [class*='icon'], [class*='fa-']");
             const classes = new Set();
             icons.forEach(icon => {
+                const owner = icon.closest(CONTROL_SELECTOR);
+                if (owner && owner !== el && el.contains(owner)) return;
                 if (typeof icon.className === 'string' && icon.className) {
                     icon.className.split(/\s+/).forEach(c => {
                         if (c.includes('icon') || c.includes('fa-')) classes.add(c);

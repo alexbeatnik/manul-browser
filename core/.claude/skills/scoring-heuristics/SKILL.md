@@ -101,7 +101,8 @@ weighted impact is ±0.3 to ±0.6.
 - **Pure function.** `Score(query, typeHint, mode, el, anchor)` takes all
   inputs; no global lookups, no randomness.
 - **Deterministic ordering.** `Rank()` sorts by unclamped `RawScore` descending;
-  ties are broken by stable DOM order — never by `map` iteration.
+  on a tie a descendant beats its own ancestor, then stable DOM order decides
+  — never `map` iteration.
 - **Bounded to `[0.0, 1.0]` per channel** after weighting. Clip if your
   math overflows.
 

@@ -167,13 +167,21 @@ func chromeArgs(opts LaunchOptions) []string {
 		"--disable-sync",
 		"--disable-translate",
 		"--disable-search-engine-choice-screen",
-		"--disable-features=PasswordLeakDetection,PasswordManagerOnboarding,PasswordCheck,ChromePasswordManagerUI,CredentialManager,AutofillServerCommunication,IdentityStatusDialog,GlobalMediaControls,MediaRouter,Translate,OptimizationHints",
+		// HttpsFirstBalancedModeAutoEnable: from Chrome 154 a fresh profile
+		// refuses plain-http sites that have no working https, and over CDP
+		// the warning it shows instead is Page.navigate's
+		// net::ERR_BLOCKED_BY_CLIENT. A hunt that names an http:// URL means
+		// that URL. HttpsUpgrades is the silent upgrade attempt before it.
+		"--disable-features=PasswordLeakDetection,PasswordManagerOnboarding,PasswordCheck,ChromePasswordManagerUI,CredentialManager,AutofillServerCommunication,IdentityStatusDialog,GlobalMediaControls,MediaRouter,Translate,OptimizationHints,HttpsFirstBalancedModeAutoEnable,HttpsUpgrades",
 		"--no-service-autorun",
 		"--password-store=basic",
 		"--disable-save-password-bubble",
 		"--disable-component-update",
 		"--disable-infobars",
 		fmt.Sprintf("--user-data-dir=%s", opts.UserDataDir),
+		// The browser's own language and the one it asks pages for.
+		"--lang=" + localeOf(opts),
+		"--accept-lang=" + acceptLanguages(localeOf(opts)),
 	}
 	if opts.DisableGPU {
 		args = append(args, "--disable-gpu")

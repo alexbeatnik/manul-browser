@@ -1,0 +1,11 @@
+@title: A tab opened a moment after the click is still followed
+STEP 1: VERIFY waits for it
+    NAVIGATE to @SITE@/tabs.html
+    CLICK the 'Open the product later' button
+    VERIFY that 'Manul Plush' is present
+STEP 2: And so does an action
+    SWITCH TO TAB 1
+    CLICK the 'Open the product later' button
+    CLICK the 'Add to cart' button
+    VERIFY that 'In cart: 1' is present
+DONE.

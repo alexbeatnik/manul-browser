@@ -34,8 +34,21 @@ cd bindings/python && python -m pytest tests/ -q       # binding (no Chrome need
 ```
 
 The Python tests run against a fake engine that speaks the protocol, so they
-need neither Chrome nor a compiled binary and finish in about a second. Anything
-that genuinely needs a browser has to be run by hand.
+need neither Chrome nor a compiled binary and finish in about a second.
+
+What needs a real browser is in `core/e2e`, behind a build tag:
+
+```bash
+cd core && go test -tags e2e ./e2e/                     # Chrome and Firefox, whichever are installed
+cd core && MANUL_E2E_BROWSERS=firefox go test -tags e2e ./e2e/
+```
+
+It builds `manul`, serves `e2e/testdata/site` from two local origins and runs
+every hunt in `e2e/testdata/hunts` through the CLI; CI runs it on both browsers.
+A hunt that must fail says so with `# expect-fail: <text>`, and one whose PRINT
+output matters with `# expect-output: <text>`. Every hunt there was checked to
+fail on the engine before its fix — a fixture the old engine passes proves
+nothing. A bug found on a live site gets its smallest local page here.
 
 ## Invariants
 
@@ -108,9 +121,107 @@ without error for a host that does not resolve; the failure is the `errorText`
 field of the reply, and the tab is left on `chrome-error://`. Firefox fails the
 command itself. `cdp.Navigate` reads the field so both do.
 
+**Chrome refuses plain http on a fresh profile.** From Chrome 154 the
+HTTPS-First balanced mode turns itself on, and an http-only site answers
+`Page.navigate` with `net::ERR_BLOCKED_BY_CLIENT` — every `NAVIGATE` to such a
+site failed. `chromeArgs` disables `HttpsFirstBalancedModeAutoEnable` and
+`HttpsUpgrades` in the one `--disable-features` switch Chrome honours.
+
+**A press without a move is not a click a page expects.** CDP's
+`mousePressed` at a new point delivers `mouseenter` mid-press; a link that
+replaces itself on hover took the press and lost the release, and nothing was
+clicked, on Chromium only. Every CDP click moves the pointer first, as BiDi's
+action sequence always did.
+
+**Every displayed frame is entered, cross-origin ones too.** The snapshot,
+text VERIFY and EXTRACT read every iframe of the page; `rt.pageFor(el)`
+addresses an element's own frame, and coordinates it returns are the
+top-level viewport's. What bit on the way:
+
+- CDP announces existing execution contexts *while answering*
+  `Runtime.enable`, and existing iframes while answering
+  `Target.setAutoAttach`, so `FrameTracker` subscribes first and `settle`s
+  before the first snapshot.
+- Context 0 means "the default one" to `Runtime.evaluate`, so a frame without
+  a context silently evaluated in the main document; `EvalJSInFrame` refuses.
+- A cross-site iframe is an OOPIF: the page's session has no frame and no
+  context for it. It is a flat session (`sessionId` on the one socket), and
+  its context ids start at 1 like the page's — the tracker keys contexts by
+  session. The page's session reports the frame as detached with reason
+  `swap` when it moves out; that is not a removal.
+- A cross-origin frame cannot place itself (`frameElement` is null), so it is
+  measured from its parent: `DOM.getFrameOwner` on CDP, `contentWindow` on
+  BiDi, which serializes to the frame's context id. `PlaceFrames` does all of
+  a page's frames at once; one at a time cost seconds per step on a page with
+  ads.
+- Firefox does not deliver a top-level click into a cross-site frame — the
+  step passed with nothing clicked. Sent to the frame's own context with its
+  own coordinates, it arrives; `BiDiPage.routePoint` does that for every
+  pointer action, and `routeFocus` for keys. Chrome routes input itself.
+- MDN keeps its frames in a shadow root, where `querySelectorAll` and
+  `elementFromPoint` do not look; the pagejs frame helpers walk open shadow
+  roots.
+- A node reference (CDP `objectId`, BiDi `sharedId`) belongs to the context it
+  was taken in, so UPLOAD into a frame resolves the field there and sets the
+  files on that frame's session or context.
+- From the top, `elementFromPoint` over a same-origin frame is the `<iframe>`
+  itself, so Firefox's HTML5-drag substitution never saw the draggable in
+  it. The drag check descends into any frame (`routeAnyFrame`); the pointer
+  only into cross-origin ones, which is all it needs.
+
+**Firefox starts no HTML5 drag from WebDriver actions.** A pointer drag over
+`draggable="true"` fired nothing the page listens for, however slowly it moved,
+and DRAG passed with nothing moved; Chromium's mouse events do start one. The
+BiDi backend dispatches the drag events itself for such a source
+(`pagejs.HTML5DragAt`) and keeps the pointer for everything else.
+
 **A click goes to coordinates, not to an element.** Whatever is on top at that
 point receives it, and the step used to pass. `clickPoint` asks the page first
 (`pagejs.CoveredBy`) and fails the step if something else would get the click.
+
+**A page that is leaving still says `complete`.** After a click, a sort
+dropdown's change or Enter in a form, the old document keeps
+`readyState === "complete"` until the new one's response arrives, so polling
+readyState returns at once and the next step runs on the page that is going.
+On a slow server FILL then typed into it and passed. `armNavigationWatch`
+before the action and `settleNavigation` after it watch `beforeunload` instead,
+which fires before the request is sent.
+
+**An empty query matches everything.** Pass 3 ranks the controls beside a
+caption with `""`, and `strings.Contains(x, "")` is true — every labelled field
+got the label bonus, and the zip-code field beat the quantity box under 'Qty.'.
+A scorer that compares the query against an attribute returns 0 for an empty
+query.
+
+**A new tab is listed before it has a page.** A `target="_blank"` click
+returns with the tab already listed (Chrome's `openerId`, Firefox's
+`originalOpener`) but still on `about:blank`, so following it at once took a
+snapshot of nothing; `waitForNewTab` waits for it to leave. A popup that closes
+itself fails every evaluation afterwards, which `settleNavigation` took for a
+page in transit and waited out `nav_timeout` on — it asks `TabClosed` first.
+Tabs are found by listing, not by events, so none of the subscribe-order traps
+below apply.
+
+**A retried step must not act twice.** An action whose target is not on the
+page yet runs again until `timeout` (`pkg/runtime/wait.go`), and that is safe
+only while it has changed nothing. `rt.acted` is set at every point where a
+step types, clicks, chooses, scrolls or presses; a new mutation without it is
+a step that can run twice — `TestWait_AStepThatHasActedIsNotRunAgain` typed
+8 times without the flag.
+
+**`innerText` keeps transparent text.** It leaves out `display:none` and
+`visibility:hidden`, not `opacity:0`, and opacity is not inherited: the text
+inside a faded-out block has an opacity of 1 of its own. So `VERIFY … is NOT
+present` failed on text nobody could see. `visible_text_probe.js` finds the
+topmost transparent elements (under 0.01, the snapshot's bar) and takes each
+one's text out of the page text once — once, so the same words shown
+elsewhere stay present. A test that recognises a probe by a fragment of its
+code breaks when the probe changes; compare with the probe itself.
+
+**Each engine picks its own language.** Headless Chrome asks for en-US,
+Firefox for the system's language, so the same hunt met YouTube in English on
+one and Ukrainian on the other. `LaunchOptions.Locale` (default en-US, config
+`locale`) sets both: `--lang`/`--accept-lang` and `intl.accept_languages`.
 
 **Snapshot caching hides change.** The cache makes resolution cheap within a
 step. Any polling loop must call `invalidateSnapshot()` each iteration or it
@@ -143,7 +254,12 @@ including the caller's own tab during a background `Lookup`.
 channel; without `session.subscribe` for the event name, nothing arrives.
 Subscribe locally *first*, then ask the browser — the other order drops
 anything that happens in between, which for `WAIT FOR RESPONSE` means waiting
-out the timeout for a response that already came.
+out the timeout for a response that already came. Network events have a
+further catch: Firefox reports a response only for a request that *began*
+while subscribed. The request a wait is for was sent by the step before it, so
+a subscription made by the wait never heard back — every `WAIT FOR RESPONSE`
+on Firefox timed out. A BiDi page subscribes to `network.responseCompleted`
+when it opens (`newBiDiPage`), and the wait only listens.
 
 ## Local environment
 
@@ -173,10 +289,10 @@ compare against the index with `git show :path/to/file.go | gofmt -d`.
 ## Conventions
 
 - Go ≥ 1.26, single dependency (`gorilla/websocket`). Keep it that way.
-- Firefox work can be checked against a real browser: `manul run x.hunt
-  --browser firefox --headless`. There is no fake for either protocol — the
-  unit tests drive a mock WebSocket server, which proves framing, not
-  behaviour.
+- There is no fake for either protocol — the unit tests drive a mock
+  WebSocket server, which proves framing, not behaviour. Behaviour is what
+  `core/e2e` is for; a single hunt can also be run by hand with `manul run
+  x.hunt --browser firefox --headless`.
 - The engine version lives in `cmd/manul/main.go` as `version`, without a `v`
   prefix, and must match the contracts.
 - `.hunt` verbs are matched by keyword, not strict grammar. New verbs go in the

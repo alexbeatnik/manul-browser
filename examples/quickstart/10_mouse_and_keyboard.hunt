@@ -1,0 +1,33 @@
+@context: Beyond CLICK — HOVER, DOUBLE CLICK, RIGHT CLICK, DRAG, PRESS, and browser dialogs.
+@title: mouse_and_keyboard
+
+@var: {site} = http://localhost:8000
+
+STEP 1: Mouse
+    NAVIGATE to {site}/mouse.html
+    HOVER over the 'Avatar'
+    VERIFY that 'Signed in as Manul' is present
+    DOUBLE CLICK the 'Copy link' button
+    VERIFY that 'Link copied' is present
+    RIGHT CLICK the 'File area'
+    CLICK the 'Rename' button
+    VERIFY that 'Renamed' is present
+
+STEP 2: Drag and drop
+    DRAG 'Write tests' and drop it into 'Done'
+    VERIFY that 'Write tests moved to Done' is present
+
+STEP 3: Keyboard
+    FILL 'Search' field with 'manul'
+    PRESS Enter
+    VERIFY that 'Results for manul' is present
+    CLICK the 'Open dialog' button
+    VERIFY that 'Dialog is open' is present
+    PRESS Escape
+    VERIFY that 'Dialog is open' is NOT present
+
+STEP 4: alert / confirm are answered with OK
+    CLICK the 'Delete account' button
+    VERIFY that 'Account deleted' is present
+
+DONE.

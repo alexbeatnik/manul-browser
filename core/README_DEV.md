@@ -2,7 +2,7 @@
     <img src="images/manul.png" alt="Manul Browser mascot" width="160" />
 </p>
 
-# 😼 Manul Browser Engine 0.1.5 — Deterministic Web & Desktop Automation Runtime
+# 😼 Manul Browser Engine 0.1.6 — Deterministic Web & Desktop Automation Runtime
 
 > **Developer README.** The user-facing tour lives in [README.md](README.md); this file is the
 > engineering manual: project structure, runtime architecture, extension points, configuration,
@@ -267,7 +267,7 @@ the DSL contract + `manul schema` verbs list.
 
 `const version` in `cmd/manul/main.go` is the single source of truth (reported by
 `manul --version` and the agent schema, **no `v` prefix**). Bump it together with:
-the git tag (`v0.1.5` — Go needs the prefix), README badges/notes, and the
+the git tag (`v0.1.6` — Go needs the prefix), README badges/notes, and the
 `"version"` field in every `contracts/MANUL_*_CONTRACT.md`. Keep it in lockstep with the
 binding versions in `bindings/python/manul/__init__.py` and `bindings/node/package.json`.
 
@@ -276,6 +276,64 @@ creates the GitHub Release and tags `core/vX.Y.Z`; `publish.yml` builds the PyPI
 packages with `bindings/build-packages.sh`, smoke-tests each on its own platform, and
 uploads them. **That upload cannot be undone** — bump the version when the code on `main`
 is the code to ship. A push that leaves the version alone publishes nothing.
+
+---
+
+## 📜 Release Notes: 0.1.6
+
+Fixes found by building two demos that use every feature
+(`examples/python-demo`, `examples/node-demo`), and contracts brought back in line with what ships.
+
+**Fixes**
+
+- **`INSIDE 'Users' row with 'John'` works.** The row was filtered first and the
+  container was then looked for among that row's own cells, where it can never be,
+  so the documented form always failed with `inside container not found`. The
+  container is resolved first now, and the row is found inside it. The container is
+  the best match that has elements inside it, so a section's own heading — which
+  names it as well as the section does — is passed over.
+- **`NEAR` a heading anchors on the heading.** `h1`–`h6` were not in the page
+  snapshot, so `CLICK 'Add to cart' NEAR 'Manul Plush'` with the product name in an
+  `<h3>` anchored on whatever container held the text, and clicked another card's
+  button. Headings are snapshot elements now.
+- **`manul pages list` works beside a `pages/` directory.** A first argument naming
+  an existing directory was run as hunts before subcommands were looked at, so the
+  registry's own directory made `manul pages` unreachable. Subcommand names always
+  mean the subcommand; `manul ./pages` still runs a directory of that name.
+- **`SCAN PAGE into {reports/draft.hunt}` creates `reports/`.** The write failed with
+  "no such file or directory" when the directory did not exist yet.
+- **No Firefox is left behind on the BiDi port.** When an update is pending, Firefox
+  hands over to its updater, which relaunches it outside the engine's process group;
+  that Firefox survived `Close` and made every later launch fail with "Maximum number
+  of active sessions". Closing now also kills any process still running with the
+  launch's own temp profile (Unix).
+
+**Bindings**
+
+- **Node: stopping `manul` stops the engine.** The npm `manul` command started the
+  engine and did not pass signals on, so SIGTERM to `manul daemon` left the engine
+  running as an orphan with its browser and the caller's pipes. SIGINT, SIGTERM and
+  SIGHUP are forwarded now, and a signalled engine exits 128 + the signal number.
+  An engine that cannot be started (no execute bit) exits 126 as documented,
+  rather than the 243 the failed spawn's negated errno turned it into.
+- **Node: `SuiteResult.vars`, `GlobalContext.set()` and `metadata`**, as Python has
+  them — the variables the suite hooks published, and scratch space between hooks.
+
+**Contracts and docs corrected to the shipped behaviour**
+
+- Config: the keys are `disable_cache`, `verbose`, `debug_mode`, `break_lines`,
+  `tags` — `semantic_cache_enabled`, `custom_controls_dirs` and `log_*` never existed
+  here. Env booleans use `strconv.ParseBool` (`yes` is ignored). `MANUL_GLOBAL_VARS`,
+  `MANUL_PAGES_DIR`, `MANUL_WORKER_TIMEOUT`, `MANUL_REPORT_SESSION_TTL_SEC` and
+  `MANUL_CDP_TAB` are not read; unknown JSON keys are ignored silently.
+- Reports: one `reports/report_<title>_<time>_<seq>.html` per hunt, no aggregate
+  report, no merging, no `last_run.log`. `--jsonl` lines are keyed `event`, `--json`
+  prints one document per hunt, workers are goroutines.
+- Custom controls match on `document.title`; the `pages/` registry is only for
+  `auto_annotate`, which logs and edits no file.
+- `run` over the protocol answers `step_failed` for a hunt with a failing step, so
+  the bindings raise; a `binary=` path that does not exist falls through to the next
+  candidate.
 
 ---
 

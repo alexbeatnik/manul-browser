@@ -1,0 +1,7 @@
+@title: A cross-site frame inside a shadow root
+STEP 1: Read and click inside it
+    NAVIGATE to @SITE@/shadowframe.html
+    VERIFY that 'Cross origin text' is present
+    CLICK the 'Cross button' button
+    VERIFY that 'cross clicked' is present
+DONE.

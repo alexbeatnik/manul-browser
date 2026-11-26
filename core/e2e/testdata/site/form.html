@@ -1,0 +1,8 @@
+<!doctype html><html><body style="margin:15px">
+<h2>Framed form</h2>
+<label for="email">Email</label> <input id="email">
+<p><label><input type="checkbox" id="news"> Subscribe to news</label></p>
+<select id="plan" aria-label="Plan"><option>Free</option><option>Pro</option></select>
+<button id="save" onclick="document.getElementById('out').textContent='Saved '+email.value+' news='+news.checked+' plan='+plan.value">Save form</button>
+<p id="out"></p>
+</body></html>

@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/alexbeatnik/manul-browser/core/pkg/cdp"
+	"github.com/alexbeatnik/manul-browser/core/pkg/pagejs"
 )
 
 // CDPBrowser is the Chrome DevTools Protocol implementation of Browser.
@@ -185,6 +187,8 @@ func (b *CDPBrowser) Close() error { return nil }
 type CDPPage struct {
 	conn    *cdp.Conn
 	tracker *cdp.FrameTracker
+	// id is this page's target id, learnt on first use (tabs.go).
+	id string
 	// mocks is nil until the first MOCK: no request is paused before then.
 	mocks *mockTable
 }
@@ -223,17 +227,7 @@ func (p *CDPPage) EvalJSInFrame(ctx context.Context, frameIndex int, expr string
 	if frameIndex == 0 {
 		return p.EvalJS(ctx, expr)
 	}
-	t, err := p.ensureTracker(ctx)
-	if err != nil {
-		return nil, err
-	}
-	contextID := t.ContextForIndex(frameIndex)
-	wrapped := autoInvoke(expr)
-	raw, err := cdp.EvaluateInContext(ctx, p.conn, contextID, wrapped)
-	if err != nil {
-		return nil, err
-	}
-	return marshalEvalResult(raw)
+	return p.evalInFrame(ctx, frameIndex, autoInvoke(expr))
 }
 
 // CallProbeInFrame calls a JS arrow-function with a JSON arg in frame frameIndex.
@@ -241,26 +235,178 @@ func (p *CDPPage) CallProbeInFrame(ctx context.Context, frameIndex int, fn strin
 	if frameIndex == 0 {
 		return p.CallProbe(ctx, fn, arg)
 	}
-	t, err := p.ensureTracker(ctx)
-	if err != nil {
-		return nil, err
-	}
-	contextID := t.ContextForIndex(frameIndex)
 	expr := fn
 	if arg != nil {
 		expr = fmt.Sprintf("(%s)(%s)", fn, cdp.MustMarshalString(arg))
 	} else {
 		expr = autoInvoke(fn)
 	}
-	raw, err := cdp.EvaluateInContext(ctx, p.conn, contextID, expr)
+	return p.evalInFrame(ctx, frameIndex, expr)
+}
+
+// evalInFrame evaluates in the frame's own context — on the page's session,
+// or on the session of the out-of-process iframe that holds it.
+func (p *CDPPage) evalInFrame(ctx context.Context, frameIndex int, expr string) ([]byte, error) {
+	t, err := p.ensureTracker(ctx)
+	if err != nil {
+		return nil, err
+	}
+	session, contextID := t.TargetForIndex(frameIndex)
+	if contextID == 0 {
+		return nil, errNoFrameContext(frameIndex)
+	}
+	raw, err := cdp.EvaluateInSession(ctx, p.conn, session, contextID, expr)
 	if err != nil {
 		return nil, err
 	}
 	return marshalEvalResult(raw)
 }
 
+// FrameOrigin implements FrameLocator. Each frame up the chain is measured in
+// the document that holds it: DOM.getFrameOwner names its <iframe>, asked on
+// the session of the parent frame, and FrameBoxOn measures that element.
+func (p *CDPPage) FrameOrigin(ctx context.Context, frameIndex int) (x, y, w, h float64, err error) {
+	t, err := p.ensureTracker(ctx)
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+	byID := map[string]cdp.FrameInfo{}
+	var frame cdp.FrameInfo
+	for _, f := range t.Frames() {
+		byID[f.FrameID] = f
+		if f.Index == frameIndex {
+			frame = f
+		}
+	}
+	if frame.FrameID == "" || frameIndex == 0 {
+		return 0, 0, 0, 0, fmt.Errorf("no frame %d", frameIndex)
+	}
+	first := true
+	for f := frame; f.ParentID != ""; {
+		parent, ok := byID[f.ParentID]
+		if !ok {
+			return 0, 0, 0, 0, fmt.Errorf("the parent of frame %s is not known", f.FrameID)
+		}
+		bx, by, bw, bh, err := p.ownerBox(ctx, parent.SessionID, f.FrameID)
+		if err != nil {
+			return 0, 0, 0, 0, err
+		}
+		x, y = x+bx, y+by
+		if first {
+			w, h, first = bw, bh, false
+		}
+		f = parent
+	}
+	return x, y, w, h, nil
+}
+
+// PlaceFrames implements FramePlacer: every frame measured at once, each in
+// the document that holds it, then summed up the chain.
+func (p *CDPPage) PlaceFrames(ctx context.Context) (map[int]Placement, error) {
+	t, err := p.ensureTracker(ctx)
+	if err != nil {
+		return nil, err
+	}
+	frames := t.Frames()
+	byID := map[string]cdp.FrameInfo{}
+	for _, f := range frames {
+		byID[f.FrameID] = f
+	}
+	var mu sync.Mutex
+	local := map[string]Placement{}
+	var wg sync.WaitGroup
+	for _, f := range frames {
+		parent, ok := byID[f.ParentID]
+		if f.Index == 0 || !ok {
+			continue
+		}
+		wg.Add(1)
+		go func(f, parent cdp.FrameInfo) {
+			defer wg.Done()
+			x, y, w, h, err := p.ownerBox(ctx, parent.SessionID, f.FrameID)
+			if err != nil {
+				return
+			}
+			mu.Lock()
+			local[f.FrameID] = Placement{X: x, Y: y, W: w, H: h}
+			mu.Unlock()
+		}(f, parent)
+	}
+	wg.Wait()
+	out := map[int]Placement{}
+	for _, f := range frames {
+		place, ok := local[f.FrameID]
+		if !ok {
+			continue
+		}
+		for up := byID[f.ParentID]; ok && up.ParentID != ""; up = byID[up.ParentID] {
+			var box Placement
+			if box, ok = local[up.FrameID]; ok {
+				place.X, place.Y = place.X+box.X, place.Y+box.Y
+			}
+		}
+		if ok {
+			out[f.Index] = place
+		}
+	}
+	return out, nil
+}
+
+func (p *CDPPage) ownerBox(ctx context.Context, session, frameID string) (x, y, w, h float64, err error) {
+	raw, err := p.conn.CallSession(ctx, session, "DOM.getFrameOwner", map[string]any{"frameId": frameID})
+	if err != nil {
+		return 0, 0, 0, 0, fmt.Errorf("frame owner: %w", err)
+	}
+	var owner struct {
+		BackendNodeID int `json:"backendNodeId"`
+	}
+	if err := json.Unmarshal(raw, &owner); err != nil || owner.BackendNodeID == 0 {
+		return 0, 0, 0, 0, fmt.Errorf("frame owner: bad reply %s", raw)
+	}
+	raw, err = p.conn.CallSession(ctx, session, "DOM.resolveNode", map[string]any{"backendNodeId": owner.BackendNodeID})
+	if err != nil {
+		return 0, 0, 0, 0, fmt.Errorf("frame owner: %w", err)
+	}
+	var node struct {
+		Object struct {
+			ObjectID string `json:"objectId"`
+		} `json:"object"`
+	}
+	if err := json.Unmarshal(raw, &node); err != nil || node.Object.ObjectID == "" {
+		return 0, 0, 0, 0, fmt.Errorf("frame owner: bad reply %s", raw)
+	}
+	defer func() {
+		_, _ = p.conn.CallSession(context.Background(), session, "Runtime.releaseObject", map[string]any{"objectId": node.Object.ObjectID})
+	}()
+	raw, err = p.conn.CallSession(ctx, session, "Runtime.callFunctionOn", map[string]any{
+		"objectId":            node.Object.ObjectID,
+		"functionDeclaration": pagejs.FrameBoxOn,
+		"returnByValue":       true,
+	})
+	if err != nil {
+		return 0, 0, 0, 0, fmt.Errorf("frame box: %w", err)
+	}
+	var res struct {
+		Result struct {
+			Value string `json:"value"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(raw, &res); err != nil {
+		return 0, 0, 0, 0, fmt.Errorf("frame box: bad reply %s", raw)
+	}
+	return frameBox([]byte(res.Result.Value))
+}
+
 // autoInvoke wraps a bare arrow/function literal so it is executed, mirroring
 // CDPPage.EvalJS's behaviour for the per-frame path.
+// errNoFrameContext is what a frame with no execution context yet answers.
+// Context 0 means "the default one" to Runtime.evaluate, so asking such a
+// frame anything used to ask the main document instead, and its "snapshot"
+// came back as a second copy of the page.
+func errNoFrameContext(frameIndex int) error {
+	return fmt.Errorf("frame %d has no execution context yet", frameIndex)
+}
+
 func autoInvoke(expr string) string {
 	trimmed := strings.TrimSpace(expr)
 	if strings.HasPrefix(trimmed, "() =>") || strings.HasPrefix(trimmed, "()=>") ||
@@ -407,6 +553,18 @@ func (p *CDPPage) DragAndDrop(ctx context.Context, fromX, fromY, toX, toY float6
 
 func (p *CDPPage) SetFileInput(ctx context.Context, id int, xpath string, filePaths []string) error {
 	return p.conn.SetFileInput(ctx, id, xpath, filePaths)
+}
+
+func (p *CDPPage) setFileInputInFrame(ctx context.Context, frameIndex, id int, xpath string, filePaths []string) error {
+	t, err := p.ensureTracker(ctx)
+	if err != nil {
+		return err
+	}
+	session, contextID := t.TargetForIndex(frameIndex)
+	if contextID == 0 {
+		return errNoFrameContext(frameIndex)
+	}
+	return p.conn.SetFileInputIn(ctx, session, contextID, id, xpath, filePaths)
 }
 
 func (p *CDPPage) Screenshot(ctx context.Context) ([]byte, error) {

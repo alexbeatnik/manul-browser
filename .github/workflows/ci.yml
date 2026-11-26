@@ -1,11 +1,12 @@
 name: CI
 
-# Everything that can be checked without a browser, checked on every push.
+# Checked on every push.
 #
 # This used to run the Go tests and nothing else, which left three ways to break
 # the repository silently: unformatted Go, a binding whose tests nobody ran until
 # a release tag, and code that only compiles for windows/amd64. Each has a job
-# below. Chrome-driven work still belongs to the release workflow.
+# below. So does the fourth: an engine whose unit tests pass against mocks while
+# a real browser does something else (the e2e job).
 
 on:
   push:
@@ -91,6 +92,37 @@ jobs:
 
       - name: ✅ Run All Integration Tests
         run: go test -race ./...
+
+  e2e:
+    name: Real browsers (Chrome and Firefox)
+    # The unit tests above drive mock WebSocket servers: they prove framing,
+    # not what a browser does with it. These run every hunt in
+    # core/e2e/testdata/hunts through the CLI against a local site, on the
+    # Chrome and Firefox the runner image already carries. Nothing here
+    # touches the network.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: core
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: core/go.mod
+
+      - name: Browsers
+        run: |
+          google-chrome --version
+          firefox --version
+
+      - name: Run hunts
+        env:
+          # Named, so a browser missing from the image fails the job instead
+          # of being skipped.
+          MANUL_E2E_BROWSERS: chromium,firefox
+        run: go test -tags e2e -count=1 -v ./e2e/
 
   cross-build:
     name: Cross-compile

@@ -161,13 +161,15 @@ func TestStep_NotFoundCarriesReason(t *testing.T) {
 // populated so the agent can decide whether it landed on the right thing —
 // without paying for a follow-up scan.
 //
-// Weak means the label matched a little — here one word of four. A label that
-// matches nothing at all is TestStep_UnmatchedTargetIsNotFound.
+// Weak means the label matched a little — here three words of four, on a
+// <div>. One word of four is no match: 'Add to cart' shares one word with the
+// paragraph "Cart: 0". A label that matches nothing at all is
+// TestStep_UnmatchedTargetIsNotFound.
 func TestStep_LowConfidenceSurfacesNear(t *testing.T) {
 	page := &runtime.MockPage{
 		URL: "https://example.com",
 		Elements: []dom.ElementSnapshot{
-			{Tag: "div", VisibleText: "Submit", IsVisible: true},
+			{Tag: "div", VisibleText: "Submit your application", IsVisible: true},
 		},
 	}
 	sess := newTestSession(page)

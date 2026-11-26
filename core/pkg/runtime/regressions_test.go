@@ -16,6 +16,7 @@ import (
 	"github.com/alexbeatnik/manul-browser/core/pkg/dom"
 	"github.com/alexbeatnik/manul-browser/core/pkg/dsl"
 	"github.com/alexbeatnik/manul-browser/core/pkg/explain"
+	"github.com/alexbeatnik/manul-browser/core/pkg/pagejs"
 	"github.com/alexbeatnik/manul-browser/core/pkg/utils"
 )
 
@@ -150,11 +151,13 @@ func TestAction_TargetWithNoMatchOnThePageIsNotFound(t *testing.T) {
 
 // The target is on the page — as a caption beside an unlabelled field. Pass 1
 // used to settle for the first field in the document on the strength of its
-// tag, before the caption was ever looked at.
+// tag, before the caption was ever looked at. Later it settled for the caption
+// itself, and "filled" the <div>.
 func TestFill_CaptionBesideAFieldBeatsAnUnrelatedField(t *testing.T) {
 	search := regEl(1, "input", "")
 	search.InputType = "text"
 	search.Placeholder = "Search"
+	search.Rect = dom.Rect{Top: 0, Left: 600, Width: 100, Height: 30, Bottom: 30, Right: 700} // the header, far off
 	caption := regEl(2, "div", "Phone number")
 	phone := regEl(3, "input", "")
 	phone.InputType = "text"
@@ -163,8 +166,38 @@ func TestFill_CaptionBesideAFieldBeatsAnUnrelatedField(t *testing.T) {
 	if _, err := runSource(t, page, "FILL 'Phone number' field with '123'\n"); err != nil {
 		t.Fatal(err)
 	}
-	if _, wrong := page.Inputs[search.XPath]; wrong {
-		t.Errorf("typed into the search box: %v", page.Inputs)
+	if got := page.Inputs[phone.XPath]; got != "123" {
+		t.Errorf("phone field = %q, want 123; inputs: %v", got, page.Inputs)
+	}
+}
+
+// A column header names the field beneath it. It matched its own text
+// perfectly, took pass 1, and FILL "typed" into the <th> — no error, so the
+// step passed and the quantity never changed.
+func TestFill_ColumnHeaderNamesTheFieldBelowIt(t *testing.T) {
+	header := regEl(1, "th", "Qty.")
+	qty := regEl(2, "input", "")
+	qty.InputType = "text"
+	page := &MockPage{Elements: []dom.ElementSnapshot{header, qty}}
+
+	if _, err := runSource(t, page, "FILL 'Qty.' field with '2'\n"); err != nil {
+		t.Fatal(err)
+	}
+	if got := page.Inputs[qty.XPath]; got != "2" {
+		t.Errorf("quantity field = %q, want 2; inputs: %v", got, page.Inputs)
+	}
+}
+
+// With no field anywhere, FILL fails rather than writing into the text.
+func TestFill_NoFieldFailsInsteadOfTypingIntoText(t *testing.T) {
+	page := &MockPage{Elements: []dom.ElementSnapshot{regEl(1, "th", "Qty.")}}
+
+	_, err := runSource(t, page, "FILL 'Qty.' field with '2'\n")
+	if err == nil || !strings.Contains(err.Error(), "not a field") {
+		t.Fatalf("want a not-a-field failure, got %v", err)
+	}
+	if len(page.Inputs) != 0 {
+		t.Errorf("wrote into %v", page.Inputs)
 	}
 }
 
@@ -944,5 +977,393 @@ func TestWaitFor_UnknownStateFailsImmediately(t *testing.T) {
 	}
 	if time.Since(start) > 2*time.Second {
 		t.Errorf("took %s to say so", time.Since(start))
+	}
+}
+
+// A sort dropdown whose change handler reloads the page: SELECT waited for
+// nothing, and the FILL after it typed into the document that was going away.
+// It waits now until the page says another document has replaced it.
+func TestSelect_WaitsForTheNavigationItStarted(t *testing.T) {
+	sel := regEl(1, "select", "Name Price")
+	sel.AriaLabel = "Sort By"
+	page := &MockPage{Elements: []dom.ElementSnapshot{sel}}
+	polls := 0
+	page.EvalResult = func(expr string) ([]byte, bool) {
+		if expr != pagejs.NavigationState {
+			return nil, false
+		}
+		polls++
+		if polls < 4 {
+			return []byte("1"), true // still leaving
+		}
+		return []byte("2"), true // the new document is here
+	}
+
+	if _, err := runSource(t, page, "SELECT 'Price' from the 'Sort By' dropdown\n"); err != nil {
+		t.Fatal(err)
+	}
+	if polls != 4 {
+		t.Errorf("polled the navigation %d times, want 4: SELECT stopped waiting before the new page", polls)
+	}
+}
+
+// VERIFY read the page text byte for byte, so a header that shows
+// "Shopping cart (1)" on one line failed against its innerText, which breaks
+// the two spans apart. Runs of whitespace, no-break spaces included, now
+// compare as one space, on both sides.
+func TestVerify_TextComparesAsItReads(t *testing.T) {
+	page := &MockPage{Elements: []dom.ElementSnapshot{regEl(1, "a", "Shopping cart   (1)")}}
+
+	for _, step := range []string{
+		"VERIFY that 'Shopping cart (1)' is present\n",
+		"VERIFY that 'shopping  cart (1)' is present\n",
+		"VERIFY SOFTLY that 'Shopping cart (1)' is present\n",
+	} {
+		res, err := runSource(t, page, step)
+		if err != nil {
+			t.Errorf("%s: %v", strings.TrimSpace(step), err)
+		}
+		if res != nil && len(res.SoftErrors) > 0 {
+			t.Errorf("%s: %v", strings.TrimSpace(step), res.SoftErrors)
+		}
+	}
+}
+
+// Pass 3 ranks the fields beside a caption with an empty query, and an empty
+// query "matched" every label: the zip-code field lower down the same form
+// beat the unlabelled quantity box under 'Qty.'.
+func TestFill_FieldWithItsOwnLabelDoesNotStandInForACaption(t *testing.T) {
+	header := regEl(1, "th", "Qty.")
+	qty := regEl(2, "input", "")
+	qty.InputType = "text"
+	zip := regEl(4, "input", "")
+	zip.InputType = "text"
+	zip.LabelText = "Zip / postal code:"
+	zip.Rect = dom.Rect{Top: 400, Left: 10, Width: 100, Height: 30, Bottom: 430, Right: 110} // the shipping estimate, further down
+	page := &MockPage{Elements: []dom.ElementSnapshot{header, qty, zip}}
+
+	// The two fields are close enough in score that pass 3 may decline to
+	// choose; what it must never do is pick the zip code for its label.
+	_, _ = runSource(t, page, "FILL 'Qty.' field with '2'\n")
+	if _, wrong := page.Inputs[zip.XPath]; wrong {
+		t.Errorf("typed into the zip-code field: %v", page.Inputs)
+	}
+}
+
+// "<div><input type=checkbox> Agree to the <a>Terms & Conditions</a></div>":
+// nothing labels the checkbox, and the text that names it is the div's own.
+// The checkbox inside the element that carries the text is the one meant.
+func TestCheck_CheckboxInsideTheTextThatNamesIt(t *testing.T) {
+	newsletter := regEl(1, "input", "")
+	newsletter.InputType = "checkbox"
+	newsletter.LabelText = "Newsletter"
+	wrapper := regEl(2, "div", "Agree to the Terms & Conditions")
+	wrapper.Rect = dom.Rect{Top: 80, Left: 10, Width: 600, Height: 30, Bottom: 110, Right: 610}
+	agree := regEl(3, "input", "")
+	agree.InputType = "checkbox"
+	agree.XPath = wrapper.XPath + "/input[1]"
+	agree.Rect = dom.Rect{Top: 85, Left: 12, Width: 16, Height: 16, Bottom: 101, Right: 28}
+	terms := regEl(4, "a", "Terms & Conditions")
+	terms.XPath = wrapper.XPath + "/a[1]"
+	page := &MockPage{Elements: []dom.ElementSnapshot{newsletter, wrapper, agree, terms}}
+
+	if _, err := runSource(t, page, "CHECK the checkbox for 'Agree'\n"); err != nil {
+		t.Fatal(err)
+	}
+	for _, el := range page.Elements {
+		if el.IsChecked != (el.XPath == agree.XPath) {
+			t.Errorf("%s checked = %v, want only the checkbox inside the Agree text", el.XPath, el.IsChecked)
+		}
+	}
+}
+
+// A form of fields stacked under their captions: the one under 'Name:' and the
+// one under 'Country:' score alike but for proximity, which weighs too little
+// to clear the score gap. Pass 3 takes the nearer one when it is clearly nearer.
+func TestFill_StackedFormTakesTheFieldUnderItsCaption(t *testing.T) {
+	caption := regEl(1, "label", "Name:")
+	name := regEl(2, "input", "")
+	name.InputType = "text"
+	name.LabelText = "Total: 790" // a second label[for=name] on the page wins querySelector
+	country := regEl(4, "input", "")
+	country.InputType = "text"
+	country.LabelText = "Country:"
+	page := &MockPage{Elements: []dom.ElementSnapshot{caption, name, country}}
+
+	if _, err := runSource(t, page, "FILL 'Name:' field with 'Test User'\n"); err != nil {
+		t.Fatal(err)
+	}
+	if got := page.Inputs[name.XPath]; got != "Test User" {
+		t.Errorf("name field = %q; inputs: %v", got, page.Inputs)
+	}
+}
+
+// A line no verb matches fails as what it is, with its number.
+func TestUnknownLineNamesItself(t *testing.T) {
+	_, err := runSource(t, &MockPage{}, "PRINT 'ok'\n(1)' is a stray fragment\n")
+	if err == nil || !strings.Contains(err.Error(), "line 2 is not a command") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+// A cart row's 'Remove' checkbox is an <input>, and the cell around it was the
+// only thing with exactly one "field" inside — so FILL 'Qty.' chose it.
+func TestFill_CheckboxIsNotAFieldInsideACell(t *testing.T) {
+	cell := regEl(1, "td", "")
+	cell.LabelText = "Qty."
+	remove := regEl(2, "input", "")
+	remove.InputType = "checkbox"
+	remove.XPath = cell.XPath + "/input[1]"
+	page := &MockPage{Elements: []dom.ElementSnapshot{cell, remove}}
+
+	_, _ = runSource(t, page, "FILL 'Qty.' field with '2'\n")
+	if _, wrong := page.Inputs[remove.XPath]; wrong {
+		t.Errorf("typed into the Remove checkbox: %v", page.Inputs)
+	}
+}
+
+// The one checkbox of its kind that carries the target, if only in its class,
+// is the answer — a low score with nothing competing is not ambiguity.
+func TestCheck_ClassNamedCheckboxIsNotRefusedForItsScore(t *testing.T) {
+	agree := regEl(1, "input", "")
+	agree.InputType = "checkbox"
+	agree.ClassName = "chkAgree"
+	page := &MockPage{Elements: []dom.ElementSnapshot{agree, regEl(2, "a", "Terms & Conditions")}}
+
+	if _, err := runSource(t, page, "CHECK the checkbox for 'Agree'\n"); err != nil {
+		t.Fatal(err)
+	}
+	if !page.Elements[0].IsChecked {
+		t.Error("the chkAgree checkbox was not checked")
+	}
+}
+
+// Enter in a search box submits its form; the steps after it ran on a results
+// page that was still arriving.
+func TestPress_WaitsForTheNavigationItStarted(t *testing.T) {
+	page := &MockPage{}
+	polls := 0
+	page.EvalResult = func(expr string) ([]byte, bool) {
+		if expr != pagejs.NavigationState {
+			return nil, false
+		}
+		polls++
+		if polls < 3 {
+			return []byte("1"), true
+		}
+		return []byte("2"), true
+	}
+
+	if _, err := runSource(t, page, "PRESS Enter\n"); err != nil {
+		t.Fatal(err)
+	}
+	if polls != 3 {
+		t.Errorf("polled the navigation %d times, want 3", polls)
+	}
+}
+
+// ── Found by live runs on public trap sites ──────────────────────────────────
+
+// A field whose middle is under another element was "filled": the value was
+// set through JS, the step passed, and the page — which clears a field typed
+// into while covered — left it empty.
+func TestFill_CoveredFieldIsNotTypedInto(t *testing.T) {
+	name := regEl(1, "input", "")
+	name.InputType = "text"
+	name.Placeholder = "Name"
+	page := &MockPage{Elements: []dom.ElementSnapshot{name}}
+	page.EvalResult = func(expr string) ([]byte, bool) {
+		if strings.Contains(expr, "elementFromPoint") {
+			return []byte(`{"covered":true,"by":"<div.overlay>"}`), true
+		}
+		return nil, false
+	}
+
+	_, err := runSource(t, page, "FILL 'Name' field with 'Manul'\n")
+	if err == nil || !strings.Contains(err.Error(), "covered by <div.overlay>") {
+		t.Fatalf("want a covered-field failure, got %v", err)
+	}
+	if len(page.Inputs) != 0 {
+		t.Errorf("typed anyway: %v", page.Inputs)
+	}
+}
+
+// A field waiting to be enabled scores nothing, so FILL resolved a sentence
+// that mentions it and said the field was a <li>.
+func TestFill_DisabledFieldSaysSo(t *testing.T) {
+	field := regEl(1, "input", "")
+	field.InputType = "text"
+	field.Title = "Edit Field"
+	field.IsDisabled = true
+	page := &MockPage{Elements: []dom.ElementSnapshot{
+		regEl(2, "li", "Also record text input into an edit field."), field,
+	}}
+
+	_, err := runSource(t, page, "FILL 'Edit Field' field with 'hello'\n")
+	if err == nil || !strings.Contains(err.Error(), "is disabled") {
+		t.Fatalf("want a disabled-field failure, got %v", err)
+	}
+	if len(page.Inputs) != 0 {
+		t.Errorf("typed anyway: %v", page.Inputs)
+	}
+}
+
+// VERIFY … has value resolved the caption (<p>Number</p><input>, an <h3>
+// over a <select>), which has no value, while FILL had found the field.
+func TestVerifyField_CaptionNamesTheFieldBesideIt(t *testing.T) {
+	caption := regEl(1, "p", "Number")
+	field := regEl(2, "input", "")
+	field.InputType = "number"
+	field.Value = "42"
+	page := &MockPage{Elements: []dom.ElementSnapshot{caption, field}}
+
+	if _, err := runSource(t, page, "VERIFY 'Number' field has value '42'\n"); err != nil {
+		t.Error(err)
+	}
+}
+
+// <input type=checkbox> checkbox 1<br><input type=checkbox> checkbox 2: no
+// element holds a caption alone, the step resolved the form, and the first
+// box in it was the one acted on — UNCHECK 'checkbox 2' unchecked box 1.
+func TestCheck_BoxIsPickedByItsCaptionInsideAForm(t *testing.T) {
+	form := regEl(1, "form", "checkbox 1 checkbox 2")
+	box1 := regEl(2, "input", "")
+	box1.InputType = "checkbox"
+	box1.XPath = "/html/body/form[1]/input[1]"
+	box2 := regEl(3, "input", "")
+	box2.InputType = "checkbox"
+	box2.XPath = "/html/body/form[1]/input[2]"
+	box2.IsChecked = true
+	page := &MockPage{Elements: []dom.ElementSnapshot{form, box1, box2}}
+	page.EvalResult = func(expr string) ([]byte, bool) {
+		if strings.Contains(expr, "captionOf") {
+			if strings.Contains(expr, `"checkbox 2"`) {
+				return []byte(`{"count":2,"xpath":"/html/body/form[1]/input[2]"}`), true
+			}
+			if strings.Contains(expr, `"checkbox 9"`) {
+				return []byte(`{"count":2,"xpath":""}`), true
+			}
+			return []byte(`{"count":2,"xpath":"/html/body/form[1]/input[1]"}`), true
+		}
+		return nil, false
+	}
+	rt := New(regConfig(), page, utils.NewLoggerTo(nopWriter{}, nil))
+
+	box, err := rt.captionedBox(context.Background(), form, "checkbox 2", page.Elements)
+	if err != nil || box.XPath != box2.XPath {
+		t.Fatalf("captionedBox = %q, %v; want %q", box.XPath, err, box2.XPath)
+	}
+	// A box that ranked first is weighed against its siblings.
+	if box, _ = rt.captionedBox(context.Background(), box1, "checkbox 2", page.Elements); box.XPath != box2.XPath {
+		t.Errorf("from the first box: %q, want %q", box.XPath, box2.XPath)
+	}
+	if _, err = rt.captionedBox(context.Background(), form, "checkbox 9", page.Elements); err == nil || !strings.Contains(err.Error(), "none of them") {
+		t.Errorf("no box captioned so: want a failure, got %v", err)
+	}
+}
+
+// ── IFRAMES ──────────────────────────────────────────────────────────────────
+
+// framedPage returns a page whose form lives in an iframe that sits at
+// (100, 200) on the page, and one cross-origin iframe.
+func framedFormPage() *MockPage {
+	email := regEl(1000001, "input", "")
+	email.InputType = "text"
+	email.LabelText = "Email"
+	email.XPath = "/html[1]/body[1]/input[1]"
+	email.Rect = dom.Rect{Top: 10, Left: 20, Width: 100, Height: 20, Bottom: 30, Right: 120}
+	save := regEl(1000002, "button", "Save form")
+	save.XPath = "/html[1]/body[1]/button[1]"
+	save.Rect = dom.Rect{Top: 40, Left: 20, Width: 80, Height: 20, Bottom: 60, Right: 100}
+	ad := regEl(2000001, "button", "Buy now")
+	return &MockPage{
+		Elements:     []dom.ElementSnapshot{regEl(1, "h1", "Host page")},
+		FrameOffsets: map[int][2]float64{1: {100, 200}},
+		FrameDocs: map[int]MockFrame{
+			1: {Elements: []dom.ElementSnapshot{email, save}, Text: "Framed form Saved!"},
+			2: {Elements: []dom.ElementSnapshot{ad}, Text: "Buy now", CrossOrigin: true},
+		},
+	}
+}
+
+// The snapshot read the main document only, so nothing inside an <iframe>
+// could be found, and a text VERIFY never saw a frame's text.
+func TestSnapshot_IncludesSameOriginFramesOnThePagesViewport(t *testing.T) {
+	page := framedFormPage()
+	rt := New(regConfig(), page, utils.NewLoggerTo(nopWriter{}, nil))
+	els, err := rt.loadSnapshot(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var save *dom.ElementSnapshot
+	for i := range els {
+		if els[i].VisibleText == "Buy now" {
+			t.Errorf("a cross-origin frame's element is in the snapshot")
+		}
+		if els[i].VisibleText == "Save form" {
+			save = &els[i]
+		}
+	}
+	if save == nil {
+		t.Fatalf("the framed button is not in the snapshot: %+v", els)
+	}
+	if save.FrameIndex != 1 || save.Rect.Top != 240 || save.Rect.Left != 120 {
+		t.Errorf("framed button: frame %d at (%v,%v), want frame 1 at (120,240)", save.FrameIndex, save.Rect.Left, save.Rect.Top)
+	}
+}
+
+// An element in a frame is acted on in that frame — its value set by the
+// frame's own JS — and clicked on the page's viewport, frame offset added.
+func TestActions_InsideAFrameAreRoutedToIt(t *testing.T) {
+	page := framedFormPage()
+	if _, err := runSource(t, page, "FILL 'Email' field with 'ada@example.com'\nCLICK the 'Save form' button\nVERIFY that 'Saved!' is present\n"); err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Inputs) != 0 {
+		t.Errorf("the value was set through the main document: %v", page.Inputs)
+	}
+	typed := false
+	for _, e := range page.EvalCalls {
+		if strings.Contains(e, "nativeSetter") && strings.Contains(e, "ada@example.com") && strings.Contains(e, "__manulReg[1000001]") {
+			typed = true
+		}
+	}
+	if !typed {
+		t.Error("FILL never set the framed field's value")
+	}
+	if len(page.Clicks) != 1 || page.Clicks[0] != (Point{160, 250}) {
+		t.Errorf("clicks = %v, want the framed button's centre on the page, (160,250)", page.Clicks)
+	}
+}
+
+// A cross-origin frame that is not displayed — the ad in framedFormPage has
+// no size — is not entered: there is nothing in it to act on.
+func TestActions_UndisplayedCrossOriginFrameIsNotEntered(t *testing.T) {
+	page := framedFormPage()
+	_, err := runSource(t, page, "CLICK the 'Buy now' button\n")
+	if err == nil || !strings.Contains(err.Error(), "not found") {
+		t.Fatalf("want not found, got %v", err)
+	}
+	if len(page.Clicks) != 0 {
+		t.Errorf("clicked %v", page.Clicks)
+	}
+}
+
+// A cross-origin frame cannot say where it is (frameElement is null there),
+// so it used to be left out: a payment form in one could not be filled. It
+// is measured from outside, and its elements land on the page's viewport.
+func TestActions_CrossOriginFrameIsEnteredWhereItIsMeasured(t *testing.T) {
+	page := framedFormPage()
+	doc := page.FrameDocs[2]
+	doc.Size = [2]float64{300, 150}
+	page.FrameDocs[2] = doc
+	page.FrameOffsets[2] = [2]float64{400, 500}
+	if _, err := runSource(t, page, "CLICK the 'Buy now' button\n"); err != nil {
+		t.Fatal(err)
+	}
+	ad := doc.Elements[0].Rect
+	want := Point{400 + ad.Left + ad.Width/2, 500 + ad.Top + ad.Height/2}
+	if len(page.Clicks) != 1 || page.Clicks[0] != want {
+		t.Errorf("clicks = %v, want %v", page.Clicks, want)
 	}
 }

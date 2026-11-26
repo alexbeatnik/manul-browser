@@ -8,7 +8,14 @@
  *
  * It is a fake, not a mock — it answers the real shapes from `spec/protocol.md`.
  * Behaviour is steered by `MANUL_FAKE_MODE` so one script covers the awkward
- * cases too (a bad protocol version, an engine that dies early).
+ * cases too:
+ *
+ * - `future`   reports protocol 2.0;
+ * - `silent`   exits before saying ready;
+ * - `bom`      puts a UTF-8 BOM ahead of the ready line, as Windows pipes do;
+ * - `garbage`  answers the first request with a line that is not JSON;
+ * - `die`      exits with status 5 on the first request, without answering;
+ * - `stubborn` ignores `close` and the end of its input, so only a kill stops it.
  */
 
 import { createInterface } from 'node:readline';
@@ -27,6 +34,8 @@ if (mode === 'silent') {
   process.exit(3);
 }
 
+if (mode === 'bom') process.stdout.write('\uFEFF');
+
 send({
   event: 'ready',
   protocol: mode === 'future' ? '2.0' : '1.0',
@@ -42,6 +51,9 @@ let registered: { controls: Array<{ page: string; target: string }>; calls: stri
   calls: [],
   hooks: [],
 };
+
+/** The last request seen, so a test can check what actually went on the wire. */
+let lastRequest: Record<string, Json> | null = null;
 
 let pendingInvoke: ((msg: Record<string, Json>) => void) | null = null;
 let invokeSeq = 0;
@@ -69,7 +81,23 @@ async function handle(msg: Record<string, Json>): Promise<void> {
   const fail = (code: string, message: string): void =>
     send({ id, ok: false, error: { code, message } });
 
+  if (cmd === 'last-request') return ok(lastRequest);
+  lastRequest = msg;
+
+  if (mode === 'garbage') {
+    process.stdout.write('this is not json\n');
+    return;
+  }
+  if (mode === 'die') process.exit(5);
+
   switch (cmd) {
+    case 'stray':
+      // Lines nobody asked for: a reply to an id that was never sent, and an
+      // event with no id at all. A client must step over both.
+      send({ id: 9999, ok: true, result: 'not for you' });
+      send({ event: 'log', message: 'unsolicited' });
+      return ok('after the strays');
+
     case 'schema':
       return ok({ version: '0.1.0', commands: ['CLICK', 'FILL'] });
 
@@ -203,6 +231,7 @@ async function handle(msg: Record<string, Json>): Promise<void> {
           failed: 0,
           error: '',
         })),
+        vars: { token: 'from-hooks' },
       });
     }
 
@@ -225,6 +254,7 @@ async function handle(msg: Record<string, Json>): Promise<void> {
 
     case 'close':
       ok({});
+      if (mode === 'stubborn') return;
       process.exit(0);
       return;
   }
@@ -266,4 +296,11 @@ rl.on('line', (raw) => {
   chain = chain.then(() => handle(msg)).catch(() => undefined);
 });
 
-rl.on('close', () => process.exit(0));
+rl.on('close', () => {
+  if (mode === 'stubborn') {
+    // Keep the event loop alive with nothing to read: only a signal ends this.
+    setInterval(() => {}, 1000);
+    return;
+  }
+  process.exit(0);
+});

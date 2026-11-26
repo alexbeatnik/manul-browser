@@ -106,7 +106,14 @@ func EvaluateInContext(ctx context.Context, c *Conn, contextID int, expression s
 	if contextID == 0 {
 		return Evaluate(ctx, c, expression)
 	}
-	res, err := c.Call(ctx, "Runtime.evaluate", map[string]interface{}{
+	return EvaluateInSession(ctx, c, "", contextID, expression)
+}
+
+// EvaluateInSession evaluates in an execution context of an attached session
+// — an out-of-process iframe's. Context ids are numbered per session, so the
+// id alone does not say which document it is.
+func EvaluateInSession(ctx context.Context, c *Conn, sessionID string, contextID int, expression string) (interface{}, error) {
+	res, err := c.CallSession(ctx, sessionID, "Runtime.evaluate", map[string]interface{}{
 		"expression":    expression,
 		"returnByValue": true,
 		"awaitPromise":  true,
@@ -173,11 +180,21 @@ func MustMarshalString(v interface{}) string {
 }
 
 func evaluateObjectID(ctx context.Context, c *Conn, expression string) (string, error) {
-	res, err := c.Call(ctx, "Runtime.evaluate", map[string]interface{}{
+	return evaluateObjectIDIn(ctx, c, "", 0, expression)
+}
+
+// evaluateObjectIDIn is evaluateObjectID in a given session and execution
+// context; 0 is the session's default context.
+func evaluateObjectIDIn(ctx context.Context, c *Conn, sessionID string, contextID int, expression string) (string, error) {
+	params := map[string]interface{}{
 		"expression":    expression,
 		"returnByValue": false,
 		"awaitPromise":  true,
-	})
+	}
+	if contextID != 0 {
+		params["contextId"] = contextID
+	}
+	res, err := c.CallSession(ctx, sessionID, "Runtime.evaluate", params)
 	if err != nil {
 		return "", err
 	}
@@ -201,7 +218,16 @@ func evaluateObjectID(ctx context.Context, c *Conn, expression string) (string, 
 }
 
 // Click dispatches a mouse click at the given page coordinates.
+//
+// The pointer is moved there first, as a person's would be and as the BiDi
+// backend's action sequence does. Pressed without a move, Chrome delivers
+// mouseenter in the middle of the press; a link that replaces itself on
+// mouseenter then took the press and lost the release, so no click happened
+// and the step passed — on Chromium only.
 func Click(ctx context.Context, c *Conn, x, y float64) error {
+	if err := Hover(ctx, c, x, y); err != nil {
+		return err
+	}
 	// MousePressed
 	_, err := c.Call(ctx, "Input.dispatchMouseEvent", map[string]interface{}{
 		"type":       "mousePressed",
@@ -226,6 +252,9 @@ func Click(ctx context.Context, c *Conn, x, y float64) error {
 
 // DoubleClick dispatches a double-click at the given page coordinates.
 func DoubleClick(ctx context.Context, c *Conn, x, y float64) error {
+	if err := Hover(ctx, c, x, y); err != nil {
+		return err
+	}
 	// Press 1
 	_, err := c.Call(ctx, "Input.dispatchMouseEvent", map[string]interface{}{
 		"type": "mousePressed", "button": "left", "x": x, "y": y, "clickCount": 1,
@@ -255,6 +284,9 @@ func DoubleClick(ctx context.Context, c *Conn, x, y float64) error {
 
 // RightClick dispatches a right-click (contextmenu) at the given page coordinates.
 func RightClick(ctx context.Context, c *Conn, x, y float64) error {
+	if err := Hover(ctx, c, x, y); err != nil {
+		return err
+	}
 	_, err := c.Call(ctx, "Input.dispatchMouseEvent", map[string]interface{}{
 		"type":       "mousePressed",
 		"button":     "right",
@@ -571,6 +603,22 @@ func (c *Conn) SetFileInput(ctx context.Context, id int, xpath string, filePaths
 	// does, so it answered 0 and every upload failed with "Could not find
 	// node with given id".
 	_, err = c.Call(ctx, "DOM.setFileInputFiles", map[string]interface{}{
+		"objectId": objectID,
+		"files":    filePaths,
+	})
+	return err
+}
+
+// SetFileInputIn is SetFileInput for a field inside an iframe: the node is
+// resolved in the frame's own execution context, and the files are set on
+// the session that owns it — an out-of-process iframe's, for a cross-site
+// one.
+func (c *Conn) SetFileInputIn(ctx context.Context, sessionID string, contextID int, id int, xpath string, filePaths []string) error {
+	objectID, err := evaluateObjectIDIn(ctx, c, sessionID, contextID, pagejs.FileInput(id, xpath))
+	if err != nil {
+		return fmt.Errorf("SetFileInput: resolve file input: %w", err)
+	}
+	_, err = c.CallSession(ctx, sessionID, "DOM.setFileInputFiles", map[string]interface{}{
 		"objectId": objectID,
 		"files":    filePaths,
 	})

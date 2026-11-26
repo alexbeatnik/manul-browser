@@ -1,0 +1,11 @@
+<!doctype html><html><head><title>Frames</title>
+<style>body{font-family:sans-serif} iframe{border:7px solid #888;padding:5px;margin:20px}</style></head>
+<body>
+<h1>Host page</h1>
+<p>Host status: <span id="host-status">idle</span></p>
+<button onclick="document.getElementById('host-status').textContent='host clicked'">Host button</button>
+<iframe id="f1" src="form.html" width="500" height="320"></iframe>
+<div style="height:1400px"></div>
+<iframe id="f2" src="outer.html" width="600" height="380"></iframe>
+<iframe id="xo" src="@CROSS@/cross.html" width="400" height="160"></iframe>
+</body></html>

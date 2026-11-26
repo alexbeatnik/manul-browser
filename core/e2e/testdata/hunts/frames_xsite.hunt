@@ -1,0 +1,17 @@
+@title: A payment form in a cross-site frame
+# Chrome runs the frame in a process of its own (an OOPIF); Firefox does not
+# deliver a top-level click into it. Both are reached.
+STEP 1: Fill and submit inside the frame
+    NAVIGATE to @SITE@/pay.html
+    VERIFY that 'Card not checked' is present
+    FILL 'Card number' field with '4242 4242'
+    VERIFY 'Card number' field has value '4242 4242'
+    PRESS ENTER
+    VERIFY that 'Card checked: 4242 4242' is present
+STEP 2: A click inside it reaches the page through postMessage
+    CLICK the 'Pay now' button
+    VERIFY that 'paid with 4242 4242' is present
+STEP 3: A frame inside the cross-site frame
+    CLICK the 'Card help' button
+    VERIFY that 'help opened' is present
+DONE.

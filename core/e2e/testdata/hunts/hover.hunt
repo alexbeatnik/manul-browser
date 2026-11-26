@@ -1,0 +1,7 @@
+@title: A click moves the pointer first
+STEP 1: A link that replaces itself on hover
+    NAVIGATE to @SITE@/hover.html
+    CLICK the 'Swap me' link
+    VERIFY that 'clicked' is present
+    VERIFY that 'not clicked' is NOT present
+DONE.

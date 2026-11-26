@@ -1,0 +1,11 @@
+@title: A popup that closes itself hands back to its opener
+STEP 1: Sign in through a popup
+    NAVIGATE to @SITE@/tabs.html
+    CLICK the 'Sign in with a popup' button
+    FILL 'User name' field with 'ada'
+    CLICK the 'Authorize' button
+    VERIFY that 'Signed in as ada' is present
+STEP 2: rel=noopener still opens a tab the engine follows
+    CLICK the 'Open without opener' link
+    VERIFY that 'Manul Plush' is present
+DONE.

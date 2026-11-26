@@ -1,0 +1,7 @@
+@title: ARIA tables are tables
+# expect-output: cpu=[7.4%]
+STEP 1: Extract a cell by row and column
+    NAVIGATE to @SITE@/ariatable.html
+    EXTRACT the 'Chrome CPU' into {cpu}
+    PRINT "cpu=[{cpu}]"
+DONE.

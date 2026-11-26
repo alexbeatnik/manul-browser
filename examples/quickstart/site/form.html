@@ -1,0 +1,29 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Sign-up form</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<header><strong>Manul Quickstart</strong><a href="index.html">Home</a></header>
+<main>
+  <h1>Create an account</h1>
+  <label for="name">Full name</label><input id="name">
+  <label for="email">Email</label><input id="email" type="email" placeholder="name@example.com">
+  <label for="phone">Phone</label><input id="phone">
+  <label for="country">Country</label>
+  <select id="country"><option>Choose…</option><option>Ukraine</option><option>Japan</option><option>Canada</option></select>
+  <p class="inline">Plan:
+    <input type="radio" name="plan" id="free" value="free" checked><label for="free">Free</label>
+    <input type="radio" name="plan" id="pro" value="pro"><label for="pro">Pro</label>
+  </p>
+  <p><input type="checkbox" id="news" checked><label for="news" style="display:inline">Newsletter</label></p>
+  <p><input type="checkbox" id="terms"><label for="terms" style="display:inline">I accept the Terms</label></p>
+  <button id="submit" disabled>Create account</button>
+  <p id="result"></p>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+$("terms").onchange = () => { $("submit").disabled = !$("terms").checked; };
+$("submit").onclick = () => {
+  const plan = document.querySelector("input[name=plan]:checked").value;
+  $("result").textContent = `Thanks, ${$("name").value}! Plan: ${plan}, country: ${$("country").value}, newsletter: ${$("news").checked ? "yes" : "no"}`;
+};
+</script>
+</body></html>

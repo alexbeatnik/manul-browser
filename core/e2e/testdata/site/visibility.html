@@ -1,0 +1,15 @@
+<!doctype html><html><head><title>Visibility</title></head>
+<body style="font-family:sans-serif">
+<h1>Visibility</h1>
+<button style="opacity:0">Opacity zero button</button>
+<div style="opacity:0"><p>Inside a faded block</p></div>
+<button style="visibility:hidden">Visibility hidden button</button>
+<button style="display:none">Display none button</button>
+<p style="opacity:0.5">Half transparent</p>
+<!-- The same words twice: once transparent, once shown. -->
+<span style="opacity:0">Shown twice</span>
+<span>Shown twice</span>
+<!-- Fades in a second after load. -->
+<p id="fade" style="opacity:0;transition:opacity .2s">Fades in later</p>
+<script>setTimeout(function () { document.getElementById('fade').style.opacity = 1; }, 1000);</script>
+</body></html>

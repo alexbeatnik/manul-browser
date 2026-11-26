@@ -21,6 +21,9 @@ type Context struct {
 	ID       string    `json:"context"`
 	URL      string    `json:"url"`
 	Children []Context `json:"children"`
+	// OriginalOpener is the context that opened this one (a link with
+	// target="_blank", window.open), or empty.
+	OriginalOpener string `json:"originalOpener"`
 }
 
 // ── Connection setup ──────────────────────────────────────────────────────────
@@ -562,6 +565,10 @@ func DispatchKey(ctx context.Context, c *Conn, contextID, key string, modifiers 
 // BeforeRequestSent is the event a blocked request arrives in.
 const BeforeRequestSent = "network.beforeRequestSent"
 
+// ResponseCompleted is the event a finished response arrives in. A page
+// subscribes to it when it opens: see WaitForResponse.
+const ResponseCompleted = "network.responseCompleted"
+
 // AddIntercept asks the browser to block every request made by the page at
 // contextID, and the frames inside it, before it is sent. It returns the
 // intercept's id, which each blocked request's event names. BiDi's own URL
@@ -620,25 +627,17 @@ func ContinueRequest(ctx context.Context, c *Conn, requestID string) error {
 	return err
 }
 
-// WaitForResponse waits for a network response whose URL ends with urlPattern,
-// matching the CDP backend's suffix semantics.
+// WaitForResponse waits for a network response of the page contextID whose URL
+// ends with urlPattern, matching the CDP backend's suffix semantics.
+//
+// It only listens. Firefox reports a response only for a request that started
+// while the session was subscribed, and the request this waits for was usually
+// sent by the step before — so subscribing here, as this once did, meant the
+// response never came. The page subscribes to ResponseCompleted when it opens,
+// and nothing here unsubscribes, which would cancel that for good.
 func WaitForResponse(ctx context.Context, c *Conn, contextID, urlPattern string, timeout time.Duration) error {
-	const event = "network.responseCompleted"
-	// Open the local channel before asking the browser to send anything: a
-	// response that completes between the two would otherwise arrive with
-	// nowhere to go, and the wait would sit through a request it was watching
-	// for.
 	sub := c.Subscribe()
 	defer sub.Close()
-	if err := SubscribeEvents(ctx, c, []string{event}, []string{contextID}); err != nil {
-		return fmt.Errorf("bidi: subscribe %s: %w", event, err)
-	}
-	defer func() {
-		// Bound the cleanup call so a dead socket cannot hang the caller.
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_ = UnsubscribeEvents(ctx, c, []string{event})
-	}()
 
 	ctxTimeout, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -651,15 +650,21 @@ func WaitForResponse(ctx context.Context, c *Conn, contextID, urlPattern string,
 			if !ok {
 				return fmt.Errorf("bidi connection closed while waiting for response pattern %q", urlPattern)
 			}
-			if ev.Method != event {
+			if ev.Method != ResponseCompleted {
 				continue
 			}
 			var received struct {
+				Context  string `json:"context"`
 				Response struct {
 					URL string `json:"url"`
 				} `json:"response"`
 			}
 			if err := json.Unmarshal(ev.Params, &received); err != nil {
+				continue
+			}
+			// One connection serves every tab, so another page's responses
+			// arrive here too.
+			if received.Context != contextID {
 				continue
 			}
 			if strings.HasSuffix(received.Response.URL, urlPattern) {
@@ -763,9 +768,22 @@ func (rv remoteValue) decode() (interface{}, error) {
 		// shared reference — so that is what survives the decode.
 		return map[string]interface{}{"sharedId": rv.SharedID}, nil
 
+	case "window":
+		// A WindowProxy is how a frame's browsing context is named from the
+		// document that holds it: iframe.contentWindow serializes to the
+		// child's context id, even across origins. That is what ties an
+		// <iframe> element to the context its document runs in.
+		var w struct {
+			Context string `json:"context"`
+		}
+		if err := json.Unmarshal(rv.Value, &w); err != nil || w.Context == "" {
+			return nil, nil
+		}
+		return map[string]interface{}{"context": w.Context}, nil
+
 	default:
-		// function, symbol, error, promise, proxy, window, typedarray… none of
-		// which the engine's probes return.
+		// function, symbol, error, promise, proxy, typedarray… none of which
+		// the engine's probes return.
 		return nil, nil
 	}
 }

@@ -1,0 +1,17 @@
+@context: One hunt, many inputs — the whole file runs once per CSV row, and each column is a {variable}.
+@title: data_driven
+@tags: smoke
+
+@var: {site} = http://localhost:8000
+# The path is relative to this file. A .json file holding a list of objects works too.
+@data: data/users.csv
+
+STEP 1: Log in as {username}
+    NAVIGATE to {site}/login.html
+    FILL 'Username' field with '{username}'
+    FILL 'Password' field with '{password}'
+    CLICK the 'Sign in' button
+    VERIFY that 'Welcome, {username}' is present
+    VERIFY 'Role' field has value '{role}'
+
+DONE.

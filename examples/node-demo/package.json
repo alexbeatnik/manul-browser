@@ -1,0 +1,18 @@
+{
+  "name": "manul-node-demo",
+  "private": true,
+  "type": "module",
+  "description": "Everything the Manul Node binding can do, against a local site.",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "serve": "node src/app-server.mjs",
+    "test": "node --test --test-concurrency=1 test/",
+    "demo": "node run-all.mjs",
+    "demo:all": "node run-all.mjs --all"
+  },
+  "dependencies": {
+    "manul-browser": "^0.1.6"
+  }
+}

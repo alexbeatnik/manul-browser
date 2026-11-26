@@ -58,6 +58,10 @@ existed — it just needed a session that outlives a single command.
 
 ## Use it
 
+New to `.hunt` files? [`examples/quickstart`](examples/quickstart/) is twelve
+short hunts, one idea each, against a site that ships with them — with a table
+that goes from "I want to…" to the lines that do it.
+
 **Python** — `pip install manul-browser`; the wheel ships the binary, and you
 need only a system Chrome or Firefox.
 
@@ -125,6 +129,8 @@ is one static binary with `gorilla/websocket` as its only dependency.
 - [`core/docs/`](core/docs/) — engine documentation
 - [`spec/contracts/`](spec/contracts/) — behavioural contracts
 - [`spec/protocol.md`](spec/protocol.md) — the stdio session protocol
+- [`examples/quickstart/`](examples/quickstart/) — the language one idea at a time, offline
+- [`examples/python-demo/`](examples/python-demo/) — every feature in one project
 - [`core/examples/`](core/examples/) — sample `.hunt` files
 - [`CLAUDE.md`](CLAUDE.md) — working notes: invariants and traps
 - [`ROADMAP.md`](ROADMAP.md) — what is unverified, and what is missing

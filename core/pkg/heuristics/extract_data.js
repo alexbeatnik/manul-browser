@@ -67,11 +67,49 @@
         });
         return out;
     };
+    // A caption names the value; it is not part of it. "Price: $24.50" is
+    // the value "$24.50" of 'Price', and <dt>Total</dt><dd>42</dd> the value
+    // "42" of 'Total'. The whole text used to come back, caption and all.
+    //
+    // Only a caption that is the target, and only when the rest reads as a
+    // value: after ':', '=' or a dash, or after a space when it starts like a
+    // number or an amount. 'Manul' on "Manul Plush" is the text itself.
+    var VALUE_START = /^[\d$\u20ac\u00a3\u20b4\u00a5+\-\u2212.,(]/;
+    var afterCaption = function(text) {
+        var lower = text.toLowerCase();
+        if (!wanted || lower.indexOf(wanted) !== 0) return null;
+        var rest = text.slice(wanted.length);
+        var sep = rest.match(/^\s*[:=\u2014\u2013-]+\s*/);
+        if (sep) {
+            rest = rest.slice(sep[0].length).trim();
+            return rest || null;
+        }
+        rest = rest.trim();
+        if (rest && /^\s/.test(text.slice(wanted.length)) && VALUE_START.test(rest)) return rest;
+        return null;
+    };
+    // An element that is the caption and nothing else, in a form that marks it
+    // as one, gives the value beside it.
+    var CAPTION_TAGS = ['DT', 'TH', 'LABEL'];
+    var besideCaption = function(el, text) {
+        if (asName(text) !== wanted) return null;
+        var next = el.nextElementSibling;
+        if (!next) return null;
+        var marked = CAPTION_TAGS.indexOf(el.tagName) >= 0 || /:\s*$/.test(text) || next.tagName === 'DD';
+        if (!marked) return null;
+        if (isField(next)) return fieldValue(next);
+        var v = (next.innerText || '').trim();
+        return v || null;
+    };
     // Text that turns out to be a field's label answers with the field.
     var textOrField = function(el) {
         var lbl = el.closest('label');
         if (lbl && isField(lbl.control)) return fieldValue(lbl.control);
-        return el.innerText.trim();
+        var text = el.innerText.trim();
+        var beside = besideCaption(el, text);
+        if (beside !== null) return beside;
+        var after = afterCaption(text);
+        return after !== null ? after : text;
     };
 
     // Strategy 0: a form control the target names outright. Ahead of the text
@@ -104,11 +142,46 @@
         }
     }
 
-    // Gather all <th> text once for column/row word splitting
-    var allTables = Array.from(document.querySelectorAll('table'));
+    // Strategy 0c: any element the target names by its id or test id —
+    // 'order-total' for <span id="order-total">. Only fields were read this
+    // way; the id of a price, a status or a counter was looked for as text,
+    // which it never is. The element's own text is the answer; it is split
+    // from a caption only when the caption is the target itself (id 'total'
+    // on "Total: $5" gives "$5", id 'summary-line' on "Subtotal: $55.00"
+    // gives all of it).
+    if (wanted) {
+        var ids = [wanted, wanted.replace(/ /g, '-'), wanted.replace(/ /g, '_'), wanted.replace(/ /g, '')];
+        var ATTRS = ['id', 'data-testid', 'data-qa', 'data-test'];
+        var byId = null;
+        (function walk(root) {
+            if (byId) return;
+            var all = root.querySelectorAll('*');
+            for (var ii = 0; ii < all.length && !byId; ii++) {
+                var el = all[ii];
+                for (var ai = 0; ai < ATTRS.length; ai++) {
+                    var v = (el.getAttribute(ATTRS[ai]) || '').toLowerCase();
+                    if (v && ids.indexOf(v) >= 0 && el.getClientRects().length > 0) { byId = el; break; }
+                }
+                if (!byId && el.shadowRoot) walk(el.shadowRoot);
+            }
+        })(document);
+        if (byId) {
+            if (isField(byId)) return fieldValue(byId);
+            if ((byId.innerText || '').trim()) return textOrField(byId);
+        }
+    }
+
+    // A table drawn with ARIA roles is a table too: role=columnheader is its
+    // <th>, role=cell its <td>. Without them "Chrome CPU" on a grid of divs
+    // came back as the header row, which shares the word "CPU".
+    var TABLES = 'table, [role="table"], [role="grid"], [role="treegrid"]';
+    var HEADERS = 'th, [role="columnheader"]';
+    var CELLS = 'td, [role="cell"], [role="gridcell"]';
+    // Gather all header text once for column/row word splitting
+    var allTables = Array.from(document.querySelectorAll(TABLES));
     var allThTexts = [];
     allTables.forEach(function(t) {
-        Array.from(t.querySelectorAll('th')).forEach(function(th) {
+        Array.from(t.querySelectorAll(HEADERS)).forEach(function(th) {
             allThTexts.push(th.innerText.toLowerCase().trim());
         });
     });
@@ -139,7 +212,7 @@
         for (var ri = 0; ri < rows.length; ri++) {
             var rText = rows[ri].innerText.toLowerCase();
             // Skip header rows when we have row-specific search words
-            var isHeader = rows[ri].querySelectorAll('th').length > 0 && rows[ri].querySelectorAll('td').length === 0;
+            var isHeader = rows[ri].querySelectorAll(HEADERS).length > 0 && rows[ri].querySelectorAll(CELLS).length === 0;
             if (isHeader && classified.row.length > 0) continue;
             var matches = 0;
             if (searchWords.length === 0) {
@@ -159,14 +232,14 @@
         }
         if (bestRow) {
             var cells = Array.from(bestRow.querySelectorAll('td'));
-            if (cells.length === 0) cells = Array.from(bestRow.querySelectorAll('[role="cell"]'));
+            if (cells.length === 0) cells = Array.from(bestRow.querySelectorAll('[role="cell"], [role="gridcell"]'));
             if (cells.length > 1) {
                 // Try column header matching using column-words
                 var colSearchWords = classified.col.length > 0 ? classified.col : hintWords;
                 if (colSearchWords.length > 0) {
-                    var table = bestRow.closest('table');
+                    var table = bestRow.closest(TABLES);
                     if (table) {
-                        var ths = Array.from(table.querySelectorAll('th'));
+                        var ths = Array.from(table.querySelectorAll(HEADERS));
                         for (var hw = 0; hw < colSearchWords.length; hw++) {
                             for (var ti = 0; ti < ths.length; ti++) {
                                 if (wordMatch(ths[ti].innerText.toLowerCase(), colSearchWords[hw])) {
@@ -225,6 +298,27 @@
                 return cells2[cells2.length - 1].innerText.trim();
             }
         }
+    }
+    // Strategy 2b: an element captioned by the target — "Order 1234",
+    // <dt>Total</dt>. Ahead of the broad search, which takes the first
+    // element that merely contains the word: 'Order' found the heading
+    // "Order summary" above "Order 1234". The shortest caption wins.
+    if (wanted) {
+        var captioned = null, captionedLen = Infinity;
+        var candidates = Array.from(document.querySelectorAll(ALL_TAGS));
+        for (var cj = 0; cj < candidates.length; cj++) {
+            var el = candidates[cj];
+            if ((el.textContent || '').length > wanted.length + 200) continue;
+            var t = (el.innerText || '').trim();
+            if (!t || t.toLowerCase().indexOf(wanted) !== 0) continue;
+            var v = besideCaption(el, t);
+            if (v === null) v = afterCaption(t);
+            if (v !== null && t.length < captionedLen) {
+                captioned = v;
+                captionedLen = t.length;
+            }
+        }
+        if (captioned !== null) return captioned;
     }
     // Strategy 3: broad text search
     if (target) {

@@ -1,0 +1,20 @@
+@context: CALL HOST — hand a step to your own code, and get a value back.
+@title: call_your_code
+
+# Needs a hook script that registers the handlers:
+#   manul 12_call_your_code.hunt --hooks hooks/manul_hooks.py
+# {site} and {run_id} are not declared here: before_all in the hook publishes them.
+
+STEP 1: Ask your code for test data
+    CALL HOST qs.new_user into {user}
+    PRINT "run {run_id} uses {user}"
+
+STEP 2: Check the page against your own arithmetic
+    NAVIGATE to {site}/shop.html
+    CLICK the 'Add to cart' button NEAR 'Manul Plush'
+    CLICK the 'Add to cart' button NEAR 'Snow Boots'
+    EXTRACT the 'Cart total' into {ui_total}
+    CALL HOST qs.sum "24.50" "89.99" into {expected}
+    VERIFY 'Cart total' field has value '{expected}'
+
+DONE.

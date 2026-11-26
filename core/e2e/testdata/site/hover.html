@@ -1,0 +1,20 @@
+<!doctype html><html><head><title>Hover</title></head>
+<body style="font-family:sans-serif">
+<!-- The link is replaced by a fresh copy on mouseenter. A press without a move
+     first lands on the old one, and the release on the new: no click. -->
+<p id="slot"><a href="#">Swap me</a></p>
+<p id="out">not clicked</p>
+<script>
+var slot = document.getElementById('slot');
+function wire(a){
+  a.addEventListener('mouseenter', function once(){
+    a.removeEventListener('mouseenter', once);
+    var b = a.cloneNode(true); b.dataset.fresh = '1';
+    b.addEventListener('click', function(e){ e.preventDefault(); out.textContent = 'clicked'; });
+    slot.replaceChild(b, a);
+  });
+  a.addEventListener('click', function(e){ e.preventDefault(); });
+}
+wire(slot.querySelector('a'));
+</script>
+</body></html>

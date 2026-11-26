@@ -52,3 +52,50 @@ func TestContainsQuery_WantsThePhraseNotAWordOfIt(t *testing.T) {
 		t.Error("the phrase itself, or the id it spells, must match")
 	}
 }
+
+// A column whose only card is 'Write tests' scores exactly what the card does.
+// DOM order put the column first, and DRAG pressed the mouse on empty column.
+func TestRank_TieGoesToTheDescendant(t *testing.T) {
+	const col = "/html[1]/body[1]/main[1]/div[1]"
+	elements := []dom.ElementSnapshot{
+		{ID: 1, Tag: "div", XPath: col, VisibleText: "Write tests", IsVisible: true},
+		{ID: 2, Tag: "div", XPath: col + "/div[1]", VisibleText: "Write tests", IsVisible: true},
+		{ID: 3, Tag: "div", XPath: "/html[1]/body[1]/main[1]/div[11]", VisibleText: "Write tests", IsVisible: true}, // shares a prefix, not a parent
+	}
+	ranked := Rank("Write tests", "", "clickable", elements, 3, nil)
+	if got := []int{ranked[0].Element.ID, ranked[1].Element.ID, ranked[2].Element.ID}; !reflect.DeepEqual(got, []int{2, 1, 3}) {
+		t.Errorf("rank order = %v, want the card, then its column, then the unrelated div", got)
+	}
+}
+
+func TestIsXPathAncestor(t *testing.T) {
+	for _, c := range []struct {
+		anc, desc string
+		want      bool
+	}{
+		{"/html[1]/body[1]/div[1]", "/html[1]/body[1]/div[1]/span[1]", true},
+		{"/html[1]/body[1]/div[1]", "/html[1]/body[1]/div[11]", false},
+		{"/html[1]/body[1]/div[1]", "/html[1]/body[1]/div[1]", false},
+		{"", "/html[1]", false},
+	} {
+		if got := IsXPathAncestor(c.anc, c.desc); got != c.want {
+			t.Errorf("IsXPathAncestor(%q, %q) = %v, want %v", c.anc, c.desc, got, c.want)
+		}
+	}
+}
+
+// A cart link that is only a picture is named by its alt text. Without that
+// name, 'Cart' went to the first "ADD TO CART" button, which added a product.
+func TestRank_PictureLinkIsNamedByItsAlt(t *testing.T) {
+	elements := []dom.ElementSnapshot{
+		{ID: 1, Tag: "button", XPath: "/html[1]/body[1]/div[2]/button[1]", VisibleText: "ADD TO CART", IsVisible: true},
+		{ID: 2, Tag: "a", XPath: "/html[1]/body[1]/header[1]/a[1]", VisibleText: "1", AccessibleName: "Cart", IsVisible: true},
+	}
+	for i := range elements {
+		elements[i].Normalize()
+	}
+	ranked := Rank("Cart", "link", "clickable", elements, 2, nil)
+	if ranked[0].Element.ID != 2 {
+		t.Errorf("winner = %q, want the cart link", ranked[0].Element.VisibleText)
+	}
+}

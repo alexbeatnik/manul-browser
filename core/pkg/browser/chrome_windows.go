@@ -122,3 +122,7 @@ type ioCounters struct {
 	WriteTransferCount  uint64
 	OtherTransferCount  uint64
 }
+
+// killProfileStragglers is a no-op on Windows, where the process tree kill
+// already reaches every descendant. See the Unix version for why it exists.
+func killProfileStragglers(profileDir string) {}

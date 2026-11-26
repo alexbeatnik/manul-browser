@@ -1,0 +1,99 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Widgets Page</title><link rel="stylesheet" href="/style.css"></head>
+<body>
+<header><div id="logo" aria-label="Company logo">MANUL</div><nav><a href="/dashboard.html">Home</a></nav></header>
+<main>
+  <section id="loading-box"><p id="spinner">Loading widgets...</p></section>
+
+  <section><h2>Board</h2>
+    <div class="column" id="todo" aria-label="Todo column"><div class="card" id="card-a">Card A</div></div>
+    <div class="column" id="done" aria-label="Done column"></div>
+    <p id="board-status"></p>
+  </section>
+
+  <section><h2>Mouse</h2>
+    <span id="profile" aria-label="Profile">Profile</span> <span id="tooltip" class="hidden">Signed in as Manul</span>
+    <p><button id="copy" ondblclick="document.getElementById('copy-status').textContent='Copied!'">Copy Text</button> <span id="copy-status"></span></p>
+    <div id="ctx" aria-label="Context Area" style="padding:16px;background:#eee">Right-click here</div>
+    <div id="menu" class="menu hidden"><button id="rename">Rename</button></div>
+    <p id="menu-status"></p>
+  </section>
+
+  <section><h2>Keyboard</h2>
+    <label for="shortcut">Shortcut box</label><input id="shortcut">
+    <p id="key-status"></p>
+    <button id="open-modal">Open dialog</button>
+    <div id="modal" class="hidden" role="dialog"><p>Modal is open</p></div>
+    <button id="alert-btn" onclick="alert('Hello from alert'); document.getElementById('alert-status').textContent='Alert accepted'">Show alert</button>
+    <span id="alert-status"></span>
+  </section>
+
+  <section><h2>Product List</h2>
+    <div id="product-list" aria-label="Product List"></div>
+  </section>
+
+  <section><h2>Signature</h2>
+    <canvas id="pad" width="300" height="80" aria-label="Signature Pad"></canvas>
+    <p id="sig-status">Not signed</p>
+  </section>
+
+  <section><h2>Rating</h2>
+    <div id="rating" aria-label="Star Rating"><span data-v="1">☆</span><span data-v="2">☆</span><span data-v="3">☆</span><span data-v="4">☆</span><span data-v="5">☆</span></div>
+    <p id="rating-status">Rating: 0</p>
+  </section>
+
+  <section><h2>Shadow DOM</h2><shadow-field></shadow-field></section>
+
+  <section><h2>Lazy content</h2><button id="reveal">Reveal panel</button><div id="lazy"></div></section>
+</main>
+<footer><a href="#">Terms</a></footer>
+<script>
+const $ = (id) => document.getElementById(id);
+setTimeout(() => $("spinner").remove(), 1200);
+
+// Pointer-driven board, the way most kanban widgets are built.
+const done = $("done");
+let dragging = false;
+$("card-a").addEventListener("mousedown", () => { dragging = true; });
+document.addEventListener("mouseup", (e) => {
+  if (!dragging) return; dragging = false;
+  const r = done.getBoundingClientRect();
+  if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
+    done.appendChild($("card-a")); $("board-status").textContent = "Card A moved to Done";
+  }
+});
+
+$("profile").addEventListener("mouseenter", () => $("tooltip").classList.remove("hidden"));
+$("ctx").addEventListener("contextmenu", (e) => { e.preventDefault(); const m = $("menu"); m.style.left = e.pageX + "px"; m.style.top = e.pageY + "px"; m.classList.remove("hidden"); });
+$("rename").onclick = () => { $("menu").classList.add("hidden"); $("menu-status").textContent = "Renamed!"; };
+
+$("shortcut").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") $("key-status").textContent = "Enter pressed";
+  if (e.ctrlKey && e.key.toLowerCase() === "a") $("key-status").textContent = "Select all pressed";
+});
+$("open-modal").onclick = () => $("modal").classList.remove("hidden");
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("modal").classList.add("hidden"); });
+
+for (let i = 1; i <= 40; i++) { const p = document.createElement("p"); p.textContent = "Product " + i; $("product-list").appendChild(p); }
+
+// A canvas has nothing to click "by name" — the custom control signs it through this API.
+window.signaturePad = { sign(name) {
+  const ctx = $("pad").getContext("2d"); ctx.font = "24px cursive"; ctx.fillText(name, 10, 50);
+  $("sig-status").textContent = "Signed by " + name;
+}};
+window.starRating = { set(n) {
+  [...$("rating").children].forEach((s, i) => s.textContent = i < n ? "★" : "☆");
+  $("rating-status").textContent = "Rating: " + n;
+}};
+
+customElements.define("shadow-field", class extends HTMLElement {
+  connectedCallback() {
+    const root = this.attachShadow({ mode: "open" });
+    root.innerHTML = '<label for="sf">Shadow Field</label><input id="sf" placeholder="Shadow Field"><p id="echo"></p>';
+    root.getElementById("sf").addEventListener("input", (e) => root.getElementById("echo").textContent = "Echo: " + e.target.value);
+  }
+});
+
+$("reveal").onclick = () => setTimeout(() => { $("lazy").innerHTML = '<div class="lazy-panel">Panel ready</div>'; }, 600);
+</script>
+</body></html>

@@ -54,6 +54,33 @@ type LaunchOptions struct {
 	// firefox-esr, firefox-dev, firefox-nightly). Empty = platform defaults.
 	// Set by `--channel` / MANUL_CHANNEL.
 	Channel string
+	// Locale is the language the browser asks pages for (Accept-Language,
+	// navigator.language) and uses itself, as a BCP 47 tag: "en-US",
+	// "uk-UA". Empty is DefaultLocale. Set by `locale` / MANUL_LOCALE /
+	// `--locale`.
+	Locale string
+}
+
+// DefaultLocale is the language both engines ask for unless told otherwise.
+// Left to themselves they differ — headless Chrome asks for en-US, Firefox
+// for the system's language — and the same hunt met YouTube in English on
+// one and Ukrainian on the other.
+const DefaultLocale = "en-US"
+
+// acceptLanguages is the Accept-Language list for a locale: the tag, then its
+// language alone, "uk-UA" → "uk-UA,uk".
+func acceptLanguages(locale string) string {
+	if i := strings.IndexAny(locale, "-_"); i > 0 {
+		return locale + "," + locale[:i]
+	}
+	return locale
+}
+
+func localeOf(opts LaunchOptions) string {
+	if l := strings.TrimSpace(opts.Locale); l != "" {
+		return strings.ReplaceAll(l, "_", "-")
+	}
+	return DefaultLocale
 }
 
 // ChromeOptions is the former name of LaunchOptions, from when Chromium was

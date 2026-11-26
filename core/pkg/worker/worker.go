@@ -128,6 +128,9 @@ func workerLaunchOptions(opts Options, port int) browser.LaunchOptions {
 	if launchOpts.Browser == "" {
 		launchOpts.Browser = opts.Config.Browser
 	}
+	if launchOpts.Locale == "" {
+		launchOpts.Locale = opts.Config.Locale
+	}
 	// Chromium is asked for a free port and reports the one it took; only
 	// Firefox has to be told which to listen on.
 	launchOpts.Port = 0

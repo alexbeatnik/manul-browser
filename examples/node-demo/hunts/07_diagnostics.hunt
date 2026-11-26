@@ -1,0 +1,26 @@
+@context: Region qualifiers and the diagnostic verbs — SCREENSHOT, HIGHLIGHT, FULL SCAN, SCAN PAGE, VERIFY VISUAL.
+@title: diagnostics
+@tags: regression, diagnostics
+@import: OpenDashboard from 'lib/auth.hunt'
+
+STEP 1: Qualifiers
+    USE OpenDashboard
+    CLICK the 'Terms' link ON FOOTER
+    CLICK the 'Edit' button INSIDE 'Users'
+    VERIFY that 'Editing Ada Lovelace' is present
+    CLICK the 'Delete' button INSIDE 'Users' row with 'Alan Turing'
+    VERIFY that 'Deleted Alan Turing' is present
+    VERIFY that 'Version 0.1.6' is present
+
+STEP 2: Look at the page
+    HIGHLIGHT the 'Order total'
+    SCREENSHOT "dashboard"
+    FULL SCAN
+    SCAN PAGE into {reports/scanned_dashboard.hunt}
+    VERIFY VISUAL 'MANUL'
+
+STEP 3: Leave via the header
+    CLICK the 'Widgets' link ON HEADER
+    VERIFY that 'Signature' is present
+
+DONE.

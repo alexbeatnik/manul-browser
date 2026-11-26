@@ -1,0 +1,22 @@
+@context: The network — wait for a request to come back, and answer one with a file of your own.
+@title: network
+
+@var: {site} = http://localhost:8000
+
+STEP 1: Wait for an API call
+    NAVIGATE to {site}/quotes.html
+    VERIFY that 'Simple things should be simple.' is present
+    # WAIT FOR RESPONSE only sees responses that arrive after it starts, so it
+    # goes right after the step that sets the request off.
+    CLICK the 'Next quote' button
+    WAIT FOR RESPONSE "api/quotes.json"
+    VERIFY that 'Kent Beck' is present
+
+STEP 2: MOCK — the page gets your data instead of the server's
+    # A MOCK rule lasts for the rest of the session, across navigations.
+    MOCK GET "api/quotes.json" with 'mocks/quotes.json'
+    NAVIGATE to {site}/quotes.html
+    VERIFY that 'Mocked wisdom, served from a file.' is present
+    VERIFY that 'Alan Kay' is NOT present
+
+DONE.

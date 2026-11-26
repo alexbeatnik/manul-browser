@@ -8,8 +8,8 @@
 
 ```json
 {
-  "version": "0.1.5",
-  "generatedFrom": "pkg/config :: _KEY_MAP, _CFG, get_threshold(), lookup_page_name(); pkg/runtime :: ScopedVariables; pkg/config :: envBool()",
+  "version": "0.1.6",
+  "generatedFrom": "pkg/config :: Config, jsonConfig, Default(), Load(), applyJSONFile(), overrideFromEnv(); pkg/pages :: Registry.LookupPageName(); pkg/runtime :: ScopedVariables",
 
   "configFile": {
     "filename": "manul.config.json",
@@ -26,12 +26,15 @@
   ],
 
   "booleanParsing": {
-    "function": "env_bool(name, default)",
-    "truthy": ["true", "1", "yes"],
-    "falsy": "everything else",
-    "caseInsensitive": true,
-    "stripsWhitespace": true
+    "function": "strconv.ParseBool, inside overrideFromEnv()",
+    "truthy": ["1", "t", "T", "TRUE", "true", "True"],
+    "falsy": ["0", "f", "F", "FALSE", "false", "False"],
+    "invalid": "Any other value — 'yes', 'on', ' true' with a space — is ignored: the setting keeps its JSON or default value, and nothing is logged.",
+    "caseInsensitive": false,
+    "stripsWhitespace": false
   },
+
+  "unknownKeys": "manul.config.json keys the engine does not know are ignored silently, so a misspelled key has no effect and raises no error.",
 
   "keys": [
     {
@@ -86,6 +89,14 @@
       "validation": "Must be a channel identifier of the selected engine (chrome/chrome-beta/chrome-dev/chromium/msedge, or firefox/firefox-esr/firefox-dev/firefox-beta/firefox-nightly), a binary name on PATH, or null."
     },
     {
+      "key": "locale",
+      "envVar": "MANUL_LOCALE",
+      "type": "string",
+      "default": "en-US",
+      "description": "Language a launched browser uses and asks pages for, as a BCP 47 tag. It sets navigator.language and the Accept-Language header, as the tag followed by its language alone (\"uk-UA\" asks for \"uk-UA,uk\"): --lang and --accept-lang for Chromium, intl.accept_languages and intl.locale.requested for Firefox. Empty is en-US. Left to themselves the two engines differ — headless Chrome asked for en-US, Firefox for the system's language — and the same hunt met a site in two languages. A browser that is attached to (--cdp) keeps its own.",
+      "examples": ["en-US", "uk-UA", "de-DE"]
+    },
+    {
       "key": "executable_path",
       "envVar": "MANUL_EXECUTABLE_PATH",
       "type": "string | null",
@@ -107,7 +118,7 @@
       "type": "integer",
       "unit": "milliseconds",
       "default": 5000,
-      "description": "Default action timeout for click, fill, select, hover operations.",
+      "description": "How long a step waits for what it is waiting for. An action whose target is not on the page yet (CLICK, DOUBLE CLICK, RIGHT CLICK, FILL, TYPE, SELECT, CHECK, UNCHECK, HOVER, DRAG, UPLOAD, EXTRACT, PRESS … ON, SCROLL … inside) looks for it again every 250ms for this long before failing not_found; VERIFY polls for this long. 0 turns the waiting for a target off.",
       "minimum": 0
     },
     {
@@ -120,39 +131,44 @@
       "minimum": 0
     },
     {
-      "key": "semantic_cache_enabled",
-      "envVar": "MANUL_SEMANTIC_CACHE_ENABLED",
+      "key": "disable_cache",
+      "envVar": "MANUL_DISABLE_CACHE",
       "type": "boolean",
-      "default": true,
-      "description": "Enable in-session semantic cache (learned_elements). Feeds the scorer as one channel (never bypasses scoring); provides a +200,000 scaled score boost within a single run. Resets when the engine instance is destroyed.",
-      "uiLabel": "Semantic Cache"
+      "default": false,
+      "description": "Turn off the DOM snapshot cache, so every command probes the page afresh instead of reusing the snapshot taken earlier in the step. MANUL_SEMANTIC_CACHE_ENABLED is accepted as its inverse (false disables the cache) and wins when both are set; there is no semantic_cache_enabled JSON key.",
+      "cliFlag": "--disable-cache"
     },
     {
-      "key": "custom_controls_dirs",
-      "envVar": "MANUL_CUSTOM_CONTROLS_DIRS",
+      "key": "verbose",
+      "envVar": "MANUL_VERBOSE",
+      "type": "boolean",
+      "default": false,
+      "description": "Verbose engine logging.",
+      "cliFlag": "--verbose"
+    },
+    {
+      "key": "debug_mode",
+      "envVar": "MANUL_DEBUG",
+      "type": "boolean",
+      "default": false,
+      "description": "Pause before every step, as --debug does.",
+      "cliFlag": "--debug"
+    },
+    {
+      "key": "break_lines",
+      "envVar": null,
+      "type": "integer[]",
+      "default": [],
+      "description": ".hunt line numbers to pause at, as --break-lines does. JSON only.",
+      "cliFlag": "--break-lines"
+    },
+    {
+      "key": "tags",
+      "envVar": "MANUL_TAGS",
       "type": "string[]",
-      "default": ["controls"],
-      "description": "Directories scanned for @custom_control Go handlers. Resolved relative to CWD. Env: comma-separated.",
-      "legacyAlias": {
-        "key": "custom_modules_dirs",
-        "envVar": "MANUL_CUSTOM_MODULES_DIRS"
-      }
-    },
-    {
-      "key": "log_name_maxlen",
-      "envVar": "MANUL_LOG_NAME_MAXLEN",
-      "type": "integer",
-      "default": 0,
-      "description": "If > 0, truncates element names in console log output to this many characters.",
-      "minimum": 0
-    },
-    {
-      "key": "log_thought_maxlen",
-      "envVar": "MANUL_LOG_THOUGHT_MAXLEN",
-      "type": "integer",
-      "default": 0,
-      "description": "If > 0, truncates verbose 'thought'/diagnostic strings in console log output.",
-      "minimum": 0
+      "default": [],
+      "description": "Run only hunt files whose @tags: header shares at least one tag, as --tags does. Env: comma-separated.",
+      "cliFlag": "--tags"
     },
     {
       "key": "workers",
@@ -165,18 +181,17 @@
     },
     {
       "key": "tests_home",
-      "envVar": null,
+      "envVar": "MANUL_TESTS_HOME",
       "type": "string",
       "default": "tests",
-      "description": "Default directory for new hunt files, SCAN PAGE output, and manul scan default output. JSON-only — no env var override.",
-      "note": "No MANUL_* env var for this key."
+      "description": "Loaded and overridable, but no command reads it yet: SCAN PAGE and `manul scan` write where they are told, and nothing else consults it."
     },
     {
       "key": "auto_annotate",
       "envVar": "MANUL_AUTO_ANNOTATE",
       "type": "boolean",
       "default": false,
-      "description": "Automatically inject '# 📍 Auto-Nav: <name>' comments into .hunt files whenever the page URL changes during a run. Page names from pages.json.",
+      "description": "After each NAVIGATE, log '📍 Auto-Nav: <name>' with the page name the pages/ registry gives the URL (the URL itself when it has none). Only NAVIGATE is annotated, not a page a click led to. Log output only — no .hunt file is modified.",
       "uiLabel": "Auto-Annotate Page Navigation"
     },
     {
@@ -202,7 +217,7 @@
       "envVar": "MANUL_HTML_REPORT",
       "type": "boolean",
       "default": false,
-      "description": "Generate self-contained HTML report after the run (reports/manul_report.html). Recent invocations merged via report session state.",
+      "description": "Write a self-contained HTML report per hunt — per row for a hunt with @data: — as reports/report_<title>_<YYYYMMDD_HHMMSS>_<seq>.html. There is no aggregate report and no merging across invocations.",
       "cliFlag": "--html-report"
     },
     {
@@ -245,9 +260,9 @@
     "directory": "<project>/pages/",
     "format": "One JSON fragment per site (file name = <safe_netloc>.json)",
     "resolution": [
-      "CWD/pages/*.json — writable, directory auto-created if absent",
-      "Override directory via MANUL_PAGES_DIR env var (absolute or CWD-relative)"
+      "CWD/pages/*.json — writable, directory auto-created if absent. There is no override; the directory is always pages/ under the working directory."
     ],
+    "uses": "auto_annotate log lines and `manul pages`. It is NOT how custom controls find their page: a control's page label is document.title, or a label derived from the URL path when the title is empty (see the hooks contract).",
     "fragmentShapes": {
       "lean": {
         "description": "Preferred. site is the explicit site root; remaining keys are pattern→name mappings.",
@@ -277,7 +292,7 @@
     ],
     "introspection": {
       "cli": "manul pages list",
-      "description": "Print every site → pattern → label mapping discovered under pages/."
+      "description": "Print the registry directory. The mappings themselves are not listed; read pages/<site>.json."
     },
     "migration": {
       "cli": "manul pages migrate",
@@ -315,8 +330,8 @@
         "id": "LEVEL_GLOBAL",
         "priority": 4,
         "label": "global",
-        "description": "CLI/env context and @before_all lifecycle hook variables. Shared across all hunt files via MANUL_GLOBAL_VARS.",
-        "populatedBy": "@before_all hooks, MANUL_GLOBAL_VARS env var"
+        "description": "Variables published by suite hooks. Seeded into every hunt's runtime directly, worker-pool goroutines included; nothing travels through the environment.",
+        "populatedBy": "before_all / before_group hooks (pkg/lifecycle)"
       }
     ],
     "resolution": "Highest-priority level first (row → step → mission → global). First non-null match wins.",
@@ -340,23 +355,17 @@
     "description": "All MANUL_* env vars override the corresponding JSON config key. Additional runtime-only env vars:",
     "runtimeOnly": [
       {
-        "var": "MANUL_GLOBAL_VARS",
-        "type": "JSON string",
-        "description": "Serialised GlobalContext.variables dict for passing @before_all results to parallel worker subprocesses."
+        "var": "MANUL_PYTHON",
+        "type": "string",
+        "description": "Interpreter for a .py --hooks script. Defaults to the first of python/python3 on PATH, which need not be the interpreter that has `manul` installed — set this to the virtualenv's python."
       },
       {
-        "var": "MANUL_WORKER_TIMEOUT",
-        "type": "integer (seconds)",
-        "default": 600,
-        "description": "Subprocess worker timeout. Workers killed after this duration."
-      },
-      {
-        "var": "MANUL_REPORT_SESSION_TTL_SEC",
-        "type": "integer (seconds)",
-        "default": 1800,
-        "description": "TTL for HTML report session state merging. Older sessions start fresh."
+        "var": "MANUL_NODE",
+        "type": "string",
+        "description": "Interpreter for a .js/.mjs/.cjs --hooks script. Defaults to node on PATH."
       }
-    ]
+    ],
+    "notRead": "MANUL_GLOBAL_VARS, MANUL_WORKER_TIMEOUT, MANUL_REPORT_SESSION_TTL_SEC and MANUL_PAGES_DIR belonged to the Python engine and have no effect on this one."
   }
 }
 ```

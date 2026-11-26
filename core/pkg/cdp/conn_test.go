@@ -248,6 +248,9 @@ func TestConn_ParentCtxCancelTearsDownConn(t *testing.T) {
 type scriptedCDP struct {
 	t       *testing.T
 	results map[string]string
+	// beforeReply, if set, runs before a call is answered — where Chrome
+	// sends the events a command announces.
+	beforeReply func(method string)
 
 	mu    sync.Mutex
 	calls []scriptedCall
@@ -288,6 +291,9 @@ func startScriptedCDP(t *testing.T, results map[string]string) (*scriptedCDP, *C
 			result := json.RawMessage(`{}`)
 			if r, ok := s.results[req.Method]; ok {
 				result = json.RawMessage(r)
+			}
+			if s.beforeReply != nil {
+				s.beforeReply(req.Method)
 			}
 			b, _ := json.Marshal(msgResp{ID: req.ID, Result: result})
 			s.mu.Lock()
@@ -471,6 +477,33 @@ func TestNavigate_ReportsWhatChromeCouldNotLoad(t *testing.T) {
 			t.Errorf("%s: unexpected error %v", reply, err)
 		case wantErr != "" && (err == nil || !strings.Contains(err.Error(), wantErr)):
 			t.Errorf("%s: want an error naming %s, got %v", reply, wantErr, err)
+		}
+	}
+}
+
+// Pressed without a move, Chrome delivers mouseenter in the middle of the
+// press, and a link that replaces itself on mouseenter lost the click. Every
+// click starts by moving the pointer, as BiDi's action sequence does.
+func TestClicks_MoveThePointerBeforePressing(t *testing.T) {
+	for name, click := range map[string]func(context.Context, *Conn, float64, float64) error{
+		"Click": Click, "DoubleClick": DoubleClick, "RightClick": RightClick,
+	} {
+		s, c, ctx := startScriptedCDP(t, nil)
+		if err := click(ctx, c, 10, 20); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		s.mu.Lock()
+		var types []string
+		for _, call := range s.calls {
+			var p struct {
+				Type string `json:"type"`
+			}
+			_ = json.Unmarshal(call.Params, &p)
+			types = append(types, p.Type)
+		}
+		s.mu.Unlock()
+		if len(types) < 3 || types[0] != "mouseMoved" || types[1] != "mousePressed" {
+			t.Errorf("%s dispatched %v; want mouseMoved before mousePressed", name, types)
 		}
 	}
 }

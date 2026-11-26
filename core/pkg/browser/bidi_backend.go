@@ -64,6 +64,21 @@ func sharedConn(ctx context.Context, endpoint string) (*bidi.Conn, error) {
 	return c, nil
 }
 
+// newBiDiPage binds a page to its browsing context and asks Firefox, once and
+// for the page's lifetime, to report the responses it receives.
+//
+// Firefox reports a response only for a request that started while a
+// subscription was in place. WAIT FOR RESPONSE used to subscribe when it began,
+// after the click that sent the request, so the response it waited for was
+// never reported and every such wait timed out. WaitForResponse now only
+// listens; the subscription is here.
+func newBiDiPage(ctx context.Context, conn *bidi.Conn, contextID string) (*BiDiPage, error) {
+	if err := bidi.SubscribeEvents(ctx, conn, []string{bidi.ResponseCompleted}, []string{contextID}); err != nil {
+		return nil, fmt.Errorf("browser: subscribe %s: %w", bidi.ResponseCompleted, err)
+	}
+	return &BiDiPage{conn: conn, contextID: contextID}, nil
+}
+
 // FirstPage attaches to the first top-level browsing context.
 func (b *BiDiBrowser) FirstPage(ctx context.Context) (Page, error) {
 	conn, err := sharedConn(ctx, b.endpoint)
@@ -77,7 +92,7 @@ func (b *BiDiBrowser) FirstPage(ctx context.Context) (Page, error) {
 	if len(contexts) == 0 {
 		return nil, fmt.Errorf("browser: no browsing context found")
 	}
-	return &BiDiPage{conn: conn, contextID: contexts[0].ID}, nil
+	return newBiDiPage(ctx, conn, contexts[0].ID)
 }
 
 // PageMatching attaches to the first top-level context whose URL contains the
@@ -98,7 +113,7 @@ func (b *BiDiBrowser) PageMatching(ctx context.Context, urlSubstr string) (Page,
 	needle := strings.ToLower(urlSubstr)
 	for _, c := range contexts {
 		if strings.Contains(strings.ToLower(c.URL), needle) {
-			return &BiDiPage{conn: conn, contextID: c.ID}, nil
+			return newBiDiPage(ctx, conn, c.ID)
 		}
 	}
 	return nil, fmt.Errorf("browser: no page with URL containing %q (found %d contexts)", urlSubstr, len(contexts))
@@ -121,7 +136,11 @@ func (b *BiDiBrowser) OpenTarget(ctx context.Context, url string) (Page, string,
 	if err != nil {
 		return nil, "", fmt.Errorf("browser: create context: %w", err)
 	}
-	page := &BiDiPage{conn: conn, contextID: contextID}
+	page, err := newBiDiPage(ctx, conn, contextID)
+	if err != nil {
+		_ = bidi.CloseContext(context.Background(), conn, contextID)
+		return nil, "", err
+	}
 	if url != "" && url != "about:blank" {
 		if err := bidi.Navigate(ctx, conn, contextID, url); err != nil {
 			_ = bidi.CloseContext(context.Background(), conn, contextID)
@@ -190,7 +209,8 @@ func (p *BiDiPage) CallProbe(ctx context.Context, fn string, arg any) ([]byte, e
 }
 
 func (p *BiDiPage) Click(ctx context.Context, x, y float64) error {
-	return bidi.Click(ctx, p.conn, p.contextID, x, y)
+	target, x, y := p.routePoint(ctx, x, y)
+	return bidi.Click(ctx, p.conn, target, x, y)
 }
 
 func (p *BiDiPage) Focus(ctx context.Context, id int, xpath string) error {
@@ -219,19 +239,60 @@ func (p *BiDiPage) ScrollPage(ctx context.Context, direction, container string) 
 }
 
 func (p *BiDiPage) DoubleClick(ctx context.Context, x, y float64) error {
-	return bidi.DoubleClick(ctx, p.conn, p.contextID, x, y)
+	target, x, y := p.routePoint(ctx, x, y)
+	return bidi.DoubleClick(ctx, p.conn, target, x, y)
 }
 
 func (p *BiDiPage) RightClick(ctx context.Context, x, y float64) error {
-	return bidi.RightClick(ctx, p.conn, p.contextID, x, y)
+	target, x, y := p.routePoint(ctx, x, y)
+	return bidi.RightClick(ctx, p.conn, target, x, y)
 }
 
 func (p *BiDiPage) Hover(ctx context.Context, x, y float64) error {
-	return bidi.Hover(ctx, p.conn, p.contextID, x, y)
+	target, x, y := p.routePoint(ctx, x, y)
+	return bidi.Hover(ctx, p.conn, target, x, y)
 }
 
+// DragAndDrop is routed by where it starts. The HTML5 drag events are
+// dispatched in the innermost frame under both ends, same-origin or not —
+// from the top, elementFromPoint sees only the <iframe>, and a draggable in a
+// same-origin frame got the pointer, which starts no drag in Firefox. The
+// pointer itself goes where routePoint sends it. A drag whose two ends are in
+// different frames cannot be one sequence in either, so it is sent to the
+// page as it is.
 func (p *BiDiPage) DragAndDrop(ctx context.Context, fromX, fromY, toX, toY float64) error {
-	return bidi.DragAndDrop(ctx, p.conn, p.contextID, fromX, fromY, toX, toY)
+	doc, dfx, dfy := p.routeAnyFrame(ctx, fromX, fromY)
+	dropDoc, dtx, dty := p.routeAnyFrame(ctx, toX, toY)
+	if doc != dropDoc {
+		doc, dfx, dfy, dtx, dty = p.contextID, fromX, fromY, toX, toY
+	}
+	target, fx, fy := p.routePoint(ctx, fromX, fromY)
+	dropTarget, tx, ty := p.routePoint(ctx, toX, toY)
+	if target != dropTarget {
+		target, fx, fy, tx, ty = p.contextID, fromX, fromY, toX, toY
+	}
+	eval := func(ctx context.Context, expr string) (interface{}, error) {
+		return bidi.Evaluate(ctx, p.conn, doc, expr)
+	}
+	return dragHTML5First(ctx, eval, dfx, dfy, dtx, dty, func() error {
+		return bidi.DragAndDrop(ctx, p.conn, target, fx, fy, tx, ty)
+	})
+}
+
+// dragHTML5First drags an element with draggable="true" by dispatching the
+// HTML5 drag events in the page (pagejs.HTML5DragAt) — Firefox starts no drag
+// session from WebDriver actions — and anything else with the pointer, which
+// is what pointer-event drag libraries listen to. Chromium's backend needs
+// none of this: its mouse events start a real drag.
+func dragHTML5First(ctx context.Context, eval func(context.Context, string) (interface{}, error), fromX, fromY, toX, toY float64, pointer func() error) error {
+	done, err := eval(ctx, pagejs.HTML5DragAt(fromX, fromY, toX, toY))
+	if err != nil {
+		return fmt.Errorf("html5 drag: %w", err)
+	}
+	if s, _ := done.(string); s == "1" {
+		return nil
+	}
+	return pointer()
 }
 
 // SetFileInput resolves the file input with the shared page JS and hands the
@@ -243,6 +304,20 @@ func (p *BiDiPage) SetFileInput(ctx context.Context, id int, xpath string, fileP
 		return fmt.Errorf("SetFileInput: resolve file input: %w", err)
 	}
 	return bidi.SetFiles(ctx, p.conn, p.contextID, sharedID, filePaths)
+}
+
+// setFileInputInFrame resolves the node in the frame's own context and sets
+// the files there: a node reference belongs to the context it came from.
+func (p *BiDiPage) setFileInputInFrame(ctx context.Context, frameIndex, id int, xpath string, filePaths []string) error {
+	contextID, err := p.frameContextID(ctx, frameIndex)
+	if err != nil {
+		return err
+	}
+	sharedID, err := bidi.EvaluateNode(ctx, p.conn, contextID, pagejs.FileInput(id, xpath))
+	if err != nil {
+		return fmt.Errorf("SetFileInput: resolve file input: %w", err)
+	}
+	return bidi.SetFiles(ctx, p.conn, contextID, sharedID, filePaths)
 }
 
 func (p *BiDiPage) Screenshot(ctx context.Context) ([]byte, error) {
@@ -395,8 +470,10 @@ func decodeJSONString(val interface{}, out interface{}) error {
 	return json.Unmarshal([]byte(s), out)
 }
 
+// DispatchKey goes to the context that holds the focus, which is a
+// cross-origin frame's own when a field inside one has it.
 func (p *BiDiPage) DispatchKey(ctx context.Context, key string, modifiers int) error {
-	return bidi.DispatchKey(ctx, p.conn, p.contextID, normalizeKeyName(key), modifiers)
+	return bidi.DispatchKey(ctx, p.conn, p.routeFocus(ctx), normalizeKeyName(key), modifiers)
 }
 
 func (p *BiDiPage) CurrentURL(ctx context.Context) (string, error) {

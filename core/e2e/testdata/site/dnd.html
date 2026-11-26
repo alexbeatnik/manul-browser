@@ -1,0 +1,31 @@
+<!doctype html><html><body style="font-family:sans-serif">
+<div style="display:flex;gap:40px">
+ <div id="todo" style="width:200px;min-height:150px;border:2px solid #444;padding:8px"><b>Todo</b>
+   <div draggable="true" id="card1" style="background:#fe9;margin:6px;padding:6px">Write report</div>
+ </div>
+ <div id="done" style="width:200px;min-height:150px;border:2px solid #444;padding:8px"><b>Done</b></div>
+ <div id="locked" style="width:200px;min-height:150px;border:2px solid #a00;padding:8px"><b>Locked</b></div>
+</div>
+<p id="log">nothing yet</p>
+<div style="margin-top:30px;display:flex;gap:40px">
+ <div id="handle" style="width:120px;height:50px;background:#9cf;position:relative">Slider knob</div>
+ <div id="pdrop" style="width:200px;height:80px;border:2px dashed #06c">Pointer target</div>
+</div>
+<script>
+var cardEl = document.getElementById('card1');
+cardEl.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', e.target.id));
+var done = document.getElementById('done');
+done.addEventListener('dragover', e => e.preventDefault());
+done.addEventListener('drop', e => { e.preventDefault(); var id = e.dataTransfer.getData('text/plain');
+  done.appendChild(document.getElementById(id)); log.textContent = 'moved ' + id + ' to done'; });
+// locked: no preventDefault on dragover -> drop refused
+var locked = document.getElementById('locked');
+locked.addEventListener('drop', e => { log.textContent = 'locked accepted (wrong)'; });
+cardEl.addEventListener('dragend', e => { if (log.textContent === 'nothing yet') log.textContent = 'drag ended without drop'; });
+// pointer-based drag
+var h = document.getElementById('handle'), down = false;
+h.addEventListener('mousedown', () => down = true);
+document.addEventListener('mouseup', e => { if (!down) return; down = false;
+  var t = document.elementFromPoint(e.clientX, e.clientY);
+  if (t && t.closest('#pdrop')) document.getElementById('pdrop').textContent = 'pointer drop ok'; });
+</script></body></html>

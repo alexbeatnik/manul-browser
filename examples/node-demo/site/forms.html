@@ -1,0 +1,63 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Forms Page</title><link rel="stylesheet" href="/style.css"></head>
+<body>
+<header><div id="logo">MANUL</div><nav><a href="/dashboard.html">Home</a></nav></header>
+<main>
+  <h1>Profile form</h1>
+  <form id="profile">
+    <section>
+      <label for="full-name">Full name</label><input id="full-name" name="full_name">
+      <label for="email">Email</label><input id="email" name="email" type="email" placeholder="name@example.com">
+      <label for="phone">Phone</label><input id="phone" name="phone">
+      <label for="bio">Bio</label><textarea id="bio" name="bio"></textarea>
+      <label for="search">Search</label><input id="search" placeholder="Type to search...">
+    </section>
+    <section>
+      <label for="country">Country</label>
+      <select id="country" name="country">
+        <option value="">Choose…</option><option value="ua">Ukraine</option><option value="pl">Poland</option><option value="jp">Japan</option>
+      </select>
+      <p>Plan:
+        <input type="radio" name="plan" id="plan-free" value="free" checked><label for="plan-free" style="display:inline">Free</label>
+        <input type="radio" name="plan" id="plan-pro" value="pro"><label for="plan-pro" style="display:inline">Pro</label>
+      </p>
+      <p><input type="checkbox" id="newsletter" checked><label for="newsletter" style="display:inline">Newsletter</label></p>
+      <p><input type="checkbox" id="terms"><label for="terms" style="display:inline">I accept the Terms</label></p>
+    </section>
+    <section>
+      <label for="delivery">Delivery date</label>
+      <!-- A third-party style date picker: readonly input + popup calendar. FILL cannot type into it. -->
+      <input id="delivery" name="delivery" readonly aria-label="Delivery Date" data-picker="true">
+      <div id="calendar" class="calendar hidden"></div>
+      <label for="avatar">Avatar</label><input id="avatar" type="file" aria-label="Avatar">
+      <p id="avatar-name"></p>
+    </section>
+    <button type="submit" id="submit" disabled>Submit</button>
+  </form>
+  <section id="result" class="hidden"><h2>Form submitted</h2><pre id="summary"></pre></section>
+</main>
+<footer><a href="#">Terms</a></footer>
+<script>
+const $ = (id) => document.getElementById(id);
+$("terms").addEventListener("change", () => { $("submit").disabled = !$("terms").checked; });
+$("avatar").addEventListener("change", () => { $("avatar-name").textContent = "Uploaded: " + ($("avatar").files[0]?.name || ""); });
+$("delivery").addEventListener("click", () => {
+  const cal = $("calendar"); cal.innerHTML = "";
+  for (let d = 1; d <= 28; d++) {
+    const b = document.createElement("button"); b.type = "button"; b.textContent = d;
+    b.onclick = () => { $("delivery").value = "2026-12-" + String(d).padStart(2, "0"); cal.classList.add("hidden"); };
+    cal.appendChild(b);
+  }
+  cal.classList.remove("hidden");
+});
+// The widget's real API — what a custom control calls instead of clicking.
+window.datePicker = { set(v) { $("delivery").value = v; $("delivery").dispatchEvent(new Event("change", {bubbles: true})); } };
+$("profile").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const data = Object.fromEntries(new FormData($("profile")).entries());
+  delete data.avatar;
+  $("summary").textContent = JSON.stringify(data);
+  $("result").classList.remove("hidden");
+});
+</script>
+</body></html>

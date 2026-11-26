@@ -1,0 +1,12 @@
+@title: Transparent text is not present
+STEP 1: What cannot be seen
+    NAVIGATE to @SITE@/visibility.html
+    VERIFY that 'Opacity zero button' is NOT present
+    VERIFY that 'Inside a faded block' is NOT present
+    VERIFY that 'Visibility hidden button' is NOT present
+    VERIFY that 'Display none button' is NOT present
+STEP 2: What can
+    VERIFY that 'Half transparent' is present
+    VERIFY that 'Shown twice' is present
+    VERIFY that 'Fades in later' is present
+DONE.

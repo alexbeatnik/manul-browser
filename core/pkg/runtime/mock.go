@@ -9,6 +9,8 @@ import (
 
 	"github.com/alexbeatnik/manul-browser/core/pkg/browser"
 	"github.com/alexbeatnik/manul-browser/core/pkg/dom"
+	"github.com/alexbeatnik/manul-browser/core/pkg/heuristics"
+	"github.com/alexbeatnik/manul-browser/core/pkg/pagejs"
 )
 
 // MockPage is a test-only browser.Page implementation that operates on
@@ -33,6 +35,35 @@ type MockPage struct {
 	// be tested for what it does with the page's answer if the test can give
 	// it one.
 	EvalResult func(expr string) (raw []byte, handled bool)
+
+	// FrameOffsets is where each iframe's viewport sits on the page's, by
+	// frame index. Element rects in Elements are on the page's viewport.
+	FrameOffsets map[int][2]float64
+	// Frames lists the iframes this page has, by index (0, the page, is
+	// always there): their snapshot elements, on the frame's own viewport,
+	// and their visible text. A CrossOrigin frame reports no offset.
+	FrameDocs map[int]MockFrame
+}
+
+// MockFrame is one iframe of a MockPage.
+type MockFrame struct {
+	Elements []dom.ElementSnapshot
+	Text     string
+	// CrossOrigin frames cannot measure themselves; they are measured from
+	// outside (FrameOrigin), at FrameOffsets with this Size. A zero Size is a
+	// frame that is not displayed.
+	CrossOrigin bool
+	Size        [2]float64
+}
+
+// FrameOrigin implements browser.FrameLocator.
+func (m *MockPage) FrameOrigin(ctx context.Context, frameIndex int) (x, y, w, h float64, err error) {
+	doc, ok := m.FrameDocs[frameIndex]
+	if !ok {
+		return 0, 0, 0, 0, fmt.Errorf("no frame %d", frameIndex)
+	}
+	off := m.FrameOffsets[frameIndex]
+	return off[0], off[1], doc.Size[0], doc.Size[1], nil
 }
 
 type Point struct {
@@ -181,17 +212,69 @@ func (m *MockPage) Wait(ctx context.Context, d time.Duration) error { return nil
 
 // Frames reports a single main frame (the mock has no real iframes).
 func (m *MockPage) Frames(ctx context.Context) ([]browser.FrameRef, error) {
-	return []browser.FrameRef{{Index: 0}}, nil
+	out := []browser.FrameRef{{Index: 0}}
+	for i := 1; i <= len(m.FrameDocs); i++ {
+		if _, ok := m.FrameDocs[i]; ok {
+			out = append(out, browser.FrameRef{Index: i, URL: fmt.Sprintf("http://frame%d.test/", i)})
+		}
+	}
+	return out, nil
 }
 
-// EvalJSInFrame ignores the frame index (single-frame mock) and delegates.
+// EvalJSInFrame answers, for an element whose FrameIndex is not 0, the two
+// questions a frame is asked when it is acted in: where it sits on the page
+// (FrameOffsets, zero by default) and where the element's centre is on the
+// frame's own viewport. Everything else goes to EvalJS.
 func (m *MockPage) EvalJSInFrame(ctx context.Context, frameIndex int, expr string) ([]byte, error) {
+	if frameIndex == 0 {
+		return m.EvalJS(ctx, expr)
+	}
+	if m.EvalResult != nil {
+		if raw, handled := m.EvalResult(expr); handled {
+			m.EvalCalls = append(m.EvalCalls, expr)
+			return raw, nil
+		}
+	}
+	off := m.FrameOffsets[frameIndex]
+	if expr == pagejs.FrameOffset {
+		if m.FrameDocs[frameIndex].CrossOrigin {
+			return []byte(`{"ok":false}`), nil
+		}
+		return json.Marshal(map[string]any{"ok": true, "x": off[0], "y": off[1]})
+	}
+	if strings.Contains(expr, "JSON.stringify({x: rect.x") {
+		// A FrameDocs element is on its frame's viewport already.
+		for _, el := range m.FrameDocs[frameIndex].Elements {
+			if strings.Contains(expr, fmt.Sprintf("__manulReg[%d]", el.ID)) {
+				return json.Marshal(map[string]float64{"x": el.Rect.Left + el.Rect.Width/2, "y": el.Rect.Top + el.Rect.Height/2})
+			}
+		}
+		for _, el := range m.Elements {
+			if el.FrameIndex == frameIndex && strings.Contains(expr, fmt.Sprintf("__manulReg[%d]", el.ID)) {
+				return json.Marshal(map[string]float64{
+					"x": el.Rect.Left + el.Rect.Width/2 - off[0],
+					"y": el.Rect.Top + el.Rect.Height/2 - off[1],
+				})
+			}
+		}
+	}
 	return m.EvalJS(ctx, expr)
 }
 
-// CallProbeInFrame ignores the frame index (single-frame mock) and delegates.
+// CallProbeInFrame answers a frame of FrameDocs with its own snapshot or
+// text, and anything else as CallProbe does.
 func (m *MockPage) CallProbeInFrame(ctx context.Context, frameIndex int, fn string, arg any) ([]byte, error) {
-	return m.CallProbe(ctx, fn, arg)
+	doc, ok := m.FrameDocs[frameIndex]
+	if frameIndex == 0 || !ok {
+		return m.CallProbe(ctx, fn, arg)
+	}
+	if strings.Contains(fn, "elements:") { // the snapshot probe
+		return json.Marshal(dom.PageSnapshot{Elements: doc.Elements})
+	}
+	if fn == heuristics.BuildVisibleTextProbe() {
+		return []byte(strings.ToLower(doc.Text)), nil
+	}
+	return nil, nil
 }
 
 func (m *MockPage) Close() error { return nil }

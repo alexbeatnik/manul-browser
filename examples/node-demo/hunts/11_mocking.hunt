@@ -1,0 +1,14 @@
+@context: MOCK answers matching requests from a file. A rule lasts for the rest of the session, across navigations — so this hunt runs last.
+@title: mocking
+@tags: regression, network
+
+STEP 1: Serve the catalog from a fixture
+    MOCK GET "/api/products" with '../mocks/products.json'
+    NAVIGATE to {base_url}/catalog.html
+    VERIFY that 'Mocked Yurt' is present
+    VERIFY that 'Loaded 2 products' is present
+    VERIFY that 'Steppe Map' is NOT present
+    CLICK the 'Add to cart' button NEAR 'Mocked Tea'
+    VERIFY 'Cart total' field has value '3.50'
+
+DONE.

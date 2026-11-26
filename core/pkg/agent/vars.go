@@ -10,14 +10,15 @@ import (
 // Page exposes the session's live page for callers that need the browser
 // primitives directly — a suite-level hook or a custom control handler that has
 // to reach the DOM while the runtime is mid-step, when the ordinary session
-// methods would re-enter it. Nil once the session is closed.
+// methods would re-enter it. That is the tab the runtime is on, which after a
+// step that opened a new tab is that tab. Nil once the session is closed.
 func (s *Session) Page() browser.Page {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
 		return nil
 	}
-	return s.page
+	return s.rt.Page()
 }
 
 // SetGlobalVars seeds variables at global scope — where suite-level hooks

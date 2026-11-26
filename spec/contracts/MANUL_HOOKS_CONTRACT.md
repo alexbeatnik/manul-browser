@@ -26,7 +26,7 @@
 
 ```json
 {
-  "version": "0.1.5",
+  "version": "0.1.6",
   "generatedFrom": "pkg/runtime/extensions.go :: RegisterGoCall(), RegisterCustomControl(), GetGoCall(), GetCustomControl(), ResetRuntimeRegistries(), GoCallHandler, GoCallInvocation, CustomControlHandler, CustomControlInvocation; pkg/runtime :: [SETUP]/[TEARDOWN] execution; pkg/runtime/variables.go :: ScopedVariables, Level",
 
   "fileHooks": {
@@ -117,7 +117,8 @@
           { "name": "Command",    "type": "dsl.Command",       "description": "The parsed command." }
         ]
       },
-      "lookup": "GetCustomControl(page, target) resolves the page-scoped handler first, then the '*' (any-page) handler."
+      "lookup": "GetCustomControl(page, target) resolves the page-scoped handler first, then the '*' (any-page) handler.",
+      "pageLabel": "The page a step runs on is labelled by its document.title. Only an empty title falls back to a label derived from the URL: the last path segment with '-', '_' and '.' as spaces, plus ' page' unless it already contains 'page' (/checkout.html → 'checkout html page'), or the host name for an empty path. The pages/ registry is not consulted."
     },
 
     "getters": [
