@@ -227,6 +227,35 @@ the debugging port, and the next launch on that port fails with "CDP not
 reachable". Linux's parent-death signal follows the thread that forked, which
 the Go runtime may retire, so it was not reached for casually.
 
+### 8. Attach mode: the browser's own password manager takes the clicks
+
+Found while measuring tokens (`examples/token-bench`), on macOS with Chrome 157.
+In a Chrome the engine did not launch — `--cdp`, `manul run-step`, `manul map`,
+a person's own browser — the password manager is on. After a sign-in it shows
+its own UI, and that UI takes the clicks meant for the page. On Sauce Demo,
+`CLICK the 'Add to cart' button` answered `ok: true` with the cart still empty.
+A raw `Input.dispatchMouseEvent` at the button's centre did nothing either,
+while `element.click()` worked.
+
+The engine's own launches never see it, because `writeAutomationPrefs` turns
+the manager off in the profile. The flags alone are not enough: the same Chrome
+with every one of the engine's `--disable-features` still lost the click, and
+with `credentials_enable_service`, `password_manager_enabled` and
+`password_manager_leak_detection` off in `Default/Preferences` it did not. An
+attached browser's profile is not the engine's to rewrite.
+
+What would close it, roughly in order of cost:
+
+- **Say so.** The contract and the attach docs should warn that a browser with
+  its password manager on can swallow clicks after a login.
+- **Detect it.** A click whose target received no `click` event is a click that
+  went somewhere else. `clickPoint` already asks the page what is on top before
+  clicking (`pagejs.CoveredBy`); asking afterwards whether the element saw the
+  event would turn this, and any other lost click, into a failed step instead
+  of a passing one.
+- **Avoid it.** Find a CDP way to dismiss or suppress the bubble for the
+  session without touching the profile.
+
 ---
 
 ## Suggested order

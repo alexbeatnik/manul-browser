@@ -21,7 +21,8 @@ histories are merged into this one; neither is maintained any more.
 ```
 core/            The engine. Go. The only implementation.
 spec/            Contracts + the stdio session protocol. Source of truth.
-bindings/        Thin language clients that drive the binary. (planned)
+bindings/        Thin Python and Node clients that drive the binary.
+examples/        Quickstart, full demos for each binding, the token benchmark.
 conformance/     Fixtures every path must agree on. (planned)
 ```
 
@@ -46,6 +47,7 @@ existed — it just needed a session that outlives a single command.
 | Piece | State |
 |---|---|
 | `core/` engine | Shipping — builds, tests green |
+| `core/e2e` | Every hunt in it run against real Chrome and Firefox, in CI, on a local site — iframes of any origin, new tabs, drag and drop, late-loading content |
 | `spec/contracts/` | Current, describes shipped behaviour |
 | `spec/protocol.md` | Implemented as `manul serve --stdio` |
 | `bindings/python` | Working — `manul-browser` on PyPI |
@@ -74,6 +76,19 @@ with manul.Session() as s:
     print(s.map().labels())
 ```
 
+**Node** — `npm install manul-browser`; npm picks the engine package for your
+platform.
+
+```js
+import { Session } from 'manul-browser';
+
+const s = await Session.launch({ headless: true });
+await s.step('NAVIGATE to https://example.com');
+await s.step("CLICK the 'Sign in' button");
+console.log((await s.map()).labels());
+await s.close();
+```
+
 **Go** — embed the engine directly, no subprocess.
 
 ```go
@@ -86,7 +101,7 @@ sess.Step(ctx, "CLICK the 'Sign in' button")
 
 ```bash
 manul checkout.hunt
-manul checkout.hunt --browser firefox
+manul checkout.hunt --browser firefox --locale uk-UA
 manul run-step "CLICK the 'Login' button" --cdp http://127.0.0.1:9222
 manul run hunts/ --hooks manul_hooks.py
 ```
@@ -111,7 +126,13 @@ To drive a browser that is already running, set `browser_mode` to `attach` (or
 endpoint for Chromium, the `ws://` URL Firefox prints at startup for Firefox.
 That browser is left open when the session ends — Manul did not open it.
 
-See [`bindings/python/README.md`](bindings/python/README.md) and
+Either way, iframes need nothing to switch into — same-origin, cross-origin and
+cross-site ones are read and acted on like the page itself — and a tab a step
+opens is where the next step runs. Both engines ask pages for the same language
+(`locale`, default en-US), so a hunt meets a site the same way on each.
+
+See [`bindings/python/README.md`](bindings/python/README.md),
+[`bindings/node/README.md`](bindings/node/README.md) and
 [`core/examples/go`](core/examples/go).
 
 ## Build
@@ -131,6 +152,8 @@ is one static binary with `gorilla/websocket` as its only dependency.
 - [`spec/protocol.md`](spec/protocol.md) — the stdio session protocol
 - [`examples/quickstart/`](examples/quickstart/) — the language one idea at a time, offline
 - [`examples/python-demo/`](examples/python-demo/) — every feature in one project
+- [`examples/node-demo/`](examples/node-demo/) — the same, from Node
+- [`core/docs/token-efficiency.md`](core/docs/token-efficiency.md) — tokens an agent spends, against Playwright MCP; rerun it with [`examples/token-bench/`](examples/token-bench/)
 - [`core/examples/`](core/examples/) — sample `.hunt` files
 - [`CLAUDE.md`](CLAUDE.md) — working notes: invariants and traps
 - [`ROADMAP.md`](ROADMAP.md) — what is unverified, and what is missing

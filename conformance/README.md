@@ -36,8 +36,9 @@ reproducible and will rot.
 ## Why golden JSON and not assertions
 
 The agent-facing payloads *are* the product — an LLM driver consumes them
-directly, and the token-efficiency claims (`map` being 4–8× cheaper than raw
-HTML) are claims about their exact shape. A hand-written assertion checks that a
+directly, and the token-efficiency claims (`map` being 2.8–21× smaller than a
+Playwright MCP snapshot, see `core/docs/token-efficiency.md`) are claims about
+their exact shape. A hand-written assertion checks that a
 field is right; a golden file also catches the field nobody meant to add.
 
 Regenerating goldens must be a deliberate, reviewed act, never a flag someone

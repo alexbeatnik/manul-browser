@@ -1,0 +1,16 @@
+{
+  "name": "manul-token-bench",
+  "private": true,
+  "type": "module",
+  "description": "Tokens an LLM agent spends seeing a page and acting on it: Playwright MCP vs Manul, on the same Chrome tab.",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "bench": "node bench.mjs"
+  },
+  "dependencies": {
+    "@playwright/mcp": "0.0.86",
+    "js-tiktoken": "1.0.21"
+  }
+}
