@@ -179,6 +179,9 @@ func chromeArgs(opts LaunchOptions) []string {
 		"--disable-component-update",
 		"--disable-infobars",
 		fmt.Sprintf("--user-data-dir=%s", opts.UserDataDir),
+		// The browser's own language and the one it asks pages for.
+		"--lang=" + localeOf(opts),
+		"--accept-lang=" + acceptLanguages(localeOf(opts)),
 	}
 	if opts.DisableGPU {
 		args = append(args, "--disable-gpu")

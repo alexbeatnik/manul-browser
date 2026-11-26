@@ -168,6 +168,16 @@
       "appliesTo": ["run", "scan", "record", "daemon"]
     },
     {
+      "id": "locale",
+      "flag": "--locale",
+      "type": "string",
+      "default": "en-US",
+      "configKey": "locale",
+      "envVar": "MANUL_LOCALE",
+      "description": "Language the launched browser uses and asks pages for (navigator.language, Accept-Language), e.g. uk-UA. The same on both engines; workers get it too. The daemon takes it from the config key or MANUL_LOCALE, having no flag; scan, record and the agent API launch with the default.",
+      "appliesTo": ["run"]
+    },
+    {
       "id": "workers",
       "flag": "--workers",
       "type": "integer",
@@ -357,6 +367,7 @@
       { "key": "tests_home",             "envVar": "MANUL_TESTS_HOME",             "type": "string",        "default": "tests" },
       { "key": "auto_annotate",          "envVar": "MANUL_AUTO_ANNOTATE",          "type": "boolean",       "default": "false" },
       { "key": "channel",                "envVar": "MANUL_CHANNEL",                "type": "string | null", "default": "null" },
+      { "key": "locale",                 "envVar": "MANUL_LOCALE",                 "type": "string",        "default": "en-US" },
       { "key": "executable_path",        "envVar": "MANUL_EXECUTABLE_PATH",        "type": "string | null", "default": "null" },
       { "key": "cdp_endpoint",           "envVar": "MANUL_CDP_ENDPOINT",           "type": "string | null", "default": "null" },
       { "key": "retries",                "envVar": "MANUL_RETRIES",                "type": "integer",       "default": "0" },

@@ -7,6 +7,7 @@
 # expect-output: weight=[2 kg]
 # expect-output: name=[Manul Plush]
 # expect-output: gift=[Gift wrap]
+# expect-output: byid=[$61.20] eta=[Tuesday] line=[Subtotal: $55.00]
 STEP 1: Captions in their many forms
     NAVIGATE to @SITE@/extract.html
     EXTRACT the 'Price' into {price}
@@ -21,4 +22,9 @@ STEP 2: Text that is not a caption comes back whole
     EXTRACT the 'Manul Plush' into {name}
     EXTRACT the 'Gift' into {gift}
     PRINT "name=[{name}] gift=[{gift}]"
+STEP 3: By id or test id
+    EXTRACT the 'order-total' into {byid}
+    EXTRACT the 'eta' into {eta}
+    EXTRACT the 'summary-line' into {line}
+    PRINT "byid=[{byid}] eta=[{eta}] line=[{line}]"
 DONE.

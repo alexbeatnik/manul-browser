@@ -4,6 +4,7 @@
 <p><a href="product.html" target="_blank">Open the product</a></p>
 <p><a href="product.html" target="_blank" rel="noopener">Open without opener</a></p>
 <p><button onclick="window.open('signin.html', 'signin', 'width=400,height=300')">Sign in with a popup</button></p>
+<p><button onclick="setTimeout(function () { window.open('product.html'); }, 800)">Open the product later</button></p>
 <p id="status">Signed out</p>
 <script>
 window.addEventListener('message', function (e) {

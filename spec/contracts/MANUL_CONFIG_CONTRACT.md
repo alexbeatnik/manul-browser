@@ -89,6 +89,14 @@
       "validation": "Must be a channel identifier of the selected engine (chrome/chrome-beta/chrome-dev/chromium/msedge, or firefox/firefox-esr/firefox-dev/firefox-beta/firefox-nightly), a binary name on PATH, or null."
     },
     {
+      "key": "locale",
+      "envVar": "MANUL_LOCALE",
+      "type": "string",
+      "default": "en-US",
+      "description": "Language a launched browser uses and asks pages for, as a BCP 47 tag. It sets navigator.language and the Accept-Language header, as the tag followed by its language alone (\"uk-UA\" asks for \"uk-UA,uk\"): --lang and --accept-lang for Chromium, intl.accept_languages and intl.locale.requested for Firefox. Empty is en-US. Left to themselves the two engines differ — headless Chrome asked for en-US, Firefox for the system's language — and the same hunt met a site in two languages. A browser that is attached to (--cdp) keeps its own.",
+      "examples": ["en-US", "uk-UA", "de-DE"]
+    },
+    {
       "key": "executable_path",
       "envVar": "MANUL_EXECUTABLE_PATH",
       "type": "string | null",

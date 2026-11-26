@@ -37,6 +37,10 @@ type Config struct {
 	// chrome-beta, chrome-dev, chromium, msedge, firefox-esr, firefox-nightly).
 	Channel *string `json:"channel,omitempty"`
 
+	// Locale is the language the launched browser uses and asks pages for, a
+	// BCP 47 tag such as "en-US" or "uk-UA". Empty is browser.DefaultLocale.
+	Locale string `json:"locale,omitempty"`
+
 	// Headless runs the browser in headless mode.
 	Headless bool `json:"headless"`
 
@@ -99,6 +103,7 @@ type jsonConfig struct {
 	BrowserArgs      []string `json:"browser_args"`
 	ExecutablePath   *string  `json:"executable_path"`
 	Channel          *string  `json:"channel"`
+	Locale           string   `json:"locale"`
 	Headless         *bool    `json:"headless"`
 	Verbose          *bool    `json:"verbose"`
 	DebugMode        *bool    `json:"debug_mode"`
@@ -187,6 +192,9 @@ func applyJSONFile(cfg *Config) error {
 	if raw.Channel != nil {
 		cfg.Channel = raw.Channel
 	}
+	if raw.Locale != "" {
+		cfg.Locale = raw.Locale
+	}
 	if raw.Headless != nil {
 		cfg.Headless = *raw.Headless
 	}
@@ -258,6 +266,9 @@ func overrideFromEnv(cfg *Config) {
 	}
 	if v := os.Getenv("MANUL_CHANNEL"); v != "" {
 		cfg.Channel = &v
+	}
+	if v := os.Getenv("MANUL_LOCALE"); v != "" {
+		cfg.Locale = v
 	}
 	if v := os.Getenv("MANUL_HEADLESS"); v != "" {
 		if b, err := strconv.ParseBool(v); err == nil {

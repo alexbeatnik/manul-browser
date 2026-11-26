@@ -78,7 +78,7 @@ func LaunchFirefox(ctx context.Context, opts LaunchOptions) (*FirefoxProcess, er
 
 	// Firefox takes automation preferences from the profile, not the command
 	// line — there is no flag equivalent of most of these.
-	if err := writeFirefoxPrefs(opts.UserDataDir); err != nil {
+	if err := writeFirefoxPrefs(opts.UserDataDir, localeOf(opts)); err != nil {
 		if ownsDir {
 			_ = os.RemoveAll(opts.UserDataDir)
 		}
@@ -348,11 +348,16 @@ var firefoxPrefs = []string{
 // writeFirefoxPrefs writes a user.js into the profile. Firefox reads user.js on
 // every start and copies it over prefs.js, so these survive a profile that has
 // been used before — which a caller-supplied UserDataDir may well have been.
-func writeFirefoxPrefs(profileDir string) error {
+func writeFirefoxPrefs(profileDir, locale string) error {
 	if err := os.MkdirAll(profileDir, 0o755); err != nil {
 		return err
 	}
 	lines := append([]string{}, firefoxPrefs...)
+	// Firefox asks pages for the system's language unless told: the same
+	// hunt met YouTube in Ukrainian here and in English on Chrome.
+	lines = append(lines,
+		fmt.Sprintf(`user_pref("intl.accept_languages", %q);`, strings.ReplaceAll(acceptLanguages(locale), ",", ", ")),
+		fmt.Sprintf(`user_pref("intl.locale.requested", %q);`, locale))
 	lines = append(lines, fmt.Sprintf(`user_pref("browser.download.dir", %q);`, filepath.ToSlash(os.TempDir())))
 	content := strings.Join(lines, "\n") + "\n"
 	return os.WriteFile(filepath.Join(profileDir, "user.js"), []byte(content), 0o644)

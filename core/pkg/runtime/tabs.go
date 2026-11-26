@@ -193,3 +193,12 @@ func (rt *Runtime) selectTab(ctx context.Context, p browser.Page) {
 		_ = t.ActivateTab(ctx)
 	}
 }
+
+// pollTick starts one look of a step that waits — VERIFY, WAIT FOR: a fresh
+// snapshot, and the tab a page opened since the last look. A click that opens
+// its tab from a timer, a moment later, left the next step looking at the old
+// page: the tab was looked for once, before the step, and not after.
+func (rt *Runtime) pollTick(ctx context.Context) {
+	rt.followTabs(ctx)
+	rt.invalidateSnapshot()
+}

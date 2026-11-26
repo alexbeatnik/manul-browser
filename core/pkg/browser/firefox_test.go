@@ -49,7 +49,7 @@ func TestParseBiDiBanner(t *testing.T) {
 // like a fresh one.
 func TestWriteFirefoxPrefs(t *testing.T) {
 	dir := t.TempDir()
-	if err := writeFirefoxPrefs(dir); err != nil {
+	if err := writeFirefoxPrefs(dir, "en-US"); err != nil {
 		t.Fatalf("write prefs: %v", err)
 	}
 	data, err := os.ReadFile(filepath.Join(dir, "user.js"))
@@ -70,7 +70,7 @@ func TestWriteFirefoxPrefs(t *testing.T) {
 
 	// Writing into a profile that already exists must not fail: callers pass
 	// their own --user-data-dir and expect it to keep working.
-	if err := writeFirefoxPrefs(dir); err != nil {
+	if err := writeFirefoxPrefs(dir, "en-US"); err != nil {
 		t.Fatalf("rewrite prefs: %v", err)
 	}
 }

@@ -1336,6 +1336,7 @@ func (rt *Runtime) executeCommandOnce(ctx context.Context, cmd dsl.Command) (res
 		}
 
 		for {
+			rt.pollTick(ctx)
 			raw, errProbe := rt.visibleText(ctx)
 			if errProbe == nil {
 				probed = true
@@ -1396,7 +1397,7 @@ func (rt *Runtime) executeCommandOnce(ctx context.Context, cmd dsl.Command) (res
 			matched := false
 			found := false
 			for {
-				rt.invalidateSnapshot()
+				rt.pollTick(ctx)
 				elements, errSnapshot := rt.loadSnapshot(ctx)
 				if errSnapshot != nil {
 					err = errSnapshot
@@ -1478,7 +1479,7 @@ func (rt *Runtime) executeCommandOnce(ctx context.Context, cmd dsl.Command) (res
 		var ranked []scorer.RankedCandidate
 
 		for {
-			rt.invalidateSnapshot()
+			rt.pollTick(ctx)
 			elements, errSnapshot := rt.loadSnapshot(ctx)
 			if errSnapshot != nil {
 				err = errSnapshot

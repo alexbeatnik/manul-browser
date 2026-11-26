@@ -142,6 +142,35 @@
         }
     }
 
+    // Strategy 0c: any element the target names by its id or test id —
+    // 'order-total' for <span id="order-total">. Only fields were read this
+    // way; the id of a price, a status or a counter was looked for as text,
+    // which it never is. The element's own text is the answer; it is split
+    // from a caption only when the caption is the target itself (id 'total'
+    // on "Total: $5" gives "$5", id 'summary-line' on "Subtotal: $55.00"
+    // gives all of it).
+    if (wanted) {
+        var ids = [wanted, wanted.replace(/ /g, '-'), wanted.replace(/ /g, '_'), wanted.replace(/ /g, '')];
+        var ATTRS = ['id', 'data-testid', 'data-qa', 'data-test'];
+        var byId = null;
+        (function walk(root) {
+            if (byId) return;
+            var all = root.querySelectorAll('*');
+            for (var ii = 0; ii < all.length && !byId; ii++) {
+                var el = all[ii];
+                for (var ai = 0; ai < ATTRS.length; ai++) {
+                    var v = (el.getAttribute(ATTRS[ai]) || '').toLowerCase();
+                    if (v && ids.indexOf(v) >= 0 && el.getClientRects().length > 0) { byId = el; break; }
+                }
+                if (!byId && el.shadowRoot) walk(el.shadowRoot);
+            }
+        })(document);
+        if (byId) {
+            if (isField(byId)) return fieldValue(byId);
+            if ((byId.innerText || '').trim()) return textOrField(byId);
+        }
+    }
+
     // A table drawn with ARIA roles is a table too: role=columnheader is its
     // <th>, role=cell its <td>. Without them "Chrome CPU" on a grid of divs
     // came back as the header row, which shares the word "CPU".

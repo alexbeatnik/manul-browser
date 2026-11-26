@@ -218,6 +218,11 @@ one's text out of the page text once — once, so the same words shown
 elsewhere stay present. A test that recognises a probe by a fragment of its
 code breaks when the probe changes; compare with the probe itself.
 
+**Each engine picks its own language.** Headless Chrome asks for en-US,
+Firefox for the system's language, so the same hunt met YouTube in English on
+one and Ukrainian on the other. `LaunchOptions.Locale` (default en-US, config
+`locale`) sets both: `--lang`/`--accept-lang` and `intl.accept_languages`.
+
 **Snapshot caching hides change.** The cache makes resolution cheap within a
 step. Any polling loop must call `invalidateSnapshot()` each iteration or it
 will never see what it is waiting for.

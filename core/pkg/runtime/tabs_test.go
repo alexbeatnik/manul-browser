@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/alexbeatnik/manul-browser/core/pkg/browser"
 	"github.com/alexbeatnik/manul-browser/core/pkg/dom"
@@ -136,5 +137,45 @@ func TestTabs_SwitchToATabThatIsNotThereFails(t *testing.T) {
 		if err := runOn(t, page, src); err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("%q: got %v, want an error containing %q", src, err, want)
 		}
+	}
+}
+
+// lateTabMock opens its tab only after it has been asked for its tabs a few
+// times since the click, as a page that opens one from a timer does.
+type lateTabMock struct {
+	*tabbedMock
+	asks int
+}
+
+func (m *lateTabMock) OpenedTabs(ctx context.Context) ([]browser.Tab, error) {
+	if len(m.Clicks) > 0 {
+		m.asks++
+	}
+	if m.asks < 3 {
+		return nil, nil
+	}
+	return m.tabbedMock.OpenedTabs(ctx)
+}
+
+// The tab was looked for once, before each step; a VERIFY right after a click
+// whose page opened its tab a moment later looked at the old page until it
+// timed out.
+func TestTabs_ATabOpenedLateIsFollowedWhileVerifyWaits(t *testing.T) {
+	product := &tabbedMock{id: "product", MockPage: &MockPage{
+		URL:      "https://shop.test/product",
+		Elements: []dom.ElementSnapshot{regEl(1, "h1", "Manul Plush")},
+	}}
+	front := &tabbedMock{id: "main", MockPage: &MockPage{
+		URL:      "https://shop.test/",
+		Elements: []dom.ElementSnapshot{regEl(1, "button", "Open later")},
+	}}
+	front.opens = map[int]*tabbedMock{1: product}
+	front.tabs = map[string]*tabbedMock{"product": product}
+	page := &lateTabMock{tabbedMock: front}
+
+	cfg := regConfig()
+	cfg.DefaultTimeout = 3 * time.Second
+	if err := runOnCfg(t, page, cfg, "CLICK the 'Open later' button\nVERIFY that 'Manul Plush' is present\n"); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -87,6 +87,13 @@ func serve(t *testing.T, o *origins) string {
 	root := filepath.Join("testdata", "site")
 	files := http.FileServer(http.Dir(root))
 	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// What the browser asked for, for the locale hunts: a page cannot
+		// read its own request's Accept-Language.
+		if r.URL.Path == "/echo-lang" {
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			_, _ = w.Write([]byte(r.Header.Get("Accept-Language")))
+			return
+		}
 		if !strings.HasSuffix(r.URL.Path, ".html") {
 			files.ServeHTTP(w, r)
 			return

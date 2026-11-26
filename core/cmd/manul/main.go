@@ -199,6 +199,7 @@ func cmdRun(args []string) error {
 	htmlReport := fs.Bool("html-report", false, "generate HTML report after run (default off; opt-in)")
 	executablePath := fs.String("executable-path", "", "absolute path to a custom browser or Electron app executable")
 	channel := fs.String("channel", "", "browser channel to launch (chrome, chrome-beta, chromium, msedge, firefox, firefox-esr, firefox-dev, firefox-nightly)")
+	locale := fs.String("locale", "", "language the browser uses and asks pages for, e.g. en-US or uk-UA (default en-US)")
 	tags := fs.String("tags", "", "comma-separated tags to filter hunt files")
 	retries := fs.Int("retries", 0, "number of retries for failed steps")
 	disableCache := fs.Bool("disable-cache", false, "disable DOM snapshot caching")
@@ -323,6 +324,9 @@ func cmdRun(args []string) error {
 	if *channel != "" {
 		c := *channel
 		cfg.Channel = &c
+	}
+	if *locale != "" {
+		cfg.Locale = *locale
 	}
 	// CLI --workers wins over JSON/env (MANUL_WORKERS). Default 1 = sequential;
 	// >1 routes multi-file/dir runs through runParallel + pkg/worker.WorkerPool.
@@ -605,6 +609,7 @@ func runSequential(ctx context.Context, cfg config.Config, hunts []*dsl.Hunt, op
 		if cfg.Channel != nil && *cfg.Channel != "" {
 			opts.Channel = *cfg.Channel
 		}
+		opts.Locale = cfg.Locale
 		engine, err := browser.NormalizeEngine(opts.Browser)
 		if err != nil {
 			logger.Error("%v", err)

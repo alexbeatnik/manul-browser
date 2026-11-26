@@ -232,6 +232,7 @@ func executeHunt(ctx context.Context, hunt *dsl.Hunt, cfg config.Config, logger 
 	opts := browser.DefaultLaunchOptions()
 	opts.Browser = cfg.Browser
 	opts.Headless = cfg.Headless
+	opts.Locale = cfg.Locale
 	proc, err := browser.Launch(ctx, opts)
 	if err != nil {
 		return fmt.Errorf("launch browser: %w", err)
