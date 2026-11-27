@@ -258,7 +258,7 @@
 
   "pagesRegistry": {
     "directory": "<project>/pages/",
-    "format": "One JSON fragment per site (file name = <safe_netloc>.json)",
+    "format": "One JSON fragment per site (file name = <safe_netloc>.json), and page files: pages/*.hunt with @page: (MANUL_DSL_CONTRACT.md metadata page), whose @url: joins the registry as a path for any site or a whole address for its own, read before the JSON fragments so a fragment that names the same address differently wins. Both are read again only when a file is added, removed or changed.",
     "resolution": [
       "CWD/pages/*.json — writable, directory auto-created if absent. There is no override; the directory is always pages/ under the working directory."
     ],

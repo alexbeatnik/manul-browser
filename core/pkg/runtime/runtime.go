@@ -1844,7 +1844,8 @@ func (rt *Runtime) evaluateCondition(ctx context.Context, cond string) (bool, er
 		if err != nil {
 			return false, err
 		}
-		return pageIs(target, name, title) != (m[1] != ""), nil
+		is, _ := rt.pageMatch(ctx, target, name, title)
+		return is != (m[1] != ""), nil
 	}
 
 	mode := ""

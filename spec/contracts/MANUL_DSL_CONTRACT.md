@@ -295,7 +295,7 @@
       "uiText": "VERIFY that the page is ''",
       "snippet": "VERIFY that the page is ${1|NOT ,|}'${2:page name}'",
       "regex": "^VERIFY\\s+(?:THAT\\s+)?(?:THE\\s+)?PAGE\\s+IS\\s+(NOT\\s+)?['\"]",
-      "description": "Asserts which page is open: VERIFY [that] [the] page is [NOT] '<name>'. The name is the one pages/ gives the address (MANUL_CONFIG_CONTRACT.md pagesRegistry), or the page's title, compared case-insensitively with runs of whitespace as one space; an Auto: placeholder is not a name. It looks again until the step timeout, as a text VERIFY does, because a single-page app's route may still be on its way. A failure says what the page is: its name in pages/, its title and its address. Parsed ahead of the text forms, which would look for the name as text on the page. A dry run (what-if) counts it as a system step.",
+      "description": "Asserts which page is open: VERIFY [that] [the] page is [NOT] '<name>'. The name is the one pages/ gives the address (MANUL_CONFIG_CONTRACT.md pagesRegistry), or the page's title, compared case-insensitively with runs of whitespace as one space; an Auto: placeholder is not a name. For a page a page file describes with @expect:, the page must also show every @expect text and, when the file has @url:, be at that address; a failure then names the text that is missing. It looks again until the step timeout, as a text VERIFY does, because a single-page app's route may still be on its way. A failure says what the page is: its name in pages/, its title and its address. Parsed ahead of the text forms, which would look for the name as text on the page. A dry run (what-if) counts it as a system step.",
       "category": "assertion"
     },
     {
@@ -468,7 +468,7 @@
       "uiText": "USE Login",
       "snippet": "USE ${1:BlockName}",
       "regex": "^\\s*(?:\\d+\\.\\s*)?USE\\b",
-      "description": "Expands an imported STEP block inline at parse time. The block must have been imported via @import:. Aliased names (from 'as' clause) are supported. Case-insensitive matching.",
+      "description": "Expands an imported STEP block inline at parse time. The block must have been imported via @import:. Aliased names (from 'as' clause) are supported. Case-insensitive matching. USE <page>.<block> runs a block of the page file in pages/ whose @page: is <page>, with no @import: see @page:. A page or block that is not there fails the parse with a message naming it.",
       "category": "structure"
     },
     {
@@ -635,6 +635,13 @@
       "uiText": "@export: Login, Logout",
       "snippet": "@export: ${1:BlockName}",
       "description": "Declares which STEP blocks are importable by other .hunt files. Multiple @export: lines are allowed. @export: * makes all blocks available. When no @export: is declared and a wildcard @import: * is used, all blocks are available (open by default)."
+    },
+    {
+      "id": "page",
+      "label": "@page:",
+      "uiText": "@page: Login",
+      "snippet": "@page: ${1:Page name}\n@url: ${2:/path.html}\n@expect: '${3:text the page shows}'",
+      "description": "Makes a .hunt file in pages/ (under the working directory, beside the registry's JSON fragments) a page file: a page object. @page: is the page's name; @url: its address — a path, also written {site}/path, for any site, or a whole address for a site of its own — which joins the pages/ registry, so NAVIGATE to '<name>', VERIFY that the page is '<name>', IF the page is and every step's page_name know it (a JSON fragment naming the same address has the last word); @expect: is text the page shows when it is open, one quoted text or several per line and several lines allowed. VERIFY that the page is and IF the page is then also require the page to be at @url, when there is one, and to show every @expect text, so views of a single-page app that share an address are told apart by @expect. The file's STEP blocks are the page's actions: any hunt runs one with USE <page>.<block> and no @import; a block that USEs another of its own page's blocks by its short name finds it. Its @var: values are defaults (the import level). A file in pages/ without @page: is not a page file."
     }
   ],
   "hookBlocks": [

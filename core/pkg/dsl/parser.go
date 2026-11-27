@@ -263,6 +263,12 @@ type Hunt struct {
 	DataFile string
 	// Schedule defines execution frequency (e.g., from @schedule).
 	Schedule string
+	// Page, PageURL and PageExpect make the file a page: @page: <name>,
+	// @url: <path or address>, @expect: '<text the page shows>'. See
+	// pages.go.
+	Page       string
+	PageURL    string
+	PageExpect []string
 	// Exports holds names of variables exported across hunts (e.g., from @export).
 	Exports []string
 	// Vars holds @var declarations and runtime SET values.
@@ -677,6 +683,12 @@ func parseDirective(hunt *Hunt, line string) error {
 		hunt.DataFile = strings.Trim(value, "'\"")
 	case "schedule":
 		hunt.Schedule = value
+	case "page":
+		hunt.Page = strings.Trim(value, "'\"")
+	case "url":
+		hunt.PageURL = strings.Trim(value, "'\"")
+	case "expect":
+		hunt.PageExpect = append(hunt.PageExpect, quotedOrWhole(value)...)
 	case "export", "exports":
 		for _, e := range strings.Split(value, ",") {
 			hunt.Exports = append(hunt.Exports, strings.TrimSpace(e))

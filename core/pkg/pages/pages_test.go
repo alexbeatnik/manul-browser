@@ -347,3 +347,46 @@ func TestRegistry_AFragmentForAnySite(t *testing.T) {
 		t.Errorf("a site the any-site fragment covers was auto-populated: %d files", len(entries))
 	}
 }
+
+// A page file names its page in the registry, by its @url, beside the JSON
+// fragments — which have the last word on an address both name.
+func TestRegistry_APageFileNamesItsPage(t *testing.T) {
+	dir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "login.hunt"), []byte("@page: Login\n@url: {site}/login.html\n@expect: 'Sign in'\nSTEP Open:\n    NAVIGATE to 'Login'\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(dir, "settings.hunt"), []byte("@page: Settings\n@expect: 'Account settings'\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(dir, "shop.json"), []byte(`{"site": "*", "/shop.html": "Shop", "/login.html": "Sign-in page"}`), 0o644)
+	r := NewRegistry(dir)
+	if got := r.PageName("http://localhost:8000/shop.html"); got != "Shop" {
+		t.Errorf("a JSON page = %q", got)
+	}
+	if got := r.PageName("https://staging.test/login.html"); got != "Sign-in page" {
+		t.Errorf("an address both name = %q, want the JSON fragment's", got)
+	}
+	if got := r.PagesNamed("Login"); len(got) != 0 {
+		// The JSON fragment renamed the address; the page file's name no longer leads there.
+		t.Logf("PagesNamed(Login) = %v", got)
+	}
+	def, ok := r.Page("login")
+	if !ok || !def.HasURL || strings.Join(def.Expect, "|") != "Sign in" {
+		t.Errorf("Page(login) = %+v %v", def, ok)
+	}
+	if def, ok := r.Page("Settings"); !ok || def.HasURL || len(def.Expect) != 1 {
+		t.Errorf("Page(Settings) = %+v %v: a page with no @url is known by what it shows", def, ok)
+	}
+}
+
+func TestRegistry_APageFilesAddressIsGoneTo(t *testing.T) {
+	dir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "login.hunt"), []byte("@page: Login\n@url: /login.html\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(dir, "admin.hunt"), []byte("@page: Admin\n@url: https://admin.test/console?tab=1\n"), 0o644)
+	r := NewRegistry(dir)
+	if got := r.PagesNamed("Login"); len(got) != 1 || got[0] != "/login.html" {
+		t.Errorf("PagesNamed(Login) = %v", got)
+	}
+	if got := r.PagesNamed("Admin"); len(got) != 1 || got[0] != "https://admin.test/console" {
+		t.Errorf("PagesNamed(Admin) = %v", got)
+	}
+	if got := r.PageName("http://localhost:8000/login.html?next=/"); got != "Login" {
+		t.Errorf("PageName = %q", got)
+	}
+}

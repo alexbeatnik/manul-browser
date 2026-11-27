@@ -39,6 +39,35 @@ func pageIs(want, name, title string) bool {
 	return w != "" && (foldSpace(name) == w || foldSpace(title) == w)
 }
 
+// pageMatch is whether the page open now is want, and if it is not, the
+// text a page file's @expect asked for that is missing from it.
+//
+// A page a page file describes with @expect is open when every one of those
+// texts is on it — and, when its @url gives it an address, when the
+// registry names the address it is at. Two views a single-page app keeps at
+// one address are told apart that way. Any other page is open when its name
+// in pages/, or its title, is want.
+func (rt *Runtime) pageMatch(ctx context.Context, want, name, title string) (bool, string) {
+	def, ok := rt.pages.Page(want)
+	if !ok || len(def.Expect) == 0 {
+		return pageIs(want, name, title), ""
+	}
+	if def.HasURL && !pageIs(want, name, "") {
+		return false, ""
+	}
+	raw, err := rt.visibleText(ctx)
+	if err != nil {
+		return false, def.Expect[0]
+	}
+	text := foldSpace(string(raw))
+	for _, e := range def.Expect {
+		if !pageShows(text, rt.resolveVariables(e)) {
+			return false, e
+		}
+	}
+	return true, ""
+}
+
 // verifyPage is VERIFY that the page is [NOT] '<name>'.
 //
 // The name is the one pages/ gives the address, or else the page's title, so
@@ -52,14 +81,16 @@ func (rt *Runtime) verifyPage(ctx context.Context, cmd dsl.Command, res *explain
 		return fmt.Errorf("VERIFY that the page is: no page name given")
 	}
 	deadline := time.Now().Add(rt.cfg.DefaultTimeout)
-	var name, title, url string
+	var name, title, url, missing string
 	var lastErr error
 	for {
 		rt.pollTick(ctx)
 		n, ti, u, err := rt.pageNow(ctx)
 		if err == nil {
 			name, title, url, lastErr = n, ti, u, nil
-			if pageIs(want, name, title) != cmd.VerifyNegated {
+			var is bool
+			is, missing = rt.pageMatch(ctx, want, name, title)
+			if is != cmd.VerifyNegated {
 				return nil
 			}
 		} else {
@@ -78,6 +109,9 @@ func (rt *Runtime) verifyPage(ctx context.Context, cmd dsl.Command, res *explain
 	}
 	if cmd.VerifyNegated {
 		return fmt.Errorf("verification failed: the page is '%s' (%s), but expected NOT to be", want, describePage(name, title, url))
+	}
+	if missing != "" {
+		return fmt.Errorf("verification failed: the page is not '%s': '%s', which its page file expects, is not on it (%s)", want, missing, describePage(name, title, url))
 	}
 	return fmt.Errorf("verification failed: the page is not '%s': it is %s", want, describePage(name, title, url))
 }

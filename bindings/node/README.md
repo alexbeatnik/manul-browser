@@ -51,6 +51,34 @@ const s = await Session.launch({ browser: 'firefox', headless: true });
 
 `MANUL_BROWSER=firefox` does the same from the environment.
 
+## Page objects
+
+`Page` is a page's name in `pages/` — a page file's `@page:` — and what a
+person does there. The engine, not the class, decides whether the page is open:
+
+```js
+import { Page, Session } from 'manul-browser';
+
+class Login extends Page {
+  static pageName = 'Login';
+  signIn(user, password) {
+    // SignIn is a block of pages/login.hunt: the same action hunts USE.
+    return this.use('SignIn', { user, password });
+  }
+}
+
+const s = await Session.launch();
+await s.setVars({ site: 'http://localhost:8000' });
+await (await new Login(s).open()).signIn('ada', 'lovelace');
+```
+
+`open()` is `NAVIGATE to 'Login'` then `assertLoaded()` (`VERIFY that the page
+is 'Login'`, which waits for the page's address and every `@expect` text);
+`use(block, vars)` runs `USE Login.<block>`; `do(...steps)` throws
+`StepFailed` with the engine's reason and the closest labels; `shouldSee`,
+`shouldNotSee` and `valueOf(label)` are the usual checks. A static `path` with
+a `baseUrl` opens a page `pages/` has no address for.
+
 ## Extensions
 
 Handlers describe *this process*, so they are registered at module scope and

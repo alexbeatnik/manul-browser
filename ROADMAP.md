@@ -330,21 +330,22 @@ not cover:
 
 ### 11. Page objects
 
-Page names are in the DSL (`NAVIGATE to 'Shop'`, `VERIFY that the page is`,
-`IF the page is`, `page_name` in every result) and the registry is
-deterministic. What the review of page objects proposed and is not done:
+Done: page names in the DSL (`NAVIGATE to 'Shop'`, `VERIFY that the page is`,
+`IF the page is`, `page_name` in every result); page files in `pages/`
+(`@page`, `@url`, `@expect`, actions used as `USE Login.SignIn` with no
+`@import`, and views of a single-page app told apart by `@expect`); custom
+controls found by a page's name before its title; and `manul.Page` / `Page`
+in the Python and Node bindings, which ask the engine whether their page is
+open. The suite guide's example project is built from page files and runs in
+e2e. What is left:
 
-- **A page as a file.** `pages/login.hunt` with `@page: Login`,
-  `@url: {site}/login.html`, `@expect: 'Sign in'` (how a load is recognised)
-  and the page's actions as exported blocks, used as `USE Login.SignIn`. The
-  registry and the library hunts are two halves of one idea today.
-- **Custom controls by page name.** A control is registered under a page's
-  `document.title`, or a label made from its URL; the registry's name is not
-  consulted.
-- **`BasePage` in the bindings.** The Python and Node demos each carry their
-  own copy of the same class; `assert_loaded` compares the exact title and
-  could ask `VERIFY that the page is` instead, and several steps could go in
-  one `run` call.
+- **The demos still carry their own `BasePage`.** `examples/python-demo` and
+  `examples/node-demo` compare the exact `document.title`; moving them to the
+  bindings' `Page` and to page files is a change of its own.
+- **The Python `Page` tests ran without pytest** here (there was none to run
+  them under); they are plain functions pytest collects, and CI runs them.
+- **`step` does not expand `USE`.** `Session.run("USE Login.SignIn")` does;
+  a single `step` of it, and so the MCP `step` tool, finds no block.
 
 ---
 

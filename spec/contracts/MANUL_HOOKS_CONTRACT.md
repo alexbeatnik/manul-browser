@@ -118,7 +118,7 @@
         ]
       },
       "lookup": "GetCustomControl(page, target) resolves the page-scoped handler first, then the '*' (any-page) handler.",
-      "pageLabel": "The page a step runs on is labelled by its document.title. Only an empty title falls back to a label derived from the URL: the last path segment with '-', '_' and '.' as spaces, plus ' page' unless it already contains 'page' (/checkout.html → 'checkout html page'), or the host name for an empty path. The pages/ registry is not consulted."
+      "pageLabel": "The page a step runs on is labelled by its document.title. Only an empty title falls back to a label derived from the URL: the last path segment with '-', '_' and '.' as spaces, plus ' page' unless it already contains 'page' (/checkout.html → 'checkout html page'), or the host name for an empty path. A page pages/ names — a page file's @page:, or a JSON fragment's name — is known by that name too: a control registered under the name is found first, then one under the title (or the URL label), then one registered for every page ('*'), and the invocation's page is the label it was found under."
     },
 
     "getters": [

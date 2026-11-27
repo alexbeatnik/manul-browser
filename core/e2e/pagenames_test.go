@@ -30,6 +30,12 @@ func TestPageNames_InAHunt(t *testing.T) {
 			if err := os.WriteFile(filepath.Join(dir, "pages", "fixtures.json"), []byte(fragment), 0o644); err != nil {
 				t.Fatal(err)
 			}
+			// A view of a single-page app, known by what it shows: spa.html
+			// is at one address before and after its search.
+			results := "@page: Results\n@expect: 'Manul in the snow'\n@export: Search\n\nSTEP Search:\n    FILL 'Search' field with '{query}'\n    PRESS ENTER\n"
+			if err := os.WriteFile(filepath.Join(dir, "pages", "results.hunt"), []byte(results), 0o644); err != nil {
+				t.Fatal(err)
+			}
 			hunt := `@title: page names
 STEP 1: By name
     NAVIGATE to ` + o.site + `/checkboxes.html
@@ -45,6 +51,11 @@ STEP 2: A page's name in a condition
         PRINT "on=[search]"
     IF the page is 'Order details':
         PRINT "on=[order]"
+STEP 3: A view known by what it shows, and its page's action
+    VERIFY that the page is NOT 'Results'
+    SET {query} = manul
+    USE Results.Search
+    VERIFY that the page is 'Results'
 DONE.
 `
 			if err := os.WriteFile(filepath.Join(dir, "names.hunt"), []byte(hunt), 0o644); err != nil {

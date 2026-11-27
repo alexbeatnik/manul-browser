@@ -16,12 +16,17 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/alexbeatnik/manul-browser/core/pkg/dsl"
 )
 
 // Registry maps site_root_url → { pattern_or_"Domain": page_name }.
 type Registry struct {
 	mu   sync.RWMutex
 	data map[string]map[string]string // site_root → {pattern → name}
+	// defs is the page files' pages, by folded name: what @expect says the
+	// page shows, and whether @url gave it an address.
+	defs map[string]PageDef
 	dir  string
 	// seen is the fragments' names, sizes and times when they were last
 	// read: a step asks for its page's name, and reading every fragment
@@ -51,12 +56,12 @@ func (r *Registry) Reload() {
 	merged := map[string]map[string]string{}
 	entries, err := os.ReadDir(r.dir)
 	if err != nil {
-		r.data, r.seen = merged, ""
+		r.data, r.seen, r.defs = merged, "", nil
 		return
 	}
 	var sig strings.Builder
 	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
+		if e.IsDir() || !(strings.HasSuffix(e.Name(), ".json") || strings.HasSuffix(e.Name(), ".hunt")) {
 			continue
 		}
 		if info, infoErr := e.Info(); infoErr == nil {
@@ -67,6 +72,21 @@ func (r *Registry) Reload() {
 		return
 	}
 	r.seen = sig.String()
+	// Page files first, so a JSON fragment that names the same address
+	// differently has the last word.
+	defs := map[string]PageDef{}
+	for _, h := range dsl.ReadPageHeaders(r.dir) {
+		def := PageDef{Name: h.Name, Expect: h.Expect, Path: h.Path}
+		if site, key, ok := pageAddress(h.URL); ok {
+			def.HasURL = true
+			if merged[site] == nil {
+				merged[site] = map[string]string{}
+			}
+			merged[site][key] = h.Name
+		}
+		defs[foldName(h.Name)] = def
+	}
+	r.defs = defs
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
 			continue
@@ -161,6 +181,46 @@ func (r *Registry) lookup(rawURL string) (string, bool) {
 		return domainName, true
 	}
 	return "", false
+}
+
+// PageDef is a page a page file describes (dsl.PageHeader).
+type PageDef struct {
+	Name string
+	// Expect is what the page shows when it is open.
+	Expect []string
+	// HasURL is whether @url gave the page an address the registry knows.
+	HasURL bool
+	// Path is the page file.
+	Path string
+}
+
+// Page is the page file's page of that name, if there is one.
+func (r *Registry) Page(name string) (PageDef, bool) {
+	r.Reload()
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	def, ok := r.defs[foldName(name)]
+	return def, ok
+}
+
+// pageAddress is where a page file's @url puts the page in the registry: a
+// path, or {site} followed by one, under AnySite; a whole address under its
+// own site.
+func pageAddress(url string) (site, key string, ok bool) {
+	url = strings.TrimSpace(url)
+	for _, prefix := range []string{"{site}", "${site}", "$site"} {
+		url = strings.TrimPrefix(url, prefix)
+	}
+	switch {
+	case url == "":
+		return "", "", false
+	case strings.HasPrefix(url, "/"):
+		return AnySite, withoutQuery(url), true
+	case strings.Contains(url, "://"):
+		p := parseURL(url)
+		return fmt.Sprintf("%s://%s/", p.scheme, p.host), withoutQuery(url), true
+	}
+	return "", "", false
 }
 
 // PageName is the name a person gave the page at rawURL in pages/, or "" when

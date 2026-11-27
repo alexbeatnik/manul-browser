@@ -24,8 +24,8 @@ with manul.Session() as s:
     print(s.read("Order total").value)
 ```
 
-No selectors, no waits, no page objects. Targets are named the way a person
-would name them, and the engine resolves them with deterministic DOM heuristics.
+No selectors and no waits. Targets are named the way a person would name them,
+and the engine resolves them with deterministic DOM heuristics.
 
 ### Firefox
 
@@ -92,6 +92,35 @@ outcome. The session stays open. To get failures back as data, run hunts with
 
 `MOCK` rules and variables a hunt sets outlive it: they stay in the session for
 every later `step` and `run`.
+
+## Page objects
+
+A page object is a page's name and what a person does there. `manul.Page`
+asks the engine whether its page is open, so the name in `pages/` — a page
+file's `@page:` — is the only thing it needs:
+
+```python
+class Login(manul.Page):
+    name = "Login"
+
+    def sign_in(self, user, password):
+        # SignIn is a block of pages/login.hunt: the same action hunts USE.
+        return self.use("SignIn", user=user, password=password)
+
+
+with manul.Session() as s:
+    s.set_vars(site="http://localhost:8000")
+    Login(s).open().sign_in("ada", "lovelace").should_see("Welcome, ada")
+```
+
+- `open()` is `NAVIGATE to 'Login'`, then `assert_loaded()`: `VERIFY that the
+  page is 'Login'`, which waits for the page's address and every text its page
+  file `@expect`s. Set `path` (and pass a `base_url`) for a page `pages/` has
+  no address for.
+- `use(block, **vars)` runs `USE Login.<block>` with the variables set.
+- `do(*steps)` runs steps in order; a failed one raises `manul.StepFailed`,
+  carrying the engine's reason and the closest labels. `should_see`,
+  `should_not_see` and `value_of(label)` are the usual checks.
 
 ## Custom controls
 

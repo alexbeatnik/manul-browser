@@ -39,6 +39,8 @@ class PageMap:
     """A landmark-grouped view of the page, budgeted for an LLM's context."""
 
     url: str = ""
+    #: What pages/ calls the page, when it names it.
+    page: str = ""
     groups: list[MapGroup] = field(default_factory=list)
 
     def labels(self) -> list[str]:
@@ -77,6 +79,8 @@ class StepOutcome:
     action: str = ""
     value: str = ""
     url: str = ""
+    #: What pages/ calls the page the step ended on, when it names it.
+    page: str = ""
     reason: str = ""
     error: str = ""
     score: float = 0.0
@@ -92,6 +96,8 @@ class RunOutcome:
 
     ok: bool = False
     url: str = ""
+    #: What pages/ calls the page the run ended on, when it names it.
+    page: str = ""
     total_steps: int = 0
     passed: int = 0
     failed: int = 0
@@ -158,7 +164,7 @@ def _map_from(raw: Any) -> PageMap:
                 truncated=int(g.get("truncated", 0) or 0),
             )
         )
-    return PageMap(url=raw.get("url", ""), groups=groups)
+    return PageMap(url=raw.get("url", ""), page=raw.get("page", "") or "", groups=groups)
 
 
 class Session:
@@ -304,6 +310,7 @@ class Session:
             action=raw.get("action", ""),
             value=raw.get("value", "") or "",
             url=raw.get("url", "") or "",
+            page=raw.get("page", "") or "",
             reason=raw.get("reason", ""),
             error=raw.get("error", "") or "",
             score=float(raw.get("score", 0.0) or 0.0),
@@ -319,6 +326,7 @@ class Session:
         return RunOutcome(
             ok=bool(raw.get("ok", False)),
             url=raw.get("url", ""),
+            page=raw.get("page", "") or "",
             total_steps=int(raw.get("total_steps", 0) or 0),
             passed=int(raw.get("passed", 0) or 0),
             failed=int(raw.get("failed", 0) or 0),

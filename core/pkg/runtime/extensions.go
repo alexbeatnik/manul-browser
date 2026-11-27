@@ -87,6 +87,30 @@ func GetCustomControl(page, target string) (CustomControlHandler, bool) {
 	return nil, false
 }
 
+// customControlFor is the control for target on a page known by any of
+// labels: one registered under a label, in order, before one registered for
+// every page ("*"). It answers with the label it was found under.
+func customControlFor(labels []string, target string) (CustomControlHandler, string, bool) {
+	customControlsMu.RLock()
+	defer customControlsMu.RUnlock()
+	for _, label := range labels {
+		if strings.TrimSpace(label) == "" {
+			continue
+		}
+		if handler, ok := customControls[customControlKey(label, target)]; ok {
+			return handler, label, true
+		}
+	}
+	if handler, ok := customControls[customControlKey("*", target)]; ok {
+		label := ""
+		if len(labels) > 0 {
+			label = labels[len(labels)-1]
+		}
+		return handler, label, true
+	}
+	return nil, "", false
+}
+
 func RegisterGoCall(name string, handler GoCallHandler) error {
 	key := normalizeRegistryLabel(name)
 	if key == "" {
@@ -129,8 +153,17 @@ func (rt *Runtime) tryExecuteCustomControl(ctx context.Context, cmd dsl.Command)
 		return false, "", nil, nil
 	}
 
-	pageLabel := rt.currentPageLabel(ctx)
-	handler, ok := GetCustomControl(pageLabel, target)
+	// The page is known by its name in pages/, when it has one, and by its
+	// title (or a label made from its address): a control registered under
+	// either is found, the page's own before one registered for every page.
+	var labels []string
+	if url, err := rt.page.CurrentURL(ctx); err == nil {
+		if name := rt.pages.PageName(url); name != "" {
+			labels = append(labels, name)
+		}
+	}
+	labels = append(labels, rt.currentPageLabel(ctx))
+	handler, pageLabel, ok := customControlFor(labels, target)
 	if !ok {
 		return false, "", nil, nil
 	}

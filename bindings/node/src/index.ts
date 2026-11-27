@@ -22,6 +22,8 @@
  */
 
 export { Session } from './session.js';
+export { Page, StepFailed } from './pages.js';
+export type { PageSession } from './pages.js';
 export type {
   MapElement,
   MapGroup,

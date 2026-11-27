@@ -95,12 +95,15 @@ func TestSuiteGuide_ExampleProjectIsAProject(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	for _, want := range []string{"manul.config.json", "lib/env.hunt", "lib/account.hunt", "data/users.csv", ".github/workflows/manul.yml"} {
+	for _, want := range []string{"manul.config.json", "lib/env.hunt", "pages/login.hunt", "pages/shop.hunt", "data/users.csv", ".github/workflows/manul.yml"} {
 		if files[want] == "" {
 			t.Errorf("the guide has no %s", want)
 		}
 	}
 
+	// USE <Page>.<Block> finds its page in pages/ under the working
+	// directory, as a run of the project does.
+	t.Chdir(dir)
 	tests := 0
 	for path := range files {
 		if !strings.HasSuffix(path, ".hunt") {

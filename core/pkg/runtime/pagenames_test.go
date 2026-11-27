@@ -7,6 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alexbeatnik/manul-browser/core/pkg/browser"
+	"github.com/alexbeatnik/manul-browser/core/pkg/config"
+	"github.com/alexbeatnik/manul-browser/core/pkg/dom"
 	"github.com/alexbeatnik/manul-browser/core/pkg/dsl"
 	"github.com/alexbeatnik/manul-browser/core/pkg/pages"
 	"github.com/alexbeatnik/manul-browser/core/pkg/utils"
@@ -157,5 +160,81 @@ func TestNavigate_APageOnAnySite(t *testing.T) {
 	none := &MockPage{URL: "about:blank"}
 	if err := runWithPages(t, none, frag, "NAVIGATE to 'Login'\n"); err == nil || !strings.Contains(err.Error(), "give the hunt {site}") {
 		t.Errorf("from a blank page without {site}: %v", err)
+	}
+}
+
+// A page a page file describes is open when what it @expects is on it: two
+// views a single-page app keeps at one address are told apart that way.
+func TestVerifyPage_APageFilesExpectations(t *testing.T) {
+	dir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "login.hunt"), []byte("@page: Login\n@url: /login.html\n@expect: 'Sign in'\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(dir, "settings.hunt"), []byte("@page: Settings\n@expect: 'Account settings', 'Save changes'\n"), 0o644)
+	run := func(page *MockPage, step string) error {
+		hunt, err := dsl.Parse(strings.NewReader(step + "\n"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		rt := New(regConfig(), page, utils.NewLoggerTo(nopWriter{}, nil))
+		rt.pages = pages.NewRegistry(dir)
+		_, err = rt.RunHunt(context.Background(), hunt)
+		return err
+	}
+	login := &MockPage{URL: "https://shop.test/login.html", Elements: []dom.ElementSnapshot{regEl(1, "h1", "Sign in")}}
+	if err := run(login, "VERIFY that the page is 'Login'"); err != nil {
+		t.Errorf("the login page: %v", err)
+	}
+	notYet := &MockPage{URL: "https://shop.test/login.html", Elements: []dom.ElementSnapshot{regEl(1, "p", "Loading…")}}
+	if err := run(notYet, "VERIFY that the page is 'Login'"); err == nil || !strings.Contains(err.Error(), "'Sign in', which its page file expects, is not on it") {
+		t.Errorf("the address without the text: %v", err)
+	}
+	elsewhere := &MockPage{URL: "https://shop.test/cart.html", Elements: []dom.ElementSnapshot{regEl(1, "h1", "Sign in")}}
+	if err := run(elsewhere, "VERIFY that the page is 'Login'"); err == nil {
+		t.Error("the text at another address passed for the page")
+	}
+	// No @url: the view is what it shows, at any address.
+	view := &MockPage{URL: "https://app.test/#/", Elements: []dom.ElementSnapshot{regEl(1, "h1", "Account settings"), regEl(2, "button", "Save changes")}}
+	if err := run(view, "VERIFY that the page is 'Settings'"); err != nil {
+		t.Errorf("a view by what it shows: %v", err)
+	}
+	if err := run(view, "VERIFY that the page is NOT 'Login'"); err != nil {
+		t.Errorf("NOT: %v", err)
+	}
+}
+
+// A custom control is registered under a page's name in pages/ as well as
+// under its title. It was found by the title (or a label made from the URL)
+// alone, so a page renamed in the registry could not be told apart there.
+func TestCustomControl_ByThePagesNameInPages(t *testing.T) {
+	ResetRuntimeRegistries()
+	t.Cleanup(ResetRuntimeRegistries)
+	var gotPage, which string
+	_ = RegisterCustomControl("Payment", "Card", func(_ context.Context, _ browser.Page, inv CustomControlInvocation) error {
+		gotPage, which = inv.Page, "named"
+		return nil
+	})
+	_ = RegisterCustomControl("*", "Card", func(_ context.Context, _ browser.Page, inv CustomControlInvocation) error {
+		which = "any page"
+		return nil
+	})
+	dir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "pay.hunt"), []byte("@page: Payment\n@url: /pay.html\n"), 0o644)
+	mock := &MockPage{URL: "https://shop.test/pay.html", Title: "Pay — Shop"}
+	rt := New(config.Config{}, mock, utils.NewLogger(nil))
+	rt.pages = pages.NewRegistry(dir)
+	if _, err := rt.executeCommand(context.Background(), dsl.Command{Type: dsl.CmdFill, Raw: "FILL 'Card' field with '4242'", Target: "Card", Value: "4242"}); err != nil {
+		t.Fatal(err)
+	}
+	if which != "named" || gotPage != "Payment" {
+		t.Errorf("control found = %q under %q, want the one registered under the page's name", which, gotPage)
+	}
+
+	// A page pages/ does not name falls back as before: its title, then "*".
+	mock.URL = "https://shop.test/other.html"
+	which = ""
+	if _, err := rt.executeCommand(context.Background(), dsl.Command{Type: dsl.CmdFill, Raw: "FILL 'Card' field with '1'", Target: "Card", Value: "1"}); err != nil {
+		t.Fatal(err)
+	}
+	if which != "any page" {
+		t.Errorf("on an unnamed page: %q, want the any-page control", which)
 	}
 }

@@ -24,7 +24,10 @@ func ResolveImports(hunt *Hunt) error {
 			visited[resolved] = true
 		}
 	}
-	return resolveImports(hunt, visited)
+	if err := resolveImports(hunt, visited); err != nil {
+		return err
+	}
+	return resolvePageUses(hunt)
 }
 
 // resolveImports is the internal recursive implementation with cycle detection.

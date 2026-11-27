@@ -323,6 +323,7 @@ describe('more of the session', () => {
       action: 'custom_control',
       value: '',
       url: 'https://example.com/',
+      page: '',
       reason: '',
       error: '',
       score: 0,

@@ -102,6 +102,33 @@ An address on a site with no fragment is added as an `Auto:` placeholder — the
 
 This happens on the first `NAVIGATE` to an unmapped site when `auto_annotate` is on — the only time the registry is consulted during a run. The fragment is written to a temporary file and renamed into place, so parallel workers never read one half written.
 
+### Page files: a page object
+
+A `.hunt` file in `pages/` with `@page:` is a page object: the page's name, its address, what it shows when it is open, and what a person does there.
+
+```hunt
+@page: Login
+@url: /login.html
+@expect: 'Sign in'
+@export: SignIn, SignOut
+
+STEP SignIn:
+    NAVIGATE to 'Login'
+    FILL 'Username' field with '{user}'
+    FILL 'Password' field with '{password}'
+    CLICK the 'Sign in' button
+
+STEP SignOut:
+    CLICK the 'Logout' button ON HEADER
+    VERIFY that the page is 'Login'
+```
+
+- `@url:` joins the registry — a path (or `{site}/path`) for any site, a whole address for a site of its own — so `NAVIGATE to 'Login'`, `VERIFY that the page is 'Login'`, `IF the page is` and `page_name` know the page. A JSON fragment naming the same address has the last word.
+- `@expect:` is text the page shows when it is open. `VERIFY that the page is 'Login'` then needs the page at `@url` (when there is one) *and* every `@expect` text, so views of a single-page app that share one address are told apart by `@expect` alone.
+- Any hunt runs the page's actions as `USE Login.SignIn`, with no `@import`. A block may `USE` another of its own page's blocks by its short name. The page's `@var:` are defaults.
+- A custom control can be registered under the page's name; it is found before one registered under the page's title.
+- From Python or Node, `manul.Page` / `Page` is the same page: `class Login(manul.Page): name = "Login"`, `Login(session).open().use("SignIn", user="ada", password="…")`. `open()` is `NAVIGATE to 'Login'` then `VERIFY that the page is 'Login'`.
+
 ### A fragment for any site
 
 A suite that runs against localhost and staging names its pages once, by path, with `"site": "*"`. Its keys hold on every http(s) site that no fragment of its own covers; a fragment for a particular site comes first.

@@ -29,8 +29,8 @@ around protection on a site that is not the user's.
 ```text
 manul.config.json        how every run starts the browser
 lib/env.hunt             defaults that differ between environments
-lib/account.hunt         shared blocks: sign in, sign out, …
-pages/app.json           names of the app's pages, on any site
+pages/*.hunt             page objects: a page's name, address, how to tell
+                         it is open, and what a person does there
 tests/*.hunt             one journey per file; the run target
 data/*.csv               rows for data-driven tests
 mocks/*.json             canned API responses, if any
@@ -41,8 +41,8 @@ mocks/*.json             canned API responses, if any
   its subdirectories. Keep tests flat and group them with `@tags:`, or name
   several targets: `manul run tests/ more-tests/` and `manul run tests/*.hunt`
   run them all.
-- `lib/` is not under `tests/`: a library's blocks are not tests, and a run
-  of `tests/` must not execute them.
+- `lib/` and `pages/` are not under `tests/`: their blocks are not tests, and
+  a run of `tests/` must not execute them.
 - Paths in `@import:` and `@data:` are relative to the file that names them.
 
 ## 3. Configuration
@@ -90,49 +90,71 @@ MANUL_VAR_password=… manul run tests/ --var site=https://staging.example.com
 A run's value replaces a hunt's own `@var:` of the same name too; a row of
 `@data:` replaces both.
 
-## 5. Page names
+## 5. Pages
 
-`pages/` names the app's pages. With `"site": "*"` the names hold on every
-address the suite runs against, by path:
+A page object is a file in `pages/`: the page's name, its address, what it
+shows when it is open, and what a person does there as blocks.
 
-```json pages/app.json
-{
-  "site": "*",
-  "/login.html": "Login",
-  "/shop.html": "Shop"
-}
-```
+```hunt pages/login.hunt
+@page: Login
+@url: /login.html
+@expect: 'Sign in'
+@context: The sign-in page, and signing in and out.
+@export: SignIn, SignOut
 
-Then a hunt goes to a page by its name and checks where it is:
-`NAVIGATE to 'Shop'` opens `/shop.html` on the site open now, or on `{site}`
-from a blank page; `VERIFY that the page is 'Login'` passes when the page's
-name — or, without one, its title — is 'Login'; `IF the page is 'Login':`
-branches on it. Every step's result says which page it ended on. A plain path
-(`/login.html`) matches that path and the ones under it; any other key is a
-regular expression (`.*/orders/\d+`, escaped as JSON wants it in the file). A fragment with a site of its own
-(`"site": "https://admin.example.com/"`) comes before the `*` one.
-
-## 6. Shared blocks
-
-A library names its blocks `STEP <Name>:` and lists them in `@export:`. A test
-imports them and runs one with `USE <Name>`.
-
-```hunt lib/account.hunt
-@title: account
-@context: Signing in and out, for every test that needs a session.
-@export: LogIn, LogOut
-
-STEP LogIn:
+STEP SignIn:
     NAVIGATE to 'Login'
     FILL 'Username' field with '{user}'
     FILL 'Password' field with '{password}'
     CLICK the 'Sign in' button
     VERIFY that 'Welcome, {user}' is present
 
-STEP LogOut:
+STEP SignOut:
     CLICK the 'Logout' button ON HEADER
-    VERIFY that 'Sign in' is present
+    VERIFY that the page is 'Login'
 ```
+
+```hunt pages/shop.hunt
+@page: Shop
+@url: /shop.html
+@expect: 'Cart total'
+@context: The shop, and putting a product in the cart.
+@export: Add
+
+STEP Add:
+    CLICK the 'Add to cart' button NEAR '{product}'
+    VERIFY that 'Added {product}' is present
+```
+
+What that gives every hunt, with no `@import`:
+
+- `USE Login.SignIn` runs the page's block; a block may `USE` another of its
+  own page's blocks by its short name. The page's `@var:` are defaults.
+- `NAVIGATE to 'Shop'` opens `@url` on the site open now, or on `{site}` from
+  a blank page. `@url` is a path (also written `{site}/shop.html`), or a whole
+  address for a page on a site of its own.
+- `VERIFY that the page is 'Login'` waits until the page is at its `@url` and
+  shows every `@expect` text — so a single-page app's views, which share one
+  address, are told apart by `@expect` alone when `@url` is left out.
+  `IF the page is 'Login':` asks the same at one look.
+- Every step's result names the page it ended on.
+
+A page with no actions can be named in JSON instead: `pages/app.json` with
+`{"site": "*", "/about.html": "About"}`. A key that is a plain path matches
+that path and the ones under it; any other key is a regular expression. A
+fragment with a site of its own (`"site": "https://admin.example.com/"`)
+comes before the `*` one.
+
+From Python or Node, a page object is `manul.Page` (`Page` in Node) with the
+same name: `class Login(manul.Page): name = "Login"`, then
+`Login(session).open().use("SignIn", user="ada", password=…)` — `open()` is
+`NAVIGATE to 'Login'` and `VERIFY that the page is 'Login'`.
+
+## 6. Shared blocks
+
+A flow that is not one page's goes in `lib/`: a library names its blocks
+`STEP <Name>:`, lists them in `@export:`, and a test imports them —
+`@import: Checkout from '../lib/flows.hunt'`, then `USE Checkout`.
 
 ## 7. Tests
 
@@ -144,14 +166,14 @@ a `USE` that does, and never relies on another test having run first.
 @context: A member signs in, sees their role, and signs out.
 @tags: smoke
 @import: * from '../lib/env.hunt'
-@import: LogIn, LogOut from '../lib/account.hunt'
 
 STEP 1: Sign in
-    USE LogIn
+    USE Login.SignIn
     VERIFY 'Role' field has value 'admin'
+    VERIFY that the page is NOT 'Login'
 
 STEP 2: Sign out
-    USE LogOut
+    USE Login.SignOut
 
 DONE.
 ```
@@ -163,7 +185,7 @@ DONE.
 @import: * from '../lib/env.hunt'
 
 STEP 1: Try a wrong password
-    NAVIGATE to {site}/login.html
+    NAVIGATE to 'Login'
     FILL 'Username' field with '{user}'
     FILL 'Password' field with 'not-the-password'
     CLICK the 'Sign in' button
@@ -183,9 +205,10 @@ DONE.
 STEP 1: Add two products
     NAVIGATE to 'Shop'
     VERIFY that the page is 'Shop'
-    CLICK the 'Add to cart' button NEAR 'Manul Plush'
-    VERIFY that 'Added Manul Plush' is present
-    CLICK the 'Add to cart' button NEAR 'Snow Boots'
+    SET {product} = Manul Plush
+    USE Shop.Add
+    SET {product} = Snow Boots
+    USE Shop.Add
     VERIFY that 'Cart: 2' is present
 
 STEP 2: Check the total
@@ -208,11 +231,10 @@ grace,hopper,member
 @context: Every test account signs in and sees its own role.
 @tags: regression
 @import: * from '../lib/env.hunt'
-@import: LogIn from '../lib/account.hunt'
 @data: ../data/users.csv
 
 STEP 1: Sign in as {user}
-    USE LogIn
+    USE Login.SignIn
     VERIFY 'Role' field has value '{role}'
 
 DONE.

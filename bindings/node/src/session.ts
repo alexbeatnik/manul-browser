@@ -26,6 +26,8 @@ export interface MapGroup {
 /** A landmark-grouped view of the page, budgeted for an LLM's context. */
 export interface PageMap {
   url: string;
+  /** What pages/ calls the page, when it names it. */
+  page: string;
   groups: MapGroup[];
   /** Every element label on the page, flattened — handy for a quick look. */
   labels(): string[];
@@ -50,6 +52,8 @@ export interface StepOutcome {
   action: string;
   value: string;
   url: string;
+  /** What pages/ calls the page the step ended on, when it names it. */
+  page: string;
   reason: string;
   error: string;
   score: number;
@@ -60,6 +64,8 @@ export interface StepOutcome {
 export interface RunOutcome {
   ok: boolean;
   url: string;
+  /** What pages/ calls the page the run ended on, when it names it. */
+  page: string;
   totalSteps: number;
   passed: number;
   failed: number;
@@ -271,6 +277,7 @@ export class Session implements PagePeer {
       action: str(raw['action']),
       value: str(raw['value']),
       url: str(raw['url']),
+      page: str(raw['page']),
       reason: str(raw['reason']),
       error: str(raw['error']),
       score: num(raw['score']),
@@ -285,6 +292,7 @@ export class Session implements PagePeer {
     return {
       ok: Boolean(raw['ok']),
       url: str(raw['url']),
+      page: str(raw['page']),
       totalSteps: num(raw['total_steps']),
       passed: num(raw['passed']),
       failed: num(raw['failed']),
@@ -340,6 +348,7 @@ export class Session implements PagePeer {
     }));
     return {
       url: str(raw['url']),
+      page: str(raw['page']),
       groups,
       labels(): string[] {
         return groups.flatMap((g) => g.elements.map((e) => e.label));
