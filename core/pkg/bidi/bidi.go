@@ -165,6 +165,18 @@ func SubscribeEvents(ctx context.Context, c *Conn, events []string, contexts []s
 	return err
 }
 
+// AddPreloadScript has the browser call functionDeclaration in every document
+// the given top-level contexts (and their frames) load from now on, before
+// any script of the document's own.
+func AddPreloadScript(ctx context.Context, c *Conn, functionDeclaration string, contexts []string) error {
+	params := map[string]interface{}{"functionDeclaration": functionDeclaration}
+	if len(contexts) > 0 {
+		params["contexts"] = contexts
+	}
+	_, err := c.Call(ctx, "script.addPreloadScript", params)
+	return err
+}
+
 // UnsubscribeEvents stops the browser sending the named events.
 func UnsubscribeEvents(ctx context.Context, c *Conn, events []string) error {
 	_, err := c.Call(ctx, "session.unsubscribe", map[string]interface{}{"events": events})

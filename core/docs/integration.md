@@ -41,7 +41,7 @@ One `Runtime` + `Page` + `ChromeProcess` per worker; register `CALL GO` handlers
 
 ## MCP server (Claude Desktop, Claude Code)
 
-`manul mcp` serves the engine to any client of the Model Context Protocol over stdio. It gives five tools: `step` (one line of the DSL), `map` (the labelled controls of the page, iframes included), `read` (one labelled value), `read_text` (prose, by CSS region) and `run_hunt` (a whole script). The browser starts with the first tool call and closes when the client goes away; `step` and `run_hunt` are marked destructive, so a client that asks before acting asks before them.
+`manul mcp` serves the engine to any client of the Model Context Protocol over stdio. It gives five tools: `step` (one line of the DSL), `map` (the labelled controls of the page, iframes included), `read` (one labelled value), `read_text` (prose, by CSS region), `run_hunt` (a whole script) and `suite_guide` (how to build a test suite on Manul: layout, configuration, shared blocks, environments and secrets, CI, with an example project the e2e suite runs). The `build_test_suite` prompt starts that work: in Claude Code it is `/mcp__manul-browser__build_test_suite <url>`, in Claude Desktop the connector's entry in the attach menu. The browser starts with the first tool call that needs one and closes when the client goes away; `step` and `run_hunt` are marked destructive, so a client that asks before acting asks before them.
 
 **Claude Desktop** — in `claude_desktop_config.json`:
 

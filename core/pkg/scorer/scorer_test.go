@@ -37,7 +37,9 @@ func TestSignificantWords_CountsRunesNotBytes(t *testing.T) {
 func TestContainsQuery_WantsThePhraseNotAWordOfIt(t *testing.T) {
 	sentence := dom.ElementSnapshot{Tag: "p", VisibleText: "Elements (e.g., checkbox, input field) change."}
 	sentence.Normalize()
-	if !MatchesQuery("A checkbox", &sentence) {
+	// It shares the query's word. (MatchesQuery once said yes here too, but
+	// only because, with the role word set aside, "a" was inside "change".)
+	if wordOverlap("a checkbox", sentence.NormText) <= 0.5 {
 		t.Fatal("precondition: the sentence is a word-overlap match")
 	}
 	if ContainsQuery("A checkbox", &sentence) {

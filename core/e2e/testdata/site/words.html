@@ -1,0 +1,14 @@
+<!doctype html><html><head><title>Search results</title></head>
+<body style="font-family:sans-serif">
+<!-- YouTube's results page: a search box that still holds the query, filter
+     tabs, and no 'All' among them. "all" is inside "Small" and "Install":
+     CLICK the 'All' tab clicked the search box and passed. -->
+<form><input name="search_query" aria-label="Search" value="Elderly Woman Behind the Counter in a Small Town"></form>
+<div role="tablist"><span role="tab">Videos</span> <span role="tab">Shorts</span></div>
+<p><button onclick="out.textContent='Installed'">Install</button></p>
+<h2>Товари</h2>
+<p><a href="#" onclick="out.textContent='Opened the products'">Products</a>
+   <a href="#" onclick="out.textContent='Відкрито товари'">Товари зі знижкою</a></p>
+<p id="out"></p>
+<script>var out = document.getElementById('out');</script>
+</body></html>

@@ -506,6 +506,13 @@ func EmulateFocus(ctx context.Context, c *Conn) error {
 	return err
 }
 
+// AddScriptOnNewDocument has Chrome run source in every document the page
+// loads from now on, before any script of the document's own.
+func AddScriptOnNewDocument(ctx context.Context, c *Conn, source string) error {
+	_, err := c.Call(ctx, "Page.addScriptToEvaluateOnNewDocument", map[string]interface{}{"source": source})
+	return err
+}
+
 // PausedRequest is a request Chrome is holding until it is told what to do.
 type PausedRequest struct {
 	ID      string

@@ -25,7 +25,7 @@ An agent has to *see* a page before it can act. Playwright MCP shows it an acces
 | --- | ---: | ---: | --- |
 | Seeing a page — 8 pages, from a local fixture to Wikipedia and MDN | 258 – 60,580 | 29 – 3,288 | **1.7–18× fewer** (1.7–8.9× with no budget on `map`) |
 | A whole task — sign in, add to cart, check the cart on Sauce Demo | 4,314 (10 calls) | 570 (9 calls) | **7.6× fewer** |
-| Tool definitions and instructions, sent with every request | 4,484 | 1,165 | **3.8× fewer** |
+| Tool definitions and instructions, sent with every request | 4,484 | 1,322 | **3.4× fewer** |
 
 A snapshot and a map do not hold the same thing — the snapshot also carries the page's text — and the method, the caveats and a script to rerun it all are in [Token efficiency](docs/token-efficiency.md).
 
@@ -214,7 +214,7 @@ claude mcp add manul-browser -- manul mcp  # Claude Code
 { "mcpServers": { "manul-browser": { "command": "manul", "args": ["mcp"] } } }
 ```
 
-The second is Claude Desktop's `claude_desktop_config.json`. `manul mcp` gives an MCP client five tools — `step`, `map`, `read`, `read_text`, `run_hunt` — over stdio, opens the browser with the first call and closes it when the client goes away. Flags such as `--browser firefox`, `--headless`, `--user-data-dir` and `--cdp` go after `mcp`. See [Integration](docs/integration.md#mcp-server-claude-desktop-claude-code) and [`MANUL_MCP_CONTRACT.md`](../spec/contracts/MANUL_MCP_CONTRACT.md).
+The second is Claude Desktop's `claude_desktop_config.json`. `manul mcp` gives an MCP client six tools over stdio — `step`, `map`, `read`, `read_text`, `run_hunt`, and `suite_guide`, which tells Claude how to build a test suite on Manul — and a `build_test_suite` prompt. It opens the browser with the first call that needs it and closes it when the client goes away. Flags such as `--browser firefox`, `--headless`, `--user-data-dir` and `--cdp` go after `mcp`. See [Integration](docs/integration.md#mcp-server-claude-desktop-claude-code) and [`MANUL_MCP_CONTRACT.md`](../spec/contracts/MANUL_MCP_CONTRACT.md).
 
 ### Agent commands — drive the engine from an external LLM
 
@@ -328,7 +328,7 @@ The same runtime and the same DSL serve four use cases:
 - **The same page on both engines** — Chrome and Firefox ask for the same language (`locale`, default `en-US`), and every hunt in `e2e/` runs on both in CI.
 - **Explainability** — `--explain` prints top-5 candidate rankings with per-channel score breakdowns, and `explain-next` previews the scoring of a step before it runs.
 - **Interactive debugger** — `--debug` pauses before every step with a browser modal UI; breakpoint lines (`--break-lines`); `explain-next` previews the scoring for the upcoming (or an overridden) step without executing it.
-- **MCP server** — `manul mcp` serves the engine to Claude Desktop, Claude Code and any MCP client: five tools, plain-language answers, a fifth of Playwright MCP's per-request overhead.
+- **MCP server** — `manul mcp` serves the engine to Claude Desktop, Claude Code and any MCP client: six tools, plain-language answers, under a third of Playwright MCP's per-request overhead, and a guide that lets Claude build a whole test suite.
 - **Embeddable agent API (`pkg/agent`)** — `agent.Session` owns Chrome and exposes compact, agent-friendly calls: `Read` (zero-scan), `ReadText`, `Step`/`Run` (typed `Reason` + `Near` candidates), `Map` (budgeted scan). CLI `read` / `run-step --compact` are thin wrappers over it.
   ```go
   import "github.com/alexbeatnik/manul-browser/core/pkg/agent"
@@ -352,7 +352,7 @@ The same runtime and the same DSL serve four use cases:
 
 ```
 cmd/manul           CLI entry point → produces `manul` binary
-pkg/mcp             MCP server over stdio (`manul mcp`): five tools over pkg/agent
+pkg/mcp             MCP server over stdio (`manul mcp`): six tools over pkg/agent, the suite guide
 pkg/agent           Embedding facade: agent.Session over runtime/cdp/scorer —
                     Launch/Attach/Connect (owns Chrome), Read/ReadText/Step/Run/Map
 pkg/cdp             Low-level CDP WebSocket transport and domain wrappers (Chromium)

@@ -1,0 +1,19 @@
+@title: An action that asks the server first is waited for until the page shows the answer
+# expect-output: products=[2 in Manuls]
+# expect-output: total=[24.50]
+# expect-output: price=[$24.50]
+STEP 1: Enter asks the server, and the address changes when it answers
+    NAVIGATE to @SITE@/spa_late.html
+    FILL 'Search' field with 'manul'
+    PRESS ENTER
+    EXTRACT the 'Products' into {products}
+    PRINT "products=[{products}]"
+STEP 2: A click that only asks the server leaves the address where it was
+    CLICK the 'Add to cart' button
+    EXTRACT the 'Cart total' into {total}
+    PRINT "total=[{total}]"
+STEP 3: A click that asks the server, then goes to another page
+    CLICK the 'Check out' button
+    EXTRACT the 'Price' into {price}
+    PRINT "price=[{price}]"
+DONE.

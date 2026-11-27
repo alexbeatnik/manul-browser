@@ -1966,38 +1966,6 @@ func (rt *Runtime) armNavigationWatch(ctx context.Context) {
 	_, _ = rt.page.EvalJS(ctx, pagejs.ArmNavigationWatch)
 }
 
-// settleNavigation waits, no longer than nav_timeout, for a navigation the
-// last action set off to land, and for the new document to load.
-//
-// A SELECT whose change handler reloads the page waited for nothing, and the
-// FILL after it typed into the old document: on a slow server it was still
-// there, "complete", until the response came and replaced it — empty field,
-// green step. An evaluation that fails is a document in transit, so it counts
-// as still leaving; one that answers nothing useful (no watch armed) as not.
-func (rt *Runtime) settleNavigation(ctx context.Context) {
-	limited, cancel := rt.withNavTimeout(ctx)
-	defer cancel()
-	for {
-		raw, err := rt.page.EvalJS(limited, pagejs.NavigationState)
-		if err == nil && strings.TrimSpace(string(raw)) != "1" {
-			break
-		}
-		// A page that cannot be evaluated is usually one in transit — or one
-		// whose tab the action closed: a sign-in popup's "Authorize" does,
-		// and the step waited out nav_timeout for it to come back.
-		if t, ok := rt.page.(browser.Tabbed); err != nil && ok && t.TabClosed(limited) {
-			return
-		}
-		select {
-		case <-limited.Done():
-			return
-		case <-time.After(100 * time.Millisecond):
-		}
-	}
-	_ = rt.page.WaitForLoad(limited)
-	rt.settleRoute(limited)
-}
-
 // withNavTimeout bounds ctx by nav_timeout. Zero means no limit, which is
 // also what a Runtime built from an empty Config gets.
 func (rt *Runtime) withNavTimeout(ctx context.Context) (context.Context, context.CancelFunc) {

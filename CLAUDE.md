@@ -69,11 +69,16 @@ JavaScript lives in `pkg/pagejs` precisely so the two backends cannot grow
 their own dialects of FILL or CHECK. A behaviour that belongs to the page goes
 there; only framing belongs in `pkg/cdp` or `pkg/bidi`.
 
-**MCP is a protocol front too.** `manul mcp` (`pkg/mcp`) serves five tools over
+**MCP is a protocol front too.** `manul mcp` (`pkg/mcp`) serves six tools over
 `agent.Session` and the `pkg/agent` renderers; like `serve` it decides nothing
 about scoring, the DSL or the browser, and stdout is its protocol. Its tests
 hold `tools/list` to the tools block of `MANUL_MCP_CONTRACT.md`, so a tool
-changed in one and not the other fails `go test`.
+changed in one and not the other fails `go test`. `suite_guide` returns
+`pkg/mcp/suite_guide.md`, compiled in: how to build a test suite, with a
+whole example project whose files are fenced with their paths. The unit tests
+parse every one of them and check its config keys; `e2e` runs the project
+against `examples/quickstart/site`. Changing the DSL, the CLI or the config in
+a way the guide describes fails one of those, which is the point.
 
 **A declared verb must be executable.** `pkg/runtime` carries a guard test that
 walks every `CommandType` and fails on "not yet implemented". `WAIT FOR` and
@@ -204,11 +209,28 @@ box changes the address with `pushState` and asks the server for the results:
 no new document, no `beforeunload`, `complete` throughout. The DOM did not
 change at all for the 600 ms the request took, so waiting for it to go quiet
 returns on the old page; the map after the step showed the search suggestions
-and no results. `settleRoute` waits, when the address moved, for the
-`fetch`/XHR requests the page started since `ArmNavigationWatch` and then for
-200 ms without a DOM change, at most 5s. It counts only requests made through
-`window.fetch` at call time and `XMLHttpRequest`; an app that changes its
-address only after its request returns is not seen moving.
+and no results. Rozetka was the other way round: the request first, and the
+address only when it answered, so the step returned on the old address; and
+Add to cart leaves the address alone and still changes the total.
+`settleNavigation` (`pkg/runtime/route.go`) waits for the `fetch`/XHR
+requests the action started — those begun between `ArmNavigationWatch` and
+`CloseActionWindow`, and any after the address moved, so a background poll
+does not count — at most 5s, and then for 200 ms without a DOM change, at
+most 1s. An action that started none and went nowhere waits for nothing. The
+count (`pagejs.RequestWatchFunction`) is a preload script on every page,
+`Page.addScriptToEvaluateOnNewDocument` and `script.addPreloadScript`: an
+app that keeps the `fetch` it found at start-up, as ofetch does, never calls
+one replaced later, and installed at the first step the count saw nothing.
+
+**A word inside another word is not a match.** Every comparison of a query
+with text was `strings.Contains`, so on YouTube `CLICK the 'All' tab`, on a
+page with no such tab, clicked the search box — it held "… in a small town" —
+and passed. `containsWord` in `pkg/scorer` finds the query where a word
+begins, which keeps the forms a word grows into ('Product' → "Products",
+'товар' → "товари") and drops the ones it hides in. Han, kana and the
+Southeast Asian scripts have no spaces and so no word starts; there any
+character begins one. A test that passed because "a" was inside "change" had
+to be told what it was really checking.
 
 **An empty query matches everything.** Pass 3 ranks the controls beside a
 caption with `""`, and `strings.Contains(x, "")` is true — every labelled field

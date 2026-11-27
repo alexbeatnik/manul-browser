@@ -50,7 +50,7 @@ existed — it just needed a session that outlives a single command.
 | `core/e2e` | Every hunt in it run against real Chrome and Firefox, in CI, on a local site — iframes of any origin, new tabs, drag and drop, late-loading content |
 | `spec/contracts/` | Current, describes shipped behaviour |
 | `spec/protocol.md` | Implemented as `manul serve --stdio` |
-| MCP server | `manul mcp` — five tools for Claude Desktop, Claude Code and any MCP client; packaging as a Claude extension is next (ROADMAP §missing 9) |
+| MCP server | `manul mcp` — six tools and a prompt for Claude Desktop, Claude Code and any MCP client, including a guide to building a test suite; packaging as a Claude extension is next (ROADMAP §missing 9) |
 | `bindings/python` | Working — `manul-browser` on PyPI |
 | `bindings/node` | Working — `manul-browser` on npm |
 | `conformance/` | Not started |

@@ -1,0 +1,10 @@
+@title: A query is matched where a word begins, so longer forms of it still match
+STEP 1: A word and its longer forms
+    NAVIGATE to @SITE@/words.html
+    CLICK the 'Product' link
+    VERIFY that 'Opened the products' is present
+    CLICK the 'Товар' link
+    VERIFY that 'Відкрито товари' is present
+    CLICK the 'Install' button
+    VERIFY that 'Installed' is present
+DONE.

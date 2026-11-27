@@ -140,6 +140,9 @@ func newCDPPage(ctx context.Context, conn *cdp.Conn) (*CDPPage, error) {
 		_ = conn.Close()
 		return nil, fmt.Errorf("browser: emulate focus: %w", err)
 	}
+	// Best effort: without it the count is installed when a step first
+	// arms, and misses only an app that kept its fetch from start-up.
+	_ = cdp.AddScriptOnNewDocument(ctx, conn, "("+pagejs.RequestWatchFunction+")()")
 	return &CDPPage{conn: conn}, nil
 }
 

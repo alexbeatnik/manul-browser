@@ -230,7 +230,7 @@ func TestToolsList_IsTheContractsTools(t *testing.T) {
 	if err := json.Unmarshal(c.read().Result, &res); err != nil {
 		t.Fatal(err)
 	}
-	readOnlyTools := map[string]bool{"map": true, "read": true, "read_text": true}
+	readOnlyTools := map[string]bool{"map": true, "read": true, "read_text": true, "suite_guide": true}
 	var names []string
 	for _, tl := range res.Tools {
 		names = append(names, tl.Name)
@@ -241,7 +241,7 @@ func TestToolsList_IsTheContractsTools(t *testing.T) {
 			t.Errorf("%s: readOnly=%v destructive=%v", tl.Name, tl.Annotations.ReadOnlyHint, tl.Annotations.DestructiveHint)
 		}
 	}
-	if strings.Join(names, ",") != "step,map,read,read_text,run_hunt" {
+	if strings.Join(names, ",") != "step,map,read,read_text,run_hunt,suite_guide" {
 		t.Errorf("tools = %v", names)
 	}
 	// Listing the tools starts no browser.

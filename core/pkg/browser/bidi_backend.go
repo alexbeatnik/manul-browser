@@ -76,6 +76,8 @@ func newBiDiPage(ctx context.Context, conn *bidi.Conn, contextID string) (*BiDiP
 	if err := bidi.SubscribeEvents(ctx, conn, []string{bidi.ResponseCompleted}, []string{contextID}); err != nil {
 		return nil, fmt.Errorf("browser: subscribe %s: %w", bidi.ResponseCompleted, err)
 	}
+	// Best effort, as on CDP: see pagejs.RequestWatchFunction.
+	_ = bidi.AddPreloadScript(ctx, conn, pagejs.RequestWatchFunction, []string{contextID})
 	return &BiDiPage{conn: conn, contextID: contextID}, nil
 }
 

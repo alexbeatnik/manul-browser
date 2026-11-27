@@ -618,6 +618,64 @@ const ArmPointerWatch = `(() => {
 // — the action navigated, which is an answer of its own.
 const PointerReceived = `(window.__manulPointer ? (window.__manulPointer.n > 0 ? 1 : 0) : 2)`
 
+// RequestWatchFunction installs, once per document, what RouteState reads: a
+// count of the fetch and XMLHttpRequest requests an action started that have
+// not come back, and the time the document last changed.
+//
+// A single-page app changes its address without a new document and draws what
+// the address shows when its own request comes back — and Rozetka's search
+// asked the server first and changed the address only when it answered, so
+// for as long as the request took nothing said a step was not done. A request
+// counts when it starts while the action's window is open (from
+// ArmNavigationWatch until CloseActionWindow) or after the address has moved:
+// a page that polls in the background is not the action's business.
+//
+// It is a preload script on every page the engine opens, run before the
+// page's own: an app that keeps the fetch it found at start-up, as ofetch
+// does, never calls one replaced later. ArmNavigationWatch installs it too,
+// for a document that was already there.
+const RequestWatchFunction = `function () {
+	if (window.__manulNet) return;
+	const net = window.__manulNet = {cur: {n: 0, open: false, href: ""}, last: 0};
+	const touch = () => { net.last = performance.now(); };
+	const counted = () => {
+		const a = net.cur;
+		return (a.open || (a.href !== "" && location.href !== a.href)) ? a : null;
+	};
+	try {
+		new MutationObserver(touch).observe(document, {subtree: true, childList: true, characterData: true});
+	} catch (e) {}
+	const fetch0 = window.fetch;
+	if (typeof fetch0 === "function") {
+		try {
+			window.fetch = function () {
+				const p = fetch0.apply(this, arguments);
+				const a = counted();
+				if (a) {
+					a.n++;
+					const done = () => { a.n--; touch(); };
+					p.then(done, done);
+				}
+				return p;
+			};
+		} catch (e) {}
+	}
+	const X = window.XMLHttpRequest;
+	if (X && X.prototype && typeof X.prototype.send === "function") {
+		const send0 = X.prototype.send;
+		try {
+			X.prototype.send = function () {
+				const a = counted();
+				let open = !!a;
+				if (a) a.n++;
+				const done = () => { if (open) { open = false; a.n--; } touch(); };
+				this.addEventListener("loadend", done);
+				try { return send0.apply(this, arguments); } catch (e) { done(); throw e; }
+			};
+		} catch (e) {}
+	}
+}`
+
 // ArmNavigationWatch marks the current document before an action, so that
 // NavigationState can tell afterwards whether the action is replacing it.
 //
@@ -626,10 +684,9 @@ const PointerReceived = `(window.__manulPointer ? (window.__manulPointer.n > 0 ?
 // that was about to go away. beforeunload fires as the navigation starts,
 // before any request is sent.
 //
-// It also notes the address, and from now on counts the requests the page
-// starts (fetch and XMLHttpRequest) and the time of its last change, for
-// RouteState: a single-page app changes its address without a new document,
-// and draws what the new address shows when its own request comes back.
+// It also notes the address and opens the action's window for
+// RequestWatchFunction's count, installing the count when the document has
+// none yet.
 const ArmNavigationWatch = `(() => {
 	window.__manulStay = true;
 	window.__manulLeaving = false;
@@ -638,49 +695,21 @@ const ArmNavigationWatch = `(() => {
 		window.addEventListener("beforeunload", () => { window.__manulLeaving = true; });
 	}
 	window.__manulHref = location.href;
-	if (!window.__manulNet) {
-		const net = window.__manulNet = {cur: {n: 0}, last: 0};
-		const touch = () => { net.last = performance.now(); };
-		try {
-			new MutationObserver(touch).observe(document, {subtree: true, childList: true, characterData: true});
-		} catch (e) {}
-		const fetch0 = window.fetch;
-		if (typeof fetch0 === "function") {
-			try {
-				window.fetch = function () {
-					const p = fetch0.apply(this, arguments);
-					const a = net.cur;
-					a.n++;
-					const done = () => { a.n--; touch(); };
-					p.then(done, done);
-					return p;
-				};
-			} catch (e) {}
-		}
-		const X = window.XMLHttpRequest;
-		if (X && X.prototype && typeof X.prototype.send === "function") {
-			const send0 = X.prototype.send;
-			try {
-				X.prototype.send = function () {
-					const a = net.cur;
-					let open = true;
-					const done = () => { if (open) { open = false; a.n--; touch(); } };
-					a.n++;
-					this.addEventListener("loadend", done);
-					try { return send0.apply(this, arguments); } catch (e) { done(); throw e; }
-				};
-			} catch (e) {}
-		}
-	}
-	window.__manulNet.cur = {n: 0};
+	(` + RequestWatchFunction + `)();
+	window.__manulNet.cur = {n: 0, open: true, href: location.href};
 	window.__manulNet.last = performance.now();
 	return 1;
 })()`
 
+// CloseActionWindow ends the time in which a request the page starts counts
+// as the action's, unless the address moves. It is called once the action
+// has been given its moment to start what it starts.
+const CloseActionWindow = `(window.__manulNet ? (window.__manulNet.cur.open = false, 1) : 0)`
+
 // RouteState says, as JSON, whether the armed document's address has changed
-// (moved), how many of the requests it started since ArmNavigationWatch are
-// still in flight (pending), and for how many milliseconds neither its DOM nor
-// those requests have changed (idle). A document that was never armed has not
+// (moved), how many of the requests RequestWatchFunction counted for the
+// action are still in flight (pending), and for how many milliseconds neither
+// its DOM nor those requests have changed (idle). A document that was never armed has not
 // moved. JSON in a string, because EvalJS hands strings back unquoted.
 const RouteState = `(() => {
 	const net = window.__manulNet;

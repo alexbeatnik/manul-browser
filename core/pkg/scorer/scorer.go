@@ -354,7 +354,7 @@ func textCarries(q string, el *dom.ElementSnapshot) bool {
 		if s == "" || !numbersAgree(q, s) {
 			continue
 		}
-		if strings.Contains(s, q) || wordOverlap(q, s) > 0.5 {
+		if containsWord(s, q) || wordOverlap(q, s) > 0.5 {
 			return true
 		}
 	}
@@ -374,7 +374,7 @@ func ContainsQuery(query string, el *dom.ElementSnapshot) bool {
 		return true
 	}
 	for _, s := range el.AllTextSignals() {
-		if strings.Contains(s, q) {
+		if containsWord(s, q) {
 			return true
 		}
 	}
@@ -428,14 +428,14 @@ func scoreLabel(q string, el *dom.ElementSnapshot) float64 {
 	if el.NormLabelText == q {
 		return 0.8
 	}
-	if strings.Contains(el.NormLabelText, q) {
+	if containsWord(el.NormLabelText, q) {
 		return 0.5
 	}
 	// Word-overlap for multi-word queries like "CPU of Chrome".
 	if sigWords := SignificantWords(q); len(sigWords) >= 2 && numbersAgree(q, el.NormLabelText) {
 		hits := 0
 		for _, w := range sigWords {
-			if strings.Contains(el.NormLabelText, w) {
+			if containsWord(el.NormLabelText, w) {
 				hits++
 			}
 		}
@@ -471,7 +471,7 @@ func placeholderMatch(q, placeholder string) float64 {
 	if placeholder == q {
 		return 0.7
 	}
-	if strings.Contains(placeholder, q) {
+	if containsWord(placeholder, q) {
 		return 0.4
 	}
 	return 0.0
@@ -485,7 +485,7 @@ func scoreAria(q string, el *dom.ElementSnapshot) float64 {
 	if el.NormAriaLabel == q {
 		return 1.0
 	}
-	if strings.Contains(el.NormAriaLabel, q) {
+	if containsWord(el.NormAriaLabel, q) {
 		return 0.55
 	}
 	return 0.0
@@ -792,7 +792,7 @@ func partialMatch(q, s string) float64 {
 	}
 	score := 0.0
 	// Forward containment only: element text contains the query.
-	if strings.Contains(s, q) {
+	if containsWord(s, q) {
 		// Use rune count instead of byte len to handle emojis properly
 		qLen := float64(len([]rune(q)))
 		sLen := float64(len([]rune(s)))
@@ -815,11 +815,56 @@ func wordOverlap(q, s string) float64 {
 	}
 	hits := 0
 	for _, w := range qWords {
-		if strings.Contains(s, w) {
+		if containsWord(s, w) {
 			hits++
 		}
 	}
 	return clamp(float64(hits)/float64(len(qWords)), 0, 1)
+}
+
+// containsWord reports whether q occurs in s where a word of s begins: at the
+// start, or after anything that is not a letter or a digit. "Product" is in
+// "products" and "товар" in "товари", as a word and its longer forms are;
+// "all" is not in "small".
+//
+// Everywhere a query was compared with text, the comparison was a substring
+// one, so on YouTube CLICK the 'All' tab, on a page with no such tab, clicked
+// the search box, which held "… in a small town", and passed.
+//
+// Scripts written without spaces between words — Chinese, Japanese, Thai and
+// their neighbours — have no word starts to find, so there a match may begin
+// at any character. Developer-facing attributes (id, data-qa, class) are not
+// compared this way: their words are joined by conventions of their own.
+func containsWord(s, q string) bool {
+	if q == "" {
+		return true
+	}
+	first, _ := utf8.DecodeRuneInString(q)
+	for i := 0; i <= len(s)-len(q); {
+		j := strings.Index(s[i:], q)
+		if j < 0 {
+			return false
+		}
+		at := i + j
+		if at == 0 || !joinsWord(first) {
+			return true
+		}
+		if prev, _ := utf8.DecodeLastRuneInString(s[:at]); !joinsWord(prev) {
+			return true
+		}
+		_, size := utf8.DecodeRuneInString(s[at:])
+		i = at + size
+	}
+	return false
+}
+
+// joinsWord reports whether r continues a word written before it: a letter or
+// a digit of a script that separates its words with spaces.
+func joinsWord(r rune) bool {
+	if !unicode.IsLetter(r) && !unicode.IsDigit(r) {
+		return false
+	}
+	return !unicode.In(r, unicode.Han, unicode.Hiragana, unicode.Katakana, unicode.Thai, unicode.Lao, unicode.Khmer, unicode.Myanmar)
 }
 
 // numbersAgree reports whether s carries every number q names, each as a

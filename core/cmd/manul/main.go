@@ -213,10 +213,14 @@ func cmdRun(args []string) error {
 	breakLinesStr := fs.String("break-lines", "", "comma-separated line numbers to pause on (debugging)")
 	hooksScript := fs.String("hooks", "", "path to a hook script (.py, .js, or an executable) providing custom controls, CALL HOST handlers and suite hooks")
 	showVersion := fs.Bool("version", false, "show engine version and exit")
+	var flagVars runVarFlag
+	fs.Var(&flagVars, "var", "set a variable for every hunt, replacing a hunt's @var of that name: --var site=https://staging.example.com (repeatable; MANUL_VAR_<name> does the same from the environment)")
 
-	var target string
+	// Every positional is a target. Only the first used to count, so
+	// `manul run tests/*.hunt` ran one file and said nothing of the rest.
+	var targets []string
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, "usage: manul <hunt-file|directory|-> [flags]\n\n  Use '-' as target to read the hunt script from stdin.\n\nFlags:\n")
+		fmt.Fprintf(os.Stderr, "usage: manul <hunt-file|directory|-> [more files or directories] [flags]\n\n  Use '-' as target to read the hunt script from stdin.\n\nFlags:\n")
 		fs.PrintDefaults()
 	}
 
@@ -226,9 +230,7 @@ func cmdRun(args []string) error {
 			return err
 		}
 		if fs.NArg() > 0 {
-			if target == "" {
-				target = fs.Arg(0)
-			}
+			targets = append(targets, fs.Arg(0))
 			remaining = fs.Args()[1:]
 		} else {
 			remaining = nil
@@ -241,9 +243,18 @@ func cmdRun(args []string) error {
 		return nil
 	}
 
-	if target == "" {
+	if len(targets) == 0 {
 		fs.Usage()
 		return fmt.Errorf("hunt file or directory path is required")
+	}
+	for _, t := range targets {
+		if t == "-" && len(targets) > 1 {
+			return fmt.Errorf("'-' reads one hunt from stdin and cannot be combined with other targets")
+		}
+	}
+	runVars, err := collectRunVars(flagVars, os.Environ())
+	if err != nil {
+		return err
 	}
 
 	// stdinHunt is populated when target is "-": read the .hunt script from
@@ -251,22 +262,30 @@ func cmdRun(args []string) error {
 	// working directory in that mode (no source path to anchor against).
 	var stdinHunt *dsl.Hunt
 	var huntFiles []string
-	if target == "-" {
-		h, perr := dsl.Parse(os.Stdin)
+	if targets[0] == "-" {
+		h, perr := dsl.ParseWithVars(os.Stdin, runVars)
 		if perr != nil {
 			return fmt.Errorf("parse stdin: %w", perr)
 		}
 		h.SourcePath = "<stdin>"
 		stdinHunt = h
 	} else {
-		// Collect .hunt files from target.
-		var err error
-		huntFiles, err = collectHuntFiles(target)
-		if err != nil {
-			return err
-		}
-		if len(huntFiles) == 0 {
-			return fmt.Errorf("no .hunt files found in %q", target)
+		// Collect .hunt files from every target, each file once.
+		seenFile := map[string]bool{}
+		for _, t := range targets {
+			files, err := collectHuntFiles(t)
+			if err != nil {
+				return err
+			}
+			if len(files) == 0 {
+				return fmt.Errorf("no .hunt files found in %q", t)
+			}
+			for _, f := range files {
+				if !seenFile[f] {
+					seenFile[f] = true
+					huntFiles = append(huntFiles, f)
+				}
+			}
 		}
 	}
 
@@ -412,7 +431,7 @@ func cmdRun(args []string) error {
 		fmt.Fprintf(os.Stderr, "🐾 Manul: found %d hunt file(s)\n", len(huntFiles))
 		// Pre-parse all hunts so we can decide between sequential and parallel modes.
 		for _, huntFile := range huntFiles {
-			hunt, err := dsl.ParseFile(huntFile)
+			hunt, err := dsl.ParseFileWithVars(huntFile, runVars)
 			if err != nil {
 				logger.Error("parse %q: %v", huntFile, err)
 				parseFailed++
@@ -1269,7 +1288,7 @@ func printUsage() {
 	fmt.Fprintf(os.Stderr, `Manul — deterministic DSL-first browser automation
 
 Usage:
-  manul <target> [flags]               Run .hunt files in target (file or directory)
+  manul <target>... [flags]            Run .hunt files in each target (file or directory)
   manul - [flags]                      Read a single hunt script from stdin
   manul run <target> [flags]           Explicit run subcommand
   manul run-step '<command>' [flags]   Execute a single DSL command (--compact for agent StepOutcome)
@@ -1294,6 +1313,8 @@ Core Flags:
   --json              Output structured JSON result to stdout
   --timeout DURATION  Per-command timeout (default: 5s)
   --tags TAGS         Filter hunt files by tags (comma-separated)
+  --var NAME=VALUE    Set {NAME} for every hunt, over its @var (repeatable;
+                      MANUL_VAR_NAME in the environment does the same)
   --retries N         Retry failed hunt files up to N times (pass on retry = flaky)
   --screenshot MODE   Save a page screenshot under screenshots/ per step:
                       on-fail (default), always, none
@@ -1321,6 +1342,7 @@ Examples:
   manul .
   manul --workers 4 tests/
   manul --tags smoke tests/
+  manul tests/ --var site=https://staging.example.com
   manul run-step "Click the 'Login' button" --cdp http://127.0.0.1:9222
   manul run-step "Click 'Checkout'" --compact --cdp http://127.0.0.1:9222
   manul read "Order total" --cdp http://127.0.0.1:9222

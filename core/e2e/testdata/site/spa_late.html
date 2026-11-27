@@ -1,0 +1,40 @@
+<!doctype html><html><head><title>Catalogue search</title></head>
+<body style="font-family:sans-serif">
+<h1>Catalogue</h1>
+<!-- Rozetka's search: Enter asks the server first, and only when it answers
+     does the app change the address — to the category the search belongs to,
+     whose products come from a second request. Until then the address and the
+     page are the old ones. The app keeps the fetch it found at start-up, as
+     libraries such as ofetch do, so a fetch replaced later is never called. -->
+<form id="search"><label for="q">Search</label> <input id="q"> <button type="submit">Find</button></form>
+<main id="view"><p>Products: <span>none yet</span></p></main>
+<p>Cart total: <span id="total">0.00</span></p>
+<script>
+var http = window.fetch;
+var q = document.getElementById('q');
+var view = document.getElementById('view');
+document.getElementById('search').onsubmit = function (e) {
+  e.preventDefault();
+  http('/slow?ms=700').then(function (r) { return r.text(); }).then(function () {
+    history.pushState({}, '', '?category=manuls&q=' + encodeURIComponent(q.value));
+    return http('/slow?ms=500');
+  }).then(function (r) { return r.text(); }).then(function () {
+    view.innerHTML = '<p>Products: <span>2 in Manuls</span></p>' +
+      '<p>Manul Plush <button id="add">Add to cart</button></p>' +
+      '<p><button id="checkout">Check out</button></p>';
+    // Add to cart only asks the server; the address stays where it is.
+    document.getElementById('add').onclick = function () {
+      http('/slow?ms=700').then(function (r) { return r.text(); }).then(function () {
+        document.getElementById('total').textContent = '24.50';
+      });
+    };
+    // Check out asks the server, then goes to another page.
+    document.getElementById('checkout').onclick = function () {
+      http('/slow?ms=600').then(function (r) { return r.text(); }).then(function () {
+        location.assign('/extract.html');
+      });
+    };
+  });
+};
+</script>
+</body></html>

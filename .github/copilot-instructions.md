@@ -65,7 +65,7 @@ pkg/
                            (SINGLE-GOROUTINE — see "Concurrency contract" below)
   worker/                  Worker, WorkerPool, PortAllocator (parallel execution substrate)
   explain/                 Score breakdown and debugging visualization
-  mcp/                     `manul mcp`: MCP server over stdio — five tools over agent.Session, no engine logic
+  mcp/                     `manul mcp`: MCP server over stdio — six tools over agent.Session and the suite guide, no engine logic
   report/                  Per-hunt HTML reports; GenerateIndex writes an aggregate (Go API only, not the CLI)
   config/                  Runtime configuration (20 fields); config.Default() + JSON + env-var loading
   utils/                   Logger (dual-output: stdout+ANSI, file+stripped) + error types

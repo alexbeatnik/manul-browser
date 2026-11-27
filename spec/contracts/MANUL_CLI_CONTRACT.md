@@ -18,13 +18,14 @@
   "subcommands": [
     {
       "id": "run",
-      "syntax": "manul <path>",
-      "description": "Run .hunt files. Accepts a single .hunt file, a directory of .hunt files, or '.' for CWD.",
+      "syntax": "manul <path> [more paths]",
+      "description": "Run .hunt files. Accepts .hunt files, directories of .hunt files, or '.' for CWD — as many as are given, each file once, in the order given and sorted within a directory. A directory contributes the .hunt files directly in it, not those of its subdirectories.",
       "positionalArgs": [
         {
           "name": "path",
           "required": true,
-          "description": "Path to a .hunt file, a directory containing .hunt files, '.' for the current directory, or '-' to read one hunt from stdin."
+          "repeatable": true,
+          "description": "Path to a .hunt file, a directory containing .hunt files, '.' for the current directory, or '-' to read one hunt from stdin ('-' cannot be combined with other paths). Every path counts: `manul run tests/*.hunt` runs every file the shell expands to. Only the first used to, and the others were dropped without a word."
         }
       ],
       "isDefault": true,
@@ -146,7 +147,7 @@
     {
       "id": "mcp",
       "syntax": "manul mcp [--browser <engine>] [--headless] [--cdp <url> | --attach] [--channel <name>] [--executable-path <path>] [--user-data-dir <dir>] [--locale <tag>] [--verbose]",
-      "description": "Serves the engine to MCP clients (Claude Desktop, Claude Code, any Model Context Protocol client) over stdio: JSON-RPC 2.0 on stdin/stdout, logs on stderr. Five tools — step, map, read, read_text, run_hunt — over the pkg/agent API. The browser is opened by the first tool call (launched, or attached to with --cdp/--attach) and closed at end of input. The protocol, the tools and their annotations are MANUL_MCP_CONTRACT.md.",
+      "description": "Serves the engine to MCP clients (Claude Desktop, Claude Code, any Model Context Protocol client) over stdio: JSON-RPC 2.0 on stdin/stdout, logs on stderr. Six tools — step, map, read, read_text, run_hunt over the pkg/agent API, and suite_guide, how to build a test suite — and the build_test_suite prompt. The browser is opened by the first tool call that drives it (launched, or attached to with --cdp/--attach) and closed at end of input. The protocol, the tools and their annotations are MANUL_MCP_CONTRACT.md.",
       "positionalArgs": []
     }
   ],
@@ -201,6 +202,17 @@
       "default": null,
       "description": "Comma-separated tag filter. Only run .hunt files whose @tags: header contains at least one matching tag.",
       "example": "--tags smoke,regression",
+      "appliesTo": ["run"]
+    },
+    {
+      "id": "var",
+      "flag": "--var",
+      "type": "string",
+      "repeatable": true,
+      "default": null,
+      "envVar": "MANUL_VAR_<name>",
+      "description": "Set a variable for every hunt of the run: --var site=https://staging.example.com is {site}. It is the value of its name from the first line of each hunt on, so a @var: of the same name — or one built from it, such as @var: {login} = {site}/login — does not replace it but falls back to it; an imported @var: is below it too, and a row of @data: is above it. The environment does the same: MANUL_VAR_password=… is {password}, the rest of the name taken as written, so a CI secret reaches a hunt without being written into one. A flag wins over the environment. A name may be written with its braces ({site}=…); a value without a name, or without '=', exits 1 before anything runs.",
+      "example": "--var site=https://staging.example.com --var user=ada",
       "appliesTo": ["run"]
     },
     {

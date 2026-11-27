@@ -280,7 +280,7 @@ Still open:
 
 ### 9. Manul as a Claude app extension
 
-`manul mcp` exists (`MANUL_MCP_CONTRACT.md`): five tools over stdio, tested by
+`manul mcp` exists (`MANUL_MCP_CONTRACT.md`): six tools and a prompt over stdio, tested by
 unit tests against a fake backend and end to end on Chrome and Firefox. What
 is missing is everything between it and a person installing it:
 
@@ -291,8 +291,13 @@ is missing is everything between it and a person installing it:
   Check the current MCPB manifest format and the extension directory's
   submission requirements first: they have changed before (Desktop
   Extensions `.dxt` became MCPB).
-- **A Claude Code plugin** — the MCP server configuration plus the
-  `hunt-authoring` skill.
+- **A Claude Code plugin** — the MCP server configuration. What a skill would
+  have carried, how to build a test suite, the server serves itself
+  (`suite_guide`, the `build_test_suite` prompt), so it reaches Claude Desktop
+  too and cannot fall behind the engine: its example project runs in e2e.
+- **The suite guide has not built a suite for a real app yet.** It was
+  written against the quickstart site and checked there; the first project a
+  person builds with it will show what it leaves out.
 - **Driven by real Claude apps, by hand only.** Claude Desktop started it
   from `claude_desktop_config.json` and a Claude Code session used its tools
   on live sites (books.toscrape, YouTube on Firefox); what that found is
@@ -302,19 +307,26 @@ is missing is everything between it and a person installing it:
 
 ### 10. Single-page apps the route wait does not see
 
-A CLICK, PRESS or SELECT that changes the address without a new document
-now waits for the requests the page started and for its DOM to go still
-(`runtime.settleRoute`, the `spa` hunt). What it does not cover:
+A CLICK, PRESS or SELECT waits for the fetch and XHR requests it started,
+for an address change they lead to, and for the page to draw the answer
+(`runtime.settleNavigation`, the `spa` and `spa_late` hunts): a route that
+changes at once (YouTube), one that changes when the server answers
+(Rozetka), and a click that only asks the server (Add to cart). The count is
+a preload script, so an app's own saved `fetch` is counted too. What it does
+not cover:
 
-- **An app that changes its address after its request returns**, as routers
-  with data loaders can: when the step looks, the address has not moved, so
-  nothing is waited for, and the step reports the old address.
-- **Requests the page makes through a `fetch` it saved before the step**
-  (`const f = window.fetch` at start-up), through a service worker, or
-  through WebSocket. The DOM wait still applies; the request is not seen.
-- **A click that only fetches** (Add to cart) is not waited for at all. The
-  next step waits for its own target, which covers most of it, but not a
-  target that is already there with its old value.
+- **Requests through a service worker's own fetch, WebSocket or
+  EventSource.** The DOM wait still applies; the request is not seen.
+- **The first document of a page the engine did not open**: a tab a click
+  opened, or the tab of a browser it attached to, gets the preload only from
+  its next navigation, and before that the count is installed at the first
+  step, after an app may have kept its `fetch`.
+- **A request held open** — a long poll that starts inside the action's
+  window — costs the action the 5s cap. A page that polls on its own is not
+  counted unless a poll starts in that window.
+- **A frame's own route.** Only the top document is watched; a single-page
+  app inside an iframe is waited for as before.
+- **DOUBLE CLICK and RIGHT CLICK** do not wait for requests at all.
 
 ---
 

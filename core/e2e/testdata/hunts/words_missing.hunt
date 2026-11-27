@@ -1,0 +1,8 @@
+@title: A word inside another word is not a match
+# expect-fail: target not found: "All"
+# On YouTube, CLICK the 'All' tab on a page without one clicked the search
+# box: it held "… in a small town", and "all" is inside "small".
+STEP 1: Click a tab that is not there
+    NAVIGATE to @SITE@/words.html
+    CLICK the 'All' tab
+DONE.

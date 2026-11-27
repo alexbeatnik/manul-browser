@@ -221,6 +221,10 @@ func (s *server) handle(ctx context.Context, line []byte) {
 		s.reply(req.ID, struct{}{})
 	case "tools/list":
 		s.reply(req.ID, map[string]any{"tools": toolList()})
+	case "prompts/list":
+		s.reply(req.ID, map[string]any{"prompts": prompts})
+	case "prompts/get":
+		s.getPrompt(req.ID, req.Params)
 	case "tools/call":
 		if isNotification {
 			return
@@ -268,7 +272,10 @@ func (s *server) initialize(raw json.RawMessage) map[string]any {
 	s.log.Info("mcp: %s %s connected, protocol %s", p.ClientInfo.Name, p.ClientInfo.Version, version)
 	return map[string]any{
 		"protocolVersion": version,
-		"capabilities":    map[string]any{"tools": map[string]any{"listChanged": false}},
+		"capabilities": map[string]any{
+			"tools":   map[string]any{"listChanged": false},
+			"prompts": map[string]any{"listChanged": false},
+		},
 		"serverInfo": map[string]any{
 			"name":       "manul-browser",
 			"title":      "Manul Browser",
@@ -277,6 +284,42 @@ func (s *server) initialize(raw json.RawMessage) map[string]any {
 		},
 		"instructions": instructions,
 	}
+}
+
+// getPrompt answers prompts/get. A prompt that does not exist, or one asked
+// for without an argument it requires, is the client's mistake and a
+// protocol error: a person picked it from a menu, and no model reads the
+// answer.
+func (s *server) getPrompt(id json.RawMessage, raw json.RawMessage) {
+	if len(id) == 0 {
+		return
+	}
+	var p struct {
+		Name      string            `json:"name"`
+		Arguments map[string]string `json:"arguments"`
+	}
+	if err := json.Unmarshal(raw, &p); err != nil || p.Name == "" {
+		s.send(response{ID: id, Error: &rpcError{codeInvalidParams, "prompts/get needs a prompt name"}})
+		return
+	}
+	pr, ok := promptByName(p.Name)
+	if !ok {
+		s.send(response{ID: id, Error: &rpcError{codeInvalidParams, "unknown prompt: " + p.Name}})
+		return
+	}
+	for _, a := range pr.Arguments {
+		if a.Required && strings.TrimSpace(p.Arguments[a.Name]) == "" {
+			s.send(response{ID: id, Error: &rpcError{codeInvalidParams, "prompt " + pr.Name + " needs the argument " + a.Name}})
+			return
+		}
+	}
+	s.reply(id, map[string]any{
+		"description": pr.Description,
+		"messages": []map[string]any{{
+			"role":    "user",
+			"content": map[string]any{"type": "text", "text": pr.render(p.Arguments)},
+		}},
+	})
 }
 
 func (s *server) runCall(c call) {
@@ -313,6 +356,13 @@ func (s *server) runCall(c call) {
 // none. A session whose browser went away — its window closed by the user,
 // the process killed — is opened afresh once, and the tool run again.
 func (s *server) callTool(ctx context.Context, t tool, args json.RawMessage) toolResult {
+	if t.offline {
+		res, err := t.run(ctx, nil, args)
+		if err != nil && res.Content == nil {
+			return errorResult(err.Error())
+		}
+		return res
+	}
 	for attempt := 0; ; attempt++ {
 		b, err := s.session(ctx)
 		if err != nil {

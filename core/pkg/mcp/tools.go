@@ -19,7 +19,8 @@ const instructions = `Manul drives a real browser with plain-English steps and f
 	`Labels do not go stale when the page changes the way references do, so map again only when you are on a new page or cannot find what you need. ` +
 	`Check with step VERIFY that '<text>' is present rather than reading the page again. ` +
 	`Use read for one value, read_text for prose, run_hunt for several steps at once. ` +
-	`Iframes and new tabs need nothing special: a tab a step opens is where the next step runs.`
+	`Iframes and new tabs need nothing special: a tab a step opens is where the next step runs. ` +
+	`To build a test suite that lives in a repository and runs in CI, read suite_guide first.`
 
 type content struct {
 	Type string `json:"type"`
@@ -52,6 +53,9 @@ type tool struct {
 	Annotations annotations    `json:"annotations"`
 
 	run func(ctx context.Context, b Backend, args json.RawMessage) (toolResult, error) `json:"-"`
+	// offline is a tool that needs no browser: calling it opens none, and
+	// its run is given no backend.
+	offline bool
 }
 
 func schema(required []string, props map[string]any) map[string]any {
@@ -149,10 +153,10 @@ var tools = []tool{
 	},
 }
 
-func toolList() []tool { return tools }
+func toolList() []tool { return append(append([]tool{}, tools...), suiteGuideTool) }
 
 func toolByName(name string) (tool, bool) {
-	for _, t := range tools {
+	for _, t := range toolList() {
 		if t.Name == name {
 			return t, true
 		}

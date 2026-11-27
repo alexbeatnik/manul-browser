@@ -13,8 +13,8 @@
   it on Sauce Demo: **570 tokens through `manul mcp`, 916 through Manul's
   CLI, against 4,314 through Playwright MCP — 7.6× and 4.7× fewer**. All three
   finished the task.
-- **Sent with every request.** Manul's five MCP tools and its instructions are
-  **1,165 tokens**; Playwright MCP's 25 tools are **4,484**.
+- **Sent with every request.** Manul's six MCP tools and its instructions are
+  **1,322 tokens**; Playwright MCP's 25 tools are **4,484**.
 - **Why.** Playwright acts on elements through refs taken from a snapshot,
   and every action invalidates every ref. So the agent needs a new snapshot
   before each action that targets an element. Manul acts on a label (`CLICK
@@ -170,11 +170,14 @@ input on every later turn.
 | | Tools | Tokens |
 |---|---:|---:|
 | Playwright MCP: tool definitions | 25 | 4,484 |
-| `manul mcp`: tool definitions | 5 | 997 |
-| `manul mcp`: server instructions | | 168 |
+| `manul mcp`: tool definitions | 6 | 1,134 |
+| `manul mcp`: server instructions | | 188 |
 
 The model receives these with every request, whatever the page, unless the
-client caches them. Manul's CLI is not counted here: how much describing it
+client caches them. The sixth tool, `suite_guide`, was added after the run in
+`results/2026-11-26.json`, which counted five tools at 997 and instructions at
+168. Its definition is 137 tokens; the guide it returns, 2,427, is sent only
+when the model asks for it. Manul's CLI is not counted here: how much describing it
 costs depends on how it is exposed, such as a shell tool or a binding.
 
 ## What this does not show

@@ -264,6 +264,10 @@ type Hunt struct {
 	Exports []string
 	// Vars holds @var declarations and runtime SET values.
 	Vars map[string]string
+	// RunVars are the variables the run gave (`manul run --var`,
+	// MANUL_VAR_*): in Vars from the first line on, and not replaced by a
+	// @var: of the same name.
+	RunVars map[string]string
 	// LazyVars names the @var: declarations that are left as {placeholders}
 	// for the runtime to resolve instead of being written into each line at
 	// parse time: the ones the hunt itself assigns to, and all of them when
@@ -364,11 +368,22 @@ func expandCommands(cmds []Command, blueprints map[string][]Command, visited map
 // Parse reads a .hunt file from r and returns the parsed Hunt.
 // Variable substitution of @var declarations is applied during parsing.
 func Parse(r io.Reader) (*Hunt, error) {
-	return parse(r, false)
+	return parse(r, false, nil)
 }
 
-func parse(r io.Reader, library bool) (*Hunt, error) {
-	hunt := &Hunt{Vars: map[string]string{}}
+// ParseWithVars is Parse with variables given for the whole run — `manul run
+// --var`, MANUL_VAR_*. Each one is the value of its name from the first line
+// on, and a @var: of the same name does not replace it: the file's own value
+// is the default, used when the run gives none.
+func ParseWithVars(r io.Reader, runVars map[string]string) (*Hunt, error) {
+	return parse(r, false, runVars)
+}
+
+func parse(r io.Reader, library bool, runVars map[string]string) (*Hunt, error) {
+	hunt := &Hunt{Vars: map[string]string{}, RunVars: runVars}
+	for k, v := range runVars {
+		hunt.Vars[k] = v
+	}
 	scanner := bufio.NewScanner(r)
 	var lines []string
 	for scanner.Scan() {
@@ -385,7 +400,13 @@ func parse(r io.Reader, library bool) (*Hunt, error) {
 
 // ParseFile reads a .hunt file from the filesystem and returns the parsed Hunt.
 func ParseFile(path string) (*Hunt, error) {
-	return parseFile(path, false)
+	return parseFile(path, false, nil)
+}
+
+// ParseFileWithVars is ParseFile with variables given for the whole run; see
+// ParseWithVars.
+func ParseFileWithVars(path string, runVars map[string]string) (*Hunt, error) {
+	return parseFile(path, false, runVars)
 }
 
 // parseLibrary reads a file another hunt imports. Its @var: values are left
@@ -393,16 +414,16 @@ func ParseFile(path string) (*Hunt, error) {
 // defaults, and written in they could no longer be overridden by the hunt
 // that imports them.
 func parseLibrary(path string) (*Hunt, error) {
-	return parseFile(path, true)
+	return parseFile(path, true, nil)
 }
 
-func parseFile(path string, library bool) (*Hunt, error) {
+func parseFile(path string, library bool, runVars map[string]string) (*Hunt, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("parse %q: %w", path, err)
 	}
 	defer f.Close()
-	hunt, err := parse(f, library)
+	hunt, err := parse(f, library, runVars)
 	if err != nil {
 		return nil, err
 	}
@@ -664,6 +685,10 @@ func parseDirective(hunt *Hunt, line string) error {
 			return nil
 		}
 		varName := strings.Trim(strings.TrimSpace(value[:eqIdx]), "{}")
+		// A value the run gave is not replaced by the file's default.
+		if _, given := hunt.RunVars[varName]; given {
+			return nil
+		}
 		// A value may be built from variables declared above it. Resolved
 		// here, once and in file order, rather than left for whichever order
 		// a later substitution happened to visit the names in.

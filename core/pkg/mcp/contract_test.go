@@ -37,6 +37,13 @@ func TestContract_MatchesTheServer(t *testing.T) {
 				OpenWorldHint   bool `json:"openWorldHint"`
 			} `json:"annotations"`
 		} `json:"tools"`
+		Prompts []struct {
+			Name      string `json:"name"`
+			Title     string `json:"title"`
+			Arguments map[string]struct {
+				Required bool `json:"required"`
+			} `json:"arguments"`
+		} `json:"prompts"`
 	}
 	if err := json.Unmarshal(block[1], &contract); err != nil {
 		t.Fatalf("the contract's JSON does not parse: %v", err)
@@ -45,11 +52,11 @@ func TestContract_MatchesTheServer(t *testing.T) {
 	if !reflect.DeepEqual(contract.ProtocolVersions, protocolVersions) {
 		t.Errorf("protocol versions: contract %v, server %v", contract.ProtocolVersions, protocolVersions)
 	}
-	if len(contract.Tools) != len(tools) {
-		t.Fatalf("contract has %d tools, the server %d", len(contract.Tools), len(tools))
+	if len(contract.Tools) != len(toolList()) {
+		t.Fatalf("contract has %d tools, the server %d", len(contract.Tools), len(toolList()))
 	}
 	for i, want := range contract.Tools {
-		got := tools[i]
+		got := toolList()[i]
 		if got.Name != want.Name || got.Title != want.Title || got.Annotations.Title != want.Title {
 			t.Errorf("tool %d: server %q %q, contract %q %q", i, got.Name, got.Title, want.Name, want.Title)
 			continue
@@ -85,6 +92,26 @@ func TestContract_MatchesTheServer(t *testing.T) {
 		sort.Strings(wantRequired)
 		if !reflect.DeepEqual(required, wantRequired) && (len(required) > 0 || len(wantRequired) > 0) {
 			t.Errorf("%s: required %v, contract %v", got.Name, required, wantRequired)
+		}
+	}
+
+	if len(contract.Prompts) != len(prompts) {
+		t.Fatalf("contract has %d prompts, the server %d", len(contract.Prompts), len(prompts))
+	}
+	for i, want := range contract.Prompts {
+		got := prompts[i]
+		if got.Name != want.Name || got.Title != want.Title {
+			t.Errorf("prompt %d: server %q %q, contract %q %q", i, got.Name, got.Title, want.Name, want.Title)
+			continue
+		}
+		if len(got.Arguments) != len(want.Arguments) {
+			t.Errorf("%s: %d arguments, contract %d", got.Name, len(got.Arguments), len(want.Arguments))
+		}
+		for _, a := range got.Arguments {
+			w, ok := want.Arguments[a.Name]
+			if !ok || w.Required != a.Required {
+				t.Errorf("%s.%s: required=%v, contract %+v (present %v)", got.Name, a.Name, a.Required, w, ok)
+			}
 		}
 	}
 }

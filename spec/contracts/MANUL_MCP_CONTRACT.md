@@ -24,16 +24,18 @@
 
   "connectorName": "manul-browser — the name the server reports, and the one the documentation registers it under (claude mcp add manul-browser, mcpServers.manul-browser). A client shows it, and names the tools after it: mcp__manul-browser__step.",
   "initializeResult": {
-    "capabilities": { "tools": { "listChanged": false } },
+    "capabilities": { "tools": { "listChanged": false }, "prompts": { "listChanged": false } },
     "serverInfo": { "name": "manul-browser", "title": "Manul Browser", "version": "<engine version, e.g. 0.1.6>", "websiteUrl": "https://github.com/alexbeatnik/manul-browser" },
-    "instructions": "A short paragraph on how the tools fit together: map to see the labelled controls, step with one line naming one of them, map again only on a new page, VERIFY to check, read/read_text to read, run_hunt for several steps; iframes and new tabs need nothing special."
+    "instructions": "A short paragraph on how the tools fit together: map to see the labelled controls, step with one line naming one of them, map again only on a new page, VERIFY to check, read/read_text to read, run_hunt for several steps; iframes and new tabs need nothing special; suite_guide before building a test suite."
   },
 
   "methods": {
     "initialize": "As above.",
     "ping": "Answers {}.",
     "tools/list": "The tools below, in this order. Listing them starts no browser.",
-    "tools/call": "Runs one tool. Calls run one at a time, in the order they arrived; ping and tools/list are answered while a call runs.",
+    "tools/call": "Runs one tool. Calls run one at a time, in the order they arrived; ping, tools/list and the prompt methods are answered while a call runs.",
+    "prompts/list": "The prompts below. Listing them starts no browser.",
+    "prompts/get": "One prompt, rendered with its arguments, as one user message. Starts no browser.",
     "notifications/initialized": "Accepted; no answer.",
     "notifications/cancelled": "Cancels the call with that requestId, running or queued. A cancelled call is not answered.",
     "otherRequests": "JSON-RPC error -32601 (method not found).",
@@ -45,13 +47,13 @@
       { "code": -32700, "when": "A line that is not a JSON object. id is null." },
       { "code": -32600, "when": "No jsonrpc \"2.0\" or no method." },
       { "code": -32601, "when": "A request method the server does not have." },
-      { "code": -32602, "when": "tools/call with no name, or a name that is not a tool." }
+      { "code": -32602, "when": "tools/call with no name, or a name that is not a tool; prompts/get with no name, a name that is not a prompt, or without an argument it requires." }
     ],
     "tool": "Everything else is the tool's own answer, with isError true and text that says why: a failed step (with the closest real labels when the scorer saw some), a label that matches nothing, arguments that do not fit the schema, a browser that could not be started. These are meant for the model to read and correct, so they are never protocol errors."
   },
 
   "session": {
-    "opening": "The browser is opened by the first tools/call — launched, or attached to when browser_mode resolves to attach (--cdp, --attach, MANUL_BROWSER_MODE, manul.config.json). A browser that cannot be started fails that call with isError and is tried again by the next.",
+    "opening": "The browser is opened by the first tools/call of a tool that drives it — every tool but suite_guide — — launched, or attached to when browser_mode resolves to attach (--cdp, --attach, MANUL_BROWSER_MODE, manul.config.json). A browser that cannot be started fails that call with isError and is tried again by the next.",
     "closing": "At end of input, or on SIGINT/SIGTERM, a call still running or queued is cancelled and the session is closed: a launched browser and its temp profile are removed; an attached browser is left running.",
     "browserGone": "When a call fails because the browser's connection closed (its window was closed, the process died), the session is opened afresh once and the call run again; the answer starts with a note that pages that were open are gone.",
     "state": "One session per server: one runtime, so DSL variables (EXTRACT … into {x}, SET) and the current tab carry from call to call, as in manul serve."
@@ -124,10 +126,32 @@
       "does": "agent.Session.Run on a .hunt script: one step per line, STEP headings, control flow and @var: allowed.",
       "result": "RunOutcome.RenderForLLM: the verdict, the page now open, each step's outcome, and — when it failed — that the steps after the failed one did not run. isError when the run failed.",
       "refuses": "An empty script."
+    },
+    {
+      "name": "suite_guide",
+      "title": "How to build a test suite",
+      "parameters": {},
+      "annotations": { "readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false },
+      "does": "Returns pkg/mcp/suite_guide.md, compiled into the binary: how to build a test suite on Manul that lives in a repository and runs in CI — learning the app with map and step first, the layout (flat tests/, lib/ beside it), manul.config.json, lib/env.hunt defaults replaced by --var and MANUL_VAR_*, shared blocks, data-driven tests, running and a GitHub Actions job — with a whole example project against examples/quickstart/site. Opens no browser.",
+      "result": "The guide as markdown. Its example project's files are fenced with their paths; the unit tests parse every one, and the e2e suite runs the project.",
+      "refuses": "Any argument."
     }
   ],
 
-  "annotationsRationale": "A step can submit a form, place an order or delete a record, so step and run_hunt are marked destructive and not idempotent; a client that asks before destructive tools asks before them. map, read and read_text only look. Every tool works on the open web (openWorldHint).",
+  "prompts": [
+    {
+      "name": "build_test_suite",
+      "title": "Build a test suite",
+      "arguments": {
+        "url":      { "required": true,  "description": "Address of the app to test." },
+        "journeys": { "required": false, "description": "What to cover; empty means the main journeys found." }
+      },
+      "renders": "One user message: build a Manul test suite for <url> (covering <journeys>), explore with step and map before writing any step, copy labels from map, write the files and run each with manul run until it passes when files and commands are available, otherwise hand the files over; ask for accounts, secrets and the CI address. The suite guide follows in full.",
+      "shownAs": "Claude Code: /mcp__manul-browser__build_test_suite. Claude Desktop: the connector's entry in the attach menu."
+    }
+  ],
+
+  "annotationsRationale": "A step can submit a form, place an order or delete a record, so step and run_hunt are marked destructive and not idempotent; a client that asks before destructive tools asks before them. map, read and read_text only look. Every tool that drives the browser works on the open web (openWorldHint); suite_guide reads nothing but itself.",
   "argumentRule": "Arguments are decoded strictly: an unknown property is a tool error ('bad arguments: …'), so a misspelt parameter is told rather than ignored."
 }
 ```
