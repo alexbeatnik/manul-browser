@@ -451,6 +451,8 @@ type StepOutcome struct {
 	Value string `json:"value,omitempty"`
 	// URL is the page URL after the step ran.
 	URL string `json:"url,omitempty"`
+	// Page is what pages/ calls that page, when it has a name for it.
+	Page string `json:"page,omitempty"`
 	// Reason classifies the outcome — ReasonOK on success.
 	Reason Reason `json:"reason"`
 	// Error is the raw error message when OK is false (for logs/diagnostics).
@@ -493,6 +495,7 @@ func (s *Session) Step(ctx context.Context, instruction string) (StepOutcome, er
 type RunOutcome struct {
 	OK         bool          `json:"ok"`
 	URL        string        `json:"url,omitempty"`
+	Page       string        `json:"page,omitempty"`
 	TotalSteps int           `json:"total_steps"`
 	Passed     int           `json:"passed"`
 	Failed     int           `json:"failed"`
@@ -568,7 +571,7 @@ func (s *Session) run(ctx context.Context, huntScript, sourcePath string) (RunOu
 		for _, r := range hr.Results {
 			so := outcomeFrom(r, errFromResult(r))
 			if so.URL == prevURL {
-				so.URL = ""
+				so.URL, so.Page = "", ""
 			} else if so.URL != "" {
 				prevURL = so.URL
 			}
@@ -576,6 +579,7 @@ func (s *Session) run(ctx context.Context, huntScript, sourcePath string) (RunOu
 		}
 		if url := lastURL(hr.Results); url != "" {
 			out.URL = url
+			out.Page = s.rt.PageName(url)
 		}
 	}
 	return out, runErr
@@ -612,6 +616,7 @@ func outcomeFrom(res explain.ExecutionResult, execErr error) StepOutcome {
 		Action: res.ActionPerformed,
 		Value:  res.ActionValue,
 		URL:    res.PageURL,
+		Page:   res.PageName,
 		Score:  res.WinnerScore,
 		Error:  res.Error,
 	}
@@ -700,6 +705,7 @@ type MapGroup struct {
 // results), then chrome (header / nav / footer), then the rest alphabetically.
 type PageMap struct {
 	URL    string     `json:"url,omitempty"`
+	Page   string     `json:"page,omitempty"`
 	Groups []MapGroup `json:"groups"`
 }
 
@@ -747,7 +753,7 @@ func (s *Session) Map(ctx context.Context, budget MapBudget) (PageMap, error) {
 	}
 
 	url, _ := s.rt.Page().CurrentURL(ctx)
-	pm := PageMap{URL: url}
+	pm := PageMap{URL: url, Page: s.rt.PageName(url)}
 
 	names := make([]string, 0, len(groups))
 	for name := range groups {

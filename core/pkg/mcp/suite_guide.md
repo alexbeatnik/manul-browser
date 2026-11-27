@@ -30,6 +30,7 @@ around protection on a site that is not the user's.
 manul.config.json        how every run starts the browser
 lib/env.hunt             defaults that differ between environments
 lib/account.hunt         shared blocks: sign in, sign out, …
+pages/app.json           names of the app's pages, on any site
 tests/*.hunt             one journey per file; the run target
 data/*.csv               rows for data-driven tests
 mocks/*.json             canned API responses, if any
@@ -89,7 +90,29 @@ MANUL_VAR_password=… manul run tests/ --var site=https://staging.example.com
 A run's value replaces a hunt's own `@var:` of the same name too; a row of
 `@data:` replaces both.
 
-## 5. Shared blocks
+## 5. Page names
+
+`pages/` names the app's pages. With `"site": "*"` the names hold on every
+address the suite runs against, by path:
+
+```json pages/app.json
+{
+  "site": "*",
+  "/login.html": "Login",
+  "/shop.html": "Shop"
+}
+```
+
+Then a hunt goes to a page by its name and checks where it is:
+`NAVIGATE to 'Shop'` opens `/shop.html` on the site open now, or on `{site}`
+from a blank page; `VERIFY that the page is 'Login'` passes when the page's
+name — or, without one, its title — is 'Login'; `IF the page is 'Login':`
+branches on it. Every step's result says which page it ended on. A plain path
+(`/login.html`) matches that path and the ones under it; any other key is a
+regular expression (`.*/orders/\d+`, escaped as JSON wants it in the file). A fragment with a site of its own
+(`"site": "https://admin.example.com/"`) comes before the `*` one.
+
+## 6. Shared blocks
 
 A library names its blocks `STEP <Name>:` and lists them in `@export:`. A test
 imports them and runs one with `USE <Name>`.
@@ -100,7 +123,7 @@ imports them and runs one with `USE <Name>`.
 @export: LogIn, LogOut
 
 STEP LogIn:
-    NAVIGATE to {site}/login.html
+    NAVIGATE to 'Login'
     FILL 'Username' field with '{user}'
     FILL 'Password' field with '{password}'
     CLICK the 'Sign in' button
@@ -111,7 +134,7 @@ STEP LogOut:
     VERIFY that 'Sign in' is present
 ```
 
-## 6. Tests
+## 7. Tests
 
 One journey per file, and each one stands alone: it starts with `NAVIGATE` or
 a `USE` that does, and never relies on another test having run first.
@@ -146,6 +169,7 @@ STEP 1: Try a wrong password
     CLICK the 'Sign in' button
     VERIFY that 'Invalid username or password' is present
     VERIFY that 'Welcome' is NOT present
+    VERIFY that the page is 'Login'
 
 DONE.
 ```
@@ -157,7 +181,8 @@ DONE.
 @import: * from '../lib/env.hunt'
 
 STEP 1: Add two products
-    NAVIGATE to {site}/shop.html
+    NAVIGATE to 'Shop'
+    VERIFY that the page is 'Shop'
     CLICK the 'Add to cart' button NEAR 'Manul Plush'
     VERIFY that 'Added Manul Plush' is present
     CLICK the 'Add to cart' button NEAR 'Snow Boots'
@@ -212,7 +237,7 @@ How to write the steps:
   after a test's steps, a teardown even when a step failed.
 - `#` starts a comment; `DONE.` ends the file.
 
-## 7. Run it
+## 8. Run it
 
 Run every test you write, and the whole suite at the end:
 
@@ -231,7 +256,7 @@ saved under `screenshots/`; `--explain` prints which element each step chose
 and why. If a label stopped matching, open the page and `map` it again: the
 app's text changed, not the engine.
 
-## 8. CI
+## 9. CI
 
 `pip install manul-browser` installs the `manul` command; `npm install -g
 manul-browser` does too. GitHub's Ubuntu runners have Chrome.

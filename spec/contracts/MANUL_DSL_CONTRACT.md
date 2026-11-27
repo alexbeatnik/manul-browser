@@ -84,7 +84,7 @@
       "uiText": "NAVIGATE to ''",
       "snippet": "NAVIGATE to ${1:url}",
       "regex": "\\bNAVIGATE\\b",
-      "description": "Navigates the browser to a specific URL and waits for the page to finish loading, for at most nav_timeout (30s by default). A navigation the browser could not make — a host that does not resolve, a refused connection — fails the step with the browser's own error, on both backends. A plain http:// URL is loaded as given: Chromium is launched with its HTTPS-First and HTTPS-Upgrades features off, which from Chrome 154 otherwise refuse an http-only site with net::ERR_BLOCKED_BY_CLIENT. When the time runs out, a document that has already been parsed is carried on with and a warning logged: it is a usable page held up by a resource that may never arrive. One that has not been parsed fails the step with a navigation timeout.",
+      "description": "Navigates the browser to a specific URL and waits for the page to finish loading, for at most nav_timeout (30s by default). A navigation the browser could not make — a host that does not resolve, a refused connection — fails the step with the browser's own error, on both backends. A plain http:// URL is loaded as given: Chromium is launched with its HTTPS-First and HTTPS-Upgrades features off, which from Chrome 154 otherwise refuse an http-only site with net::ERR_BLOCKED_BY_CLIENT. When the time runs out, a document that has already been parsed is carried on with and a warning logged: it is a usable page held up by a resource that may never arrive. One that has not been parsed fails the step with a navigation timeout. NAVIGATE to '<page name>' goes to the address pages/ gives that name — a key that is a whole address, a plain path under its site, or the site itself for its Domain name — when pages/ has a page of that name; anything else is an address, as it always was. A name pages/ gives several addresses (the same page on localhost and on staging) goes to the one on the site open now, and fails the step when that does not decide it. A quoted target with a space in it that pages/ does not name fails with failure_reason not_found.",
       "category": "navigation"
     },
     {
@@ -290,6 +290,15 @@
       "category": "assertion"
     },
     {
+      "id": "verify_page",
+      "label": "VERIFY PAGE",
+      "uiText": "VERIFY that the page is ''",
+      "snippet": "VERIFY that the page is ${1|NOT ,|}'${2:page name}'",
+      "regex": "^VERIFY\\s+(?:THAT\\s+)?(?:THE\\s+)?PAGE\\s+IS\\s+(NOT\\s+)?['\"]",
+      "description": "Asserts which page is open: VERIFY [that] [the] page is [NOT] '<name>'. The name is the one pages/ gives the address (MANUL_CONFIG_CONTRACT.md pagesRegistry), or the page's title, compared case-insensitively with runs of whitespace as one space; an Auto: placeholder is not a name. It looks again until the step timeout, as a text VERIFY does, because a single-page app's route may still be on its way. A failure says what the page is: its name in pages/, its title and its address. Parsed ahead of the text forms, which would look for the name as text on the page. A dry run (what-if) counts it as a system step.",
+      "category": "assertion"
+    },
+    {
       "id": "verify_softly",
       "label": "VERIFY SOFTLY",
       "uiText": "VERIFY SOFTLY that '' is present",
@@ -468,7 +477,7 @@
       "uiText": "IF button 'Save' exists:",
       "snippet": "IF ${1:condition}:\n        ${2:action}",
       "regex": "^\\s*(?:\\d+\\.\\s*)?IF\\b.+:\\s*$",
-      "description": "Block-style conditional branching. Body lines are indented by 4 extra spaces. Supports ELIF and ELSE branches, in the mission body and inside [SETUP] / [TEARDOWN] alike. Nesting supported. Conditions: element exists, text present, variable comparison/contains/truthy; their keywords are case-insensitive ('is NOT present') and read outside the quotes, so a label or a compared value may contain them. The target may be in single or double quotes and may be a {placeholder}. 'not exists' and 'does not exist' are the same negation. An element counts as existing only when it carries the target itself, not merely because it ranked first.",
+      "description": "Block-style conditional branching. Body lines are indented by 4 extra spaces. Supports ELIF and ELSE branches, in the mission body and inside [SETUP] / [TEARDOWN] alike. Nesting supported. Conditions: element exists, text present, [the] page is [not] '<name>' (as VERIFY that the page is asks it, at one look), variable comparison/contains/truthy; their keywords are case-insensitive ('is NOT present') and read outside the quotes, so a label or a compared value may contain them. The target may be in single or double quotes and may be a {placeholder}. 'not exists' and 'does not exist' are the same negation. An element counts as existing only when it carries the target itself, not merely because it ranked first.",
       "category": "control_flow"
     },
     {

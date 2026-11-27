@@ -109,3 +109,24 @@ func TestDescribePageChange(t *testing.T) {
 		t.Errorf("change case must show before/after: %q", out)
 	}
 }
+
+// A model is told the page's name in pages/ when it has one, with the
+// address after it, and the address alone otherwise.
+func TestDescribeForLLM_NamesThePage(t *testing.T) {
+	ok := StepOutcome{OK: true, Step: "CLICK 'Sign in'", URL: "https://x/account", Page: "Account"}
+	if out := ok.DescribeForLLM(); !strings.Contains(out, "the page is now Account (https://x/account)") {
+		t.Errorf("success: %q", out)
+	}
+	miss := StepOutcome{OK: false, Step: "CLICK 'Pay'", Reason: ReasonNotFound, URL: "https://x/cart", Page: "Cart"}
+	if out := miss.DescribeForLLM(); !strings.Contains(out, "The page open now is Cart (https://x/cart).") {
+		t.Errorf("failure: %q", out)
+	}
+	pm := PageMap{URL: "https://x/cart", Page: "Cart", Groups: []MapGroup{{Name: "Main", Elements: []MapElement{{Label: "Pay", Role: "button"}}}}}
+	if out := pm.RenderForLLM(0); !strings.Contains(out, "Current page: Cart (https://x/cart)") {
+		t.Errorf("map: %q", out)
+	}
+	bare := StepOutcome{OK: true, Step: "CLICK 'Sign in'", URL: "https://x/account"}
+	if out := bare.DescribeForLLM(); !strings.Contains(out, "the page is now https://x/account") || strings.Contains(out, "(") {
+		t.Errorf("no name: %q", out)
+	}
+}

@@ -93,7 +93,7 @@ func (r WhatIfResult) FormatReport() string {
 func isWhatIfSystemStep(cmd dsl.Command) bool {
 	switch cmd.Type {
 	case dsl.CmdNavigate, dsl.CmdWait, dsl.CmdWaitFor, dsl.CmdWaitForResponse,
-		dsl.CmdScroll, dsl.CmdPress, dsl.CmdPrint, dsl.CmdScreenshot:
+		dsl.CmdScroll, dsl.CmdPress, dsl.CmdPrint, dsl.CmdScreenshot, dsl.CmdVerifyPage:
 		return true
 	case dsl.CmdSet:
 		return cmd.SetVar != ""

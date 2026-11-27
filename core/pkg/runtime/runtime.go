@@ -9,6 +9,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -459,6 +460,7 @@ func (rt *Runtime) executeCommandOnce(ctx context.Context, cmd dsl.Command) (res
 	defer func() {
 		if pageURL, urlErr := rt.page.CurrentURL(ctx); urlErr == nil {
 			res.PageURL = pageURL
+			res.PageName = rt.pages.PageName(pageURL)
 		}
 		res.Duration = time.Since(start)
 		res.DurationMS = res.Duration.Milliseconds()
@@ -467,6 +469,15 @@ func (rt *Runtime) executeCommandOnce(ctx context.Context, cmd dsl.Command) (res
 	switch cmd.Type {
 	case dsl.CmdNavigate:
 		url := rt.resolveVariables(cmd.URL)
+		// NAVIGATE to 'Login Page': a page pages/ has a name for.
+		if addr, named, perr := rt.pageAddress(ctx, url); perr != nil {
+			err = perr
+			res.FailureReason = explain.ReasonNotFound
+			break
+		} else if named {
+			res.TargetQuery = url
+			url = addr
+		}
 		res.ActionValue = url
 		err = rt.navigate(ctx, url)
 		if err == nil {
@@ -1327,6 +1338,9 @@ func (rt *Runtime) executeCommandOnce(ctx context.Context, cmd dsl.Command) (res
 	case dsl.CmdVerifyVisual:
 		err = rt.verifyVisual(ctx, cmd, &res)
 
+	case dsl.CmdVerifyPage:
+		err = rt.verifyPage(ctx, cmd, &res)
+
 	case dsl.CmdVerify:
 		// Lightweight text presence check via dedicated probe with a small retry loop
 		target := rt.resolveVariables(cmd.VerifyText)
@@ -1765,6 +1779,10 @@ func classifyFailure(ctx context.Context, cmd dsl.Command, err error) explain.Fa
 	return explain.ReasonActionFailed
 }
 
+// reConditionPage matches an IF/WHILE condition [the] page is [not] '…' with
+// its quoted text masked; the group is the not.
+var reConditionPage = regexp.MustCompile(`^(?:the\s+)?page\s+is\s+(not\s+)?['"]`)
+
 func (rt *Runtime) evaluateCondition(ctx context.Context, cond string) (bool, error) {
 	cond = strings.TrimSpace(cond)
 	if cond == "" {
@@ -1818,6 +1836,16 @@ func (rt *Runtime) evaluateCondition(ctx context.Context, cond string) (bool, er
 	// 'Gift is present' would otherwise pick the branch.
 	keywords := strings.ToLower(dsl.MaskQuoted(cond))
 	target := rt.resolveVariables(dsl.FirstQuoted(cond))
+
+	// 4. [the] page is [not] 'Name': what VERIFY that the page is asks, at
+	// one look — a condition does not wait.
+	if m := reConditionPage.FindStringSubmatch(keywords); m != nil {
+		name, title, _, err := rt.pageNow(ctx)
+		if err != nil {
+			return false, err
+		}
+		return pageIs(target, name, title) != (m[1] != ""), nil
+	}
 
 	mode := ""
 	switch {

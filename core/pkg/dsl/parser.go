@@ -23,17 +23,20 @@ import (
 type CommandType string
 
 const (
-	CmdNavigate        CommandType = "NAVIGATE"
-	CmdOpenApp         CommandType = "OPEN_APP"
-	CmdClick           CommandType = "CLICK"
-	CmdDoubleClick     CommandType = "DOUBLE_CLICK"
-	CmdRightClick      CommandType = "RIGHT_CLICK"
-	CmdFill            CommandType = "FILL"
-	CmdType            CommandType = "TYPE"
-	CmdSelect          CommandType = "SELECT"
-	CmdCheck           CommandType = "CHECK"
-	CmdUncheck         CommandType = "UNCHECK"
-	CmdVerify          CommandType = "VERIFY"
+	CmdNavigate    CommandType = "NAVIGATE"
+	CmdOpenApp     CommandType = "OPEN_APP"
+	CmdClick       CommandType = "CLICK"
+	CmdDoubleClick CommandType = "DOUBLE_CLICK"
+	CmdRightClick  CommandType = "RIGHT_CLICK"
+	CmdFill        CommandType = "FILL"
+	CmdType        CommandType = "TYPE"
+	CmdSelect      CommandType = "SELECT"
+	CmdCheck       CommandType = "CHECK"
+	CmdUncheck     CommandType = "UNCHECK"
+	CmdVerify      CommandType = "VERIFY"
+	// CmdVerifyPage is VERIFY that the page is [NOT] '<name>': the page's
+	// name in pages/, or its title, is the one given.
+	CmdVerifyPage      CommandType = "VERIFY_PAGE"
 	CmdVerifySoft      CommandType = "VERIFY_SOFT"
 	CmdVerifyField     CommandType = "VERIFY_FIELD"
 	CmdVerifyVisual    CommandType = "VERIFY_VISUAL"
@@ -964,6 +967,13 @@ func parseCommandLine(line string) Command {
 		cmd.Target, cmd.TypeHint, _ = parseTarget(rest)
 		cmd.InteractionMode = ModeNone
 
+	// ── VERIFY that the page is 'X' ──────────────────────────────────────────
+	// Ahead of the text forms, which would look for the name as text.
+	case reVerifyPage.MatchString(maskedUpper):
+		cmd.Type = CmdVerifyPage
+		cmd.VerifyNegated = reVerifyPage.FindStringSubmatch(maskedUpper)[1] != ""
+		cmd.VerifyText = extractFirstQuoted(stripPrefix(line, "VERIFY "))
+
 	// ── VERIFY FIELD (has text/value/placeholder) ─────────────────────────────
 	// Must come BEFORE the general VERIFY cases.
 	case strings.HasPrefix(upper, "VERIFY ") &&
@@ -1472,6 +1482,10 @@ func parseQualifiers(cmd Command, rest string) Command {
 	}
 	return cmd
 }
+
+// reVerifyPage matches VERIFY [that] [the] page is [NOT] '…' on the line with
+// its quoted text masked; the group is the NOT.
+var reVerifyPage = regexp.MustCompile(`^VERIFY\s+(?:THAT\s+)?(?:THE\s+)?PAGE\s+IS\s+(NOT\s+)?['"]`)
 
 // extractVerifyText parses "that 'X' is [NOT] present/checked/visible/…".
 func extractVerifyText(rest string, negated *bool, state *string) string {

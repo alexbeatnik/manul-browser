@@ -82,7 +82,7 @@
       "parameters": { "step": { "type": "string", "required": true } },
       "annotations": { "readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": true },
       "does": "agent.Session.Step on one line of the DSL (MANUL_DSL_CONTRACT.md). The description lists the common verbs with examples and the qualifiers (NEAR, INSIDE … row with, ON HEADER/FOOTER).",
-      "result": "StepOutcome.DescribeForLLM: 'OK: <step> — the page is now <url>', with a warning and the closest labels after a weak match; 'FAILED: <step>' with the reason and the closest labels otherwise, isError true. A target that is not there (not_found) says nothing was done, that a label taken from map means the page has changed since, and to open what hides it first; one that matches only in part and about equally (ambiguous) says manul did not guess and to quote an exact label. Both end with the page open now. Neither says the label was made up or too vague: on Comfy the label came from map, and on YouTube 'All' was precise, only absent.",
+      "result": "StepOutcome.DescribeForLLM: 'OK: <step> — the page is now <url>', or '<page name> (<url>)' when pages/ names the page, with a warning and the closest labels after a weak match; 'FAILED: <step>' with the reason and the closest labels otherwise, isError true. A target that is not there (not_found) says nothing was done, that a label taken from map means the page has changed since, and to open what hides it first; one that matches only in part and about equally (ambiguous) says manul did not guess and to quote an exact label. Both end with the page open now. Neither says the label was made up or too vague: on Comfy the label came from map, and on YouTube 'All' was precise, only absent.",
       "refuses": "An empty step, and one with several lines (use run_hunt)."
     },
     {
@@ -94,7 +94,7 @@
       },
       "annotations": { "readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": true },
       "does": "agent.Session.Map: the labelled interactive elements, grouped by landmark, the page's own and those of every iframe the engine enters, whose groups are named '<group> (in frame <host>)'.",
-      "result": "PageMap.RenderForLLM: one line per element, \"'<label>' [<role> — <verb>]\", and '… +N more' for a group cut at max_per_group. A page with none says so, and how to go on.",
+      "result": "PageMap.RenderForLLM, under 'Current page: <url>' ('<page name> (<url>)' when pages/ names it): one line per element, \"'<label>' [<role> — <verb>]\", and '… +N more' for a group cut at max_per_group. A page with none says so, and how to go on.",
       "refuses": "A negative max_per_group."
     },
     {

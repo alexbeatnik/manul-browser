@@ -107,6 +107,7 @@
         "action": "string — lowercase command kind (click, fill, navigate…)",
         "value":  "string — value used/extracted (omitempty)",
         "url":    "string — page URL after the step (omitempty)",
+        "page":   "string — what pages/ calls that page, when it names it; never an Auto: placeholder (omitempty, and empty when url is)",
         "reason": "Reason — classifies the outcome; ReasonOK on success",
         "error":  "string — raw error message when ok is false (omitempty)",
         "score":  "float64 — winning candidate score (omitempty when 0)",
@@ -118,6 +119,7 @@
       "json": {
         "ok":          "bool",
         "url":         "string (omitempty)",
+        "page":        "string — pages/'s name for url (omitempty)",
         "total_steps": "int",
         "passed":      "int",
         "failed":      "int",
@@ -139,7 +141,7 @@
     },
     "PageMap": {
       "description": "Landmark-grouped, budgeted view of the current page. Identical shape to the `map` agent JSON. Groups ordered: Page → useful landmarks (Main/forms/results) → chrome (header/nav/footer) → rest alphabetically.",
-      "json": { "url": "string (omitempty)", "groups": "[]MapGroup" }
+      "json": { "url": "string (omitempty)", "page": "string — pages/'s name for url (omitempty)", "groups": "[]MapGroup" }
     },
     "Reason": {
       "type": "string enum",

@@ -234,7 +234,10 @@ func runMap(ctx context.Context, b Backend, raw json.RawMessage) (toolResult, er
 	out := pm.RenderForLLM(0)
 	if out == "" {
 		where := ""
-		if pm.URL != "" {
+		switch {
+		case pm.Page != "" && pm.URL != "":
+			where = " (" + pm.Page + ", " + pm.URL + ")"
+		case pm.URL != "":
 			where = " (" + pm.URL + ")"
 		}
 		return okResult("No labelled interactive elements on this page" + where + ". It may still be loading, or empty: NAVIGATE somewhere, or read_text to see what is there."), nil

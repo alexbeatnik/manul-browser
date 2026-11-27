@@ -102,6 +102,33 @@ An address on a site with no fragment is added as an `Auto:` placeholder — the
 
 This happens on the first `NAVIGATE` to an unmapped site when `auto_annotate` is on — the only time the registry is consulted during a run. The fragment is written to a temporary file and renamed into place, so parallel workers never read one half written.
 
+### A fragment for any site
+
+A suite that runs against localhost and staging names its pages once, by path, with `"site": "*"`. Its keys hold on every http(s) site that no fragment of its own covers; a fragment for a particular site comes first.
+
+```json
+{
+    "site": "*",
+    "/login.html": "Login",
+    "/shop.html": "Shop"
+}
+```
+
+### Using page names in hunts
+
+```hunt
+NAVIGATE to 'Shop'
+VERIFY that the page is 'Shop'
+VERIFY that the page is NOT 'Login'
+IF the page is 'Login':
+    USE LogIn
+```
+
+- `NAVIGATE to '<name>'` goes to the address `pages/` gives the name: a whole-address key, a plain path under its site, or the site itself for its `Domain`. A path of the `*` fragment is put on the site open now, or from a blank page on the hunt's `{site}`. A name with several addresses goes to the one on the site open now; when that does not decide it, the step fails and lists them. A target `pages/` does not name is an address, as before.
+- `VERIFY that the page is '<name>'` passes when the page's name in `pages/` — or, without one, its `document.title` — is the one given, case and spacing aside. It waits like a text VERIFY, for a route still on its way.
+- `IF` / `WHILE` take `[the] page is [not] '<name>'`, at one look.
+- Every step's JSON result carries `page_name`, and the agent and MCP answers say `the page is now Shop (https://…/shop.html)`. An `Auto:` placeholder is never shown as a name.
+
 ### Using page names in custom controls
 
 Custom controls can target specific pages:

@@ -135,7 +135,7 @@
     {
       "id": "run-step",
       "syntax": "manul run-step '<instruction>' [--cdp <url>] [--tab <url-substr>] [--compact]",
-      "description": "Agent command. Attaches over CDP and runs one plain-English DSL instruction against the open page, emitting a compact step-outcome JSON {ok, step, action, value?, url?, reason, error?, score?, near?}. Exit code is non-zero when ok is false. 'near' lists top candidates on failure or a low-confidence (<0.35) match.",
+      "description": "Agent command. Attaches over CDP and runs one plain-English DSL instruction against the open page, emitting a compact step-outcome JSON {ok, step, action, value?, url?, page?, reason, error?, score?, near?}; page is what pages/ calls the page, when it names it. Exit code is non-zero when ok is false. 'near' lists top candidates on failure or a low-confidence (<0.35) match.",
       "positionalArgs": [
         {
           "name": "instruction",

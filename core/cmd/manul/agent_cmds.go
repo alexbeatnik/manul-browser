@@ -135,7 +135,7 @@ func engineSchema() map[string]any {
 			"Follow FILL/TYPE with VERIFY ... has value \"...\".",
 		},
 		"verbs": []schemaVerb{
-			{Verb: "NAVIGATE", Syntax: "NAVIGATE to <url>", Note: "load a page"},
+			{Verb: "NAVIGATE", Syntax: "NAVIGATE to <url>|'<page name>'", Note: "load a page; a name pages/ gives a page goes to its address"},
 			{Verb: "CLICK", Syntax: "Click the '<label>' button|link", Note: "click an element by label"},
 			{Verb: "DOUBLE CLICK", Syntax: "Double-click the '<label>'"},
 			{Verb: "RIGHT CLICK", Syntax: "Right-click the '<label>'"},
@@ -151,6 +151,7 @@ func engineSchema() map[string]any {
 			{Verb: "UPLOAD", Syntax: "Upload '<path>' to '<label>'"},
 			{Verb: "VERIFY", Syntax: "VERIFY '<label>' has value|text \"<expected>\"", Note: "hard assertion"},
 			{Verb: "VERIFY SOFTLY", Syntax: "VERIFY SOFTLY that '<label>' is present", Note: "non-fatal assertion"},
+			{Verb: "VERIFY PAGE", Syntax: "VERIFY that the page is [NOT] '<page name>'", Note: "the name pages/ gives the address, or the title"},
 			{Verb: "VERIFY VISUAL", Syntax: "VERIFY VISUAL '<label>'", Note: "compare the element with its saved baseline image; the first run saves it"},
 			{Verb: "EXTRACT", Syntax: "EXTRACT '<label>' into {var}", Note: "read text into a variable"},
 			{Verb: "WAIT", Syntax: "WAIT <seconds>"},

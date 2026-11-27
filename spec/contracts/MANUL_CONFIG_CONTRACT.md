@@ -262,7 +262,7 @@
     "resolution": [
       "CWD/pages/*.json — writable, directory auto-created if absent. There is no override; the directory is always pages/ under the working directory."
     ],
-    "uses": "auto_annotate log lines and `manul pages`. It is NOT how custom controls find their page: a control's page label is document.title, or a label derived from the URL path when the title is empty (see the hooks contract).",
+    "uses": "Every step's result (page_name), the agent's and MCP's answers and map, VERIFY that the page is '<name>', IF the page is '<name>', NAVIGATE to '<name>', auto_annotate log lines and `manul pages`. Only auto_annotate writes to it; the rest read it, and an 'Auto:' placeholder is not a name to them. The fragments are read again only when one is added, removed or changed. It is NOT how custom controls find their page: a control's page label is document.title, or a label derived from the URL path when the title is empty (see the hooks contract).",
     "fragmentShapes": {
       "lean": {
         "description": "Preferred. site is the explicit site root; remaining keys are pattern→name mappings.",
@@ -272,6 +272,10 @@
           ".*/login": "Login Page",
           "https://example.com/dashboard": "Dashboard"
         }
+      },
+      "anySite": {
+        "description": "A lean fragment whose site is \"*\": its keys hold on every http(s) site that no fragment of its own covers, so a suite run against localhost and staging names its pages once, by path. NAVIGATE to one of its names goes to the path on the site open now, or from a blank page on the hunt's {site}. An address such a fragment covers is never auto-populated.",
+        "example": { "site": "*", "/login.html": "Login", "/shop.html": "Shop" }
       },
       "wrapped": {
         "description": "Back-compat shape mirroring the pre-0.0.9.30 nested form. The single top-level key is the site root.",

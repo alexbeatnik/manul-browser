@@ -5,7 +5,9 @@ package e2e
 import (
 	"bufio"
 	"encoding/json"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -218,8 +220,22 @@ func TestMCP(t *testing.T) {
 			step("CLICK the 'One' link")
 			step("VERIFY that 'Page one' is present")
 
-			// Values and prose.
-			step("NAVIGATE to " + o.site + "/extract.html")
+			// Values and prose, on a page pages/ has a name for: the step and
+			// the map say it, and NAVIGATE goes there by it.
+			if err := os.MkdirAll(filepath.Join(c.cmd.Dir, "pages"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			fragment := `{"site": "` + o.site + `/", "/extract.html": "Order details"}`
+			if err := os.WriteFile(filepath.Join(c.cmd.Dir, "pages", "fixtures.json"), []byte(fragment), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if out := step("NAVIGATE to 'Order details'"); !strings.Contains(out, "the page is now Order details ("+o.site+"/extract.html)") {
+				t.Errorf("NAVIGATE by name:\n%s", out)
+			}
+			if m, _ := c.call("map", map[string]any{"max_per_group": 1}); !strings.Contains(m, "Order details") {
+				t.Errorf("map does not name the page:\n%s", m)
+			}
+			step("VERIFY that the page is 'Order details'")
 			if v, _ := c.call("read", map[string]any{"target": "Price"}); v != "$24.50" {
 				t.Errorf("read 'Price' = %q", v)
 			}

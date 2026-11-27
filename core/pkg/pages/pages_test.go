@@ -260,3 +260,90 @@ func TestRegistry_AutoPopulateNamesTheSiteAfterItsHost(t *testing.T) {
 		t.Errorf("the directory holds %d files, want the one fragment: a write left a temporary behind", len(entries))
 	}
 }
+
+// A step asks for its page's name: the name a person gave, never a
+// placeholder, and nothing is written to find out.
+func TestRegistry_PageNameWritesNothingAndIgnoresPlaceholders(t *testing.T) {
+	dir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "shop.test.json"), []byte(`{"site": "https://shop.test/", "Domain": "Shop", "/login": "Login Page", "/new": "Auto: shop.test/new"}`), 0o644)
+	r := NewRegistry(dir)
+	for url, want := range map[string]string{
+		"https://shop.test/login?next=/": "Login Page",
+		"https://shop.test/other":        "Shop",
+		"https://shop.test/new":          "",
+		"https://unknown.test/":          "",
+		"about:blank":                    "",
+	} {
+		if got := r.PageName(url); got != want {
+			t.Errorf("PageName(%s) = %q, want %q", url, got, want)
+		}
+	}
+	if entries, _ := os.ReadDir(dir); len(entries) != 1 {
+		t.Errorf("PageName wrote to the registry: %d files", len(entries))
+	}
+}
+
+// NAVIGATE to 'Login Page' goes where the registry says the page is.
+func TestRegistry_PagesNamed(t *testing.T) {
+	dir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "shop.test.json"), []byte(`{"site": "https://shop.test/", "Domain": "Shop", "/login": "Login Page", "https://shop.test/cart": "Cart", ".*/p/\\d+": "Product"}`), 0o644)
+	_ = os.WriteFile(filepath.Join(dir, "staging.json"), []byte(`{"site": "https://staging.shop.test/", "/login": "login  page"}`), 0o644)
+	r := NewRegistry(dir)
+	got := r.PagesNamed("Login Page")
+	if strings.Join(got, " ") != "https://shop.test/login https://staging.shop.test/login" {
+		t.Errorf("Login Page = %v", got)
+	}
+	if got := r.PagesNamed("cart"); len(got) != 1 || got[0] != "https://shop.test/cart" {
+		t.Errorf("Cart = %v", got)
+	}
+	if got := r.PagesNamed("Shop"); len(got) != 1 || got[0] != "https://shop.test/" {
+		t.Errorf("Shop (the site's name) = %v", got)
+	}
+	if got := r.PagesNamed("Product"); len(got) != 0 {
+		t.Errorf("a pattern names many pages and so none to go to: %v", got)
+	}
+	if !SameSite("https://shop.test/a?b", "https://shop.test/") || SameSite("https://shop.test/", "https://staging.shop.test/") {
+		t.Error("SameSite")
+	}
+}
+
+// Reading the fragments for every step is waste when none changed; a change
+// is still seen.
+func TestRegistry_ReloadSeesAChangeAndOnlyThen(t *testing.T) {
+	dir := t.TempDir()
+	frag := filepath.Join(dir, "shop.test.json")
+	_ = os.WriteFile(frag, []byte(`{"site": "https://shop.test/", "/a": "One"}`), 0o644)
+	r := NewRegistry(dir)
+	if got := r.PageName("https://shop.test/a"); got != "One" {
+		t.Fatalf("PageName = %q", got)
+	}
+	_ = os.WriteFile(frag, []byte(`{"site": "https://shop.test/", "/a": "Two, renamed"}`), 0o644)
+	if got := r.PageName("https://shop.test/a"); got != "Two, renamed" {
+		t.Errorf("after an edit: %q", got)
+	}
+}
+
+// A suite run against localhost and staging names its pages once, by path,
+// in a fragment for any site; a fragment for a site of its own comes first.
+func TestRegistry_AFragmentForAnySite(t *testing.T) {
+	dir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "app.json"), []byte(`{"site": "*", "/login.html": "Login", "/shop.html": "Shop"}`), 0o644)
+	_ = os.WriteFile(filepath.Join(dir, "admin.json"), []byte(`{"site": "https://admin.test/", "/login.html": "Admin login"}`), 0o644)
+	r := NewRegistry(dir)
+	for url, want := range map[string]string{
+		"http://localhost:8000/login.html":   "Login",
+		"https://staging.test/shop.html?x=1": "Shop",
+		"https://admin.test/login.html":      "Admin login",
+		"about:blank":                        "",
+	} {
+		if got := r.PageName(url); got != want {
+			t.Errorf("PageName(%s) = %q, want %q", url, got, want)
+		}
+	}
+	if got := r.PagesNamed("Login"); len(got) != 1 || got[0] != "/login.html" {
+		t.Errorf("PagesNamed(Login) = %v, want the path for the caller to put on a site", got)
+	}
+	if entries, _ := os.ReadDir(dir); len(entries) != 2 {
+		t.Errorf("a site the any-site fragment covers was auto-populated: %d files", len(entries))
+	}
+}

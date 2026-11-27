@@ -328,6 +328,24 @@ not cover:
   app inside an iframe is waited for as before.
 - **DOUBLE CLICK and RIGHT CLICK** do not wait for requests at all.
 
+### 11. Page objects
+
+Page names are in the DSL (`NAVIGATE to 'Shop'`, `VERIFY that the page is`,
+`IF the page is`, `page_name` in every result) and the registry is
+deterministic. What the review of page objects proposed and is not done:
+
+- **A page as a file.** `pages/login.hunt` with `@page: Login`,
+  `@url: {site}/login.html`, `@expect: 'Sign in'` (how a load is recognised)
+  and the page's actions as exported blocks, used as `USE Login.SignIn`. The
+  registry and the library hunts are two halves of one idea today.
+- **Custom controls by page name.** A control is registered under a page's
+  `document.title`, or a label made from its URL; the registry's name is not
+  consulted.
+- **`BasePage` in the bindings.** The Python and Node demos each carry their
+  own copy of the same class; `assert_loaded` compares the exact title and
+  could ask `VERIFY that the page is` instead, and several steps could go in
+  one `run` call.
+
 ---
 
 ## Suggested order

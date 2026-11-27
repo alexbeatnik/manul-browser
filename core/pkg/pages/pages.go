@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 )
@@ -22,6 +23,10 @@ type Registry struct {
 	mu   sync.RWMutex
 	data map[string]map[string]string // site_root → {pattern → name}
 	dir  string
+	// seen is the fragments' names, sizes and times when they were last
+	// read: a step asks for its page's name, and reading every fragment
+	// again for each one is waste when none has changed.
+	seen string
 }
 
 // NewRegistry creates a Registry backed by *dir*.
@@ -36,7 +41,9 @@ func NewRegistry(dir string) *Registry {
 	return r
 }
 
-// Reload merges every pages/*.json fragment into the in-memory registry.
+// Reload merges every pages/*.json fragment into the in-memory registry. It
+// reads them only when one has been added, removed or changed since the last
+// time; a registry with no directory is empty.
 func (r *Registry) Reload() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -44,8 +51,22 @@ func (r *Registry) Reload() {
 	merged := map[string]map[string]string{}
 	entries, err := os.ReadDir(r.dir)
 	if err != nil {
+		r.data, r.seen = merged, ""
 		return
 	}
+	var sig strings.Builder
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
+			continue
+		}
+		if info, infoErr := e.Info(); infoErr == nil {
+			fmt.Fprintf(&sig, "%s|%d|%d\n", e.Name(), info.Size(), info.ModTime().UnixNano())
+		}
+	}
+	if sig.String() == r.seen && r.data != nil {
+		return
+	}
+	r.seen = sig.String()
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
 			continue
@@ -140,6 +161,81 @@ func (r *Registry) lookup(rawURL string) (string, bool) {
 		return domainName, true
 	}
 	return "", false
+}
+
+// PageName is the name a person gave the page at rawURL in pages/, or "" when
+// there is none — an "Auto:" placeholder is not a name. Unlike
+// LookupPageName it writes nothing: it is asked on every step.
+func (r *Registry) PageName(rawURL string) string {
+	if rawURL == "" || strings.HasPrefix(rawURL, "about:") {
+		return ""
+	}
+	r.Reload()
+	name, ok := r.lookup(rawURL)
+	if !ok || strings.HasPrefix(name, "Auto:") {
+		return ""
+	}
+	return name
+}
+
+// PagesNamed is every address pages/ gives the name: a key that is a whole
+// address, a plain path under its site, or the site itself for its "Domain"
+// name. Keys that are patterns name many addresses and so none to go to. A
+// plain path of the AnySite fragment comes back as the path itself, for the
+// caller to put on the site it means.
+// The name is compared as a person reads it: case and runs of spaces aside.
+// The result is sorted, so the same registry gives the same answer.
+func (r *Registry) PagesNamed(name string) []string {
+	want := foldName(name)
+	if want == "" || strings.HasPrefix(want, "auto:") {
+		return nil
+	}
+	r.Reload()
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	seen := map[string]bool{}
+	var out []string
+	for site, keys := range r.data {
+		root := strings.TrimSuffix(site, "/")
+		for key, n := range keys {
+			if foldName(n) != want {
+				continue
+			}
+			var addr string
+			switch {
+			case site == AnySite && key == "Domain":
+				continue
+			case site == AnySite && isPlainPath(key):
+				addr = key
+			case key == "Domain":
+				addr = site
+			case key == "site":
+				continue
+			case strings.Contains(key, "://"):
+				addr = key
+			case isPlainPath(key):
+				addr = root + key
+			default:
+				continue
+			}
+			if !seen[addr] {
+				seen[addr] = true
+				out = append(out, addr)
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// SameSite reports whether two addresses are on one site: scheme and host.
+func SameSite(a, b string) bool {
+	pa, pb := parseURL(a), parseURL(b)
+	return pa.host != "" && pa.scheme == pb.scheme && pa.host == pb.host
+}
+
+func foldName(s string) string {
+	return strings.Join(strings.Fields(strings.ToLower(s)), " ")
 }
 
 // patternMatches reports whether a registry key names rawURL.
@@ -339,7 +435,15 @@ func dictStringString(v any) map[string]string {
 	return out
 }
 
+// AnySite is the site of a fragment whose pages are on every site: "site":
+// "*". A suite run against localhost and against staging names its pages
+// once, by path. A fragment for a particular site comes first.
+const AnySite = "*"
+
 func belongsToSite(candidateURL, siteRoot string) bool {
+	if siteRoot == AnySite {
+		return strings.HasPrefix(candidateURL, "http://") || strings.HasPrefix(candidateURL, "https://")
+	}
 	c := parseURL(candidateURL)
 	s := parseURL(siteRoot)
 	if c.scheme != s.scheme || c.host != s.host {

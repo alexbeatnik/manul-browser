@@ -28,7 +28,7 @@ func (o StepOutcome) DescribeForLLM() string {
 	if o.OK {
 		fmt.Fprintf(&b, "OK: %s", step)
 		if o.URL != "" {
-			fmt.Fprintf(&b, " — the page is now %s", o.URL)
+			fmt.Fprintf(&b, " — the page is now %s", pageLabel(o.Page, o.URL))
 		}
 		// A "success" with Near populated means the match was weak: the click
 		// landed on the best fuzzy guess, which may be the wrong element.
@@ -72,9 +72,18 @@ func (o StepOutcome) DescribeForLLM() string {
 	// A model that landed somewhere else than it thinks reads this before
 	// it reads the labels.
 	if (o.Reason == ReasonNotFound || o.Reason == ReasonAmbiguous) && o.URL != "" {
-		fmt.Fprintf(&b, "\n  The page open now is %s.", o.URL)
+		fmt.Fprintf(&b, "\n  The page open now is %s.", pageLabel(o.Page, o.URL))
 	}
 	return b.String()
+}
+
+// pageLabel is a page as a model is told of it: its name in pages/, when it
+// has one, with the address after it — "Login Page (https://…/login)".
+func pageLabel(name, url string) string {
+	if name == "" {
+		return url
+	}
+	return name + " (" + url + ")"
 }
 
 // nearLabelList renders Near candidates as quoted, copy-pastable labels with
@@ -99,7 +108,7 @@ func (r RunOutcome) RenderForLLM() string {
 	}
 	fmt.Fprintf(&b, "%s: ran %d step(s) — %d passed, %d failed.", verdict, r.TotalSteps, r.Passed, r.Failed)
 	if r.URL != "" {
-		fmt.Fprintf(&b, " The page now open is: %s", r.URL)
+		fmt.Fprintf(&b, " The page now open is: %s", pageLabel(r.Page, r.URL))
 	}
 	for _, s := range r.Results {
 		b.WriteString("\n")

@@ -31,7 +31,7 @@ func (pm PageMap) RenderForLLM(maxPerGroup int) string {
 	var b strings.Builder
 	b.WriteString("Interactive elements on the page. To act on one, copy the EXACT text in quotes as your target.\n")
 	if pm.URL != "" {
-		fmt.Fprintf(&b, "Current page: %s\n", pm.URL)
+		fmt.Fprintf(&b, "Current page: %s\n", pageLabel(pm.Page, pm.URL))
 	}
 	for _, g := range pm.Groups {
 		if len(g.Elements) == 0 {

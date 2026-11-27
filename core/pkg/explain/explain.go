@@ -138,6 +138,8 @@ type ExecutionResult struct {
 	CommandType string `json:"command_type"`
 	// PageURL is the URL of the page at the time of execution.
 	PageURL string `json:"page_url"`
+	// PageName is what pages/ calls that page, when it has a name for it.
+	PageName string `json:"page_name,omitempty"`
 	// TargetRequired reports whether element resolution was needed for this command.
 	TargetRequired bool `json:"target_required"`
 	// TargetQuery is the plain-English target expression from the DSL command.
