@@ -162,7 +162,8 @@ func TestMCP(t *testing.T) {
 			}
 
 			// A failed step is the tool's answer, with labels to use instead.
-			if out, isErr := c.call("step", map[string]any{"step": "CLICK the 'Pay later' button"}); !isErr || !strings.HasPrefix(out, "FAILED:") {
+			if out, isErr := c.call("step", map[string]any{"step": "CLICK the 'Pay later' button"}); !isErr || !strings.HasPrefix(out, "FAILED:") ||
+				!strings.Contains(out, "The page open now is "+o.site+"/pay.html") || strings.Contains(out, "made up") {
 				t.Errorf("a missing target: isError=%v\n%s", isErr, out)
 			}
 
@@ -203,6 +204,19 @@ func TestMCP(t *testing.T) {
 			step("FILL '" + hint + "' field with 'kettle'")
 			step("CLICK the 'Find' button")
 			step("VERIFY that 'Searching for kettle' is present")
+
+			// Text drawn at font-size 0 is not a label: Allo's colour swatches
+			// were listed as 'hex', and Comfy's rating link as '4.9 4.9 218'.
+			step("NAVIGATE to " + o.site + "/swatches.html")
+			m, _ = c.call("map", map[string]any{})
+			if strings.Contains(m, "'hex'") || strings.Contains(m, "'gradient'") || strings.Contains(m, "4.9 4.9") ||
+				!strings.Contains(m, "'4.9 218' [link — CLICK]") || !strings.Contains(m, "'One' [link — CLICK]") {
+				t.Errorf("map shows text nobody sees, or hides text people do:\n%s", m)
+			}
+			step("CLICK the '4.9 218' link")
+			step("VERIFY that 'Reviews of Manul Plush' is present")
+			step("CLICK the 'One' link")
+			step("VERIFY that 'Page one' is present")
 
 			// Values and prose.
 			step("NAVIGATE to " + o.site + "/extract.html")

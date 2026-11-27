@@ -105,22 +105,29 @@ func ParseProbeResult(raw interface{}) ([]dom.ElementSnapshot, error) {
 		payload = encoded
 	}
 
+	// Each element is decoded on its own. A field of one element that is not
+	// what it should be — YouTube's tabs sent a number for is_selected — used
+	// to fail the snapshot, and with it every step on the page; now it costs
+	// that element only.
 	var wrap struct {
-		URL         string                `json:"url"`
-		Title       string                `json:"title"`
-		VisibleText string                `json:"visible_text"`
-		Elements    []dom.ElementSnapshot `json:"elements"`
+		Elements []json.RawMessage `json:"elements"`
 	}
 	if err := json.Unmarshal(payload, &wrap); err != nil {
 		// Fallback for older probes that returned raw arrays
-		var fallback []dom.ElementSnapshot
+		var fallback []json.RawMessage
 		if err2 := json.Unmarshal(payload, &fallback); err2 != nil {
 			return nil, fmt.Errorf("unmarshal probe result: %w", err)
 		}
 		wrap.Elements = fallback
 	}
 
-	elements := wrap.Elements
+	elements := make([]dom.ElementSnapshot, 0, len(wrap.Elements))
+	for _, raw := range wrap.Elements {
+		var el dom.ElementSnapshot
+		if json.Unmarshal(raw, &el) == nil {
+			elements = append(elements, el)
+		}
+	}
 
 	// Populate normalized fields for scoring.
 	for i := range elements {

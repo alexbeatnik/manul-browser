@@ -43,12 +43,18 @@ func (o StepOutcome) DescribeForLLM() string {
 
 	fmt.Fprintf(&b, "FAILED: %s", step)
 	switch o.Reason {
+	// Neither says the label was made up: on Comfy it was copied from map,
+	// and the page had changed it since. And a target that is simply not on
+	// the page is not "too vague" — 'All' was a precise label, only absent.
 	case ReasonNotFound:
-		b.WriteString("\n  Why: NOTHING on the page matches that target text — the element does not exist (the label was probably made up). " +
-			"Do NOT retry the same text.")
+		b.WriteString("\n  Why: nothing on the page matches that target, so nothing was done. " +
+			"If you copied the label from map, the page has changed since: call map again. " +
+			"If what you want is behind something not open yet — a menu, a tab, a dialog, another page — open that first. " +
+			"The same step unchanged will fail the same way.")
 	case ReasonAmbiguous:
-		b.WriteString("\n  Why: the target text is too vague — no single element matches it clearly. " +
-			"Descriptions like 'first video' or 'the result' never work. Use the EXACT visible text of ONE element, copied verbatim.")
+		b.WriteString("\n  Why: nothing matches that target well — the closest elements match only in part, and about equally, so manul did not guess and nothing was done. " +
+			"The text is probably not on the page as written, or it describes an element ('the first video') instead of quoting it. " +
+			"Quote one element's exact label, as map shows it.")
 	case ReasonTimeout:
 		b.WriteString("\n  Why: the page took too long to respond. It may still have loaded — check what page is open now before retrying.")
 	case ReasonVerifyFailed:
@@ -62,6 +68,11 @@ func (o StepOutcome) DescribeForLLM() string {
 		fmt.Fprintf(&b,
 			"\n  Closest REAL elements on the page: %s. To act on one, copy its quoted text EXACTLY into your next command.",
 			nearLabelList(o.Near))
+	}
+	// A model that landed somewhere else than it thinks reads this before
+	// it reads the labels.
+	if (o.Reason == ReasonNotFound || o.Reason == ReasonAmbiguous) && o.URL != "" {
+		fmt.Fprintf(&b, "\n  The page open now is %s.", o.URL)
 	}
 	return b.String()
 }

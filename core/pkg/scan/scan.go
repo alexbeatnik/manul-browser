@@ -264,6 +264,38 @@ const FULL_SCAN_JS = `() => {
         }
         return '';
     }
+    // The text a person sees in el: its innerText without the text drawn at
+    // font-size 0. Allo writes "hex" into each colour swatch at size 0, and
+    // Comfy's rating link repeats its score in a star at size 0; the map
+    // listed 'hex' five times and '4.9 4.9 218'. It goes text node by text
+    // node, because a container at size 0 whose children set a size of their
+    // own — the way inline-blocks are packed without gaps — shows them all.
+    // The same function is in pkg/heuristics' snapshot probe, so a label the
+    // map gives is the text a step matches.
+    const __manulSizes = new WeakMap();
+    function shownText(el) {
+        const text = el.innerText || el.textContent || '';
+        if (!text.trim() || text.length > 300) return text;
+        let out = text;
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        let node, seen = 0;
+        while ((node = walker.nextNode()) && seen++ < 64) {
+            const t = node.nodeValue.trim();
+            const p = node.parentElement;
+            if (!t || !p) continue;
+            let size = __manulSizes.get(p);
+            if (size === undefined) {
+                const f = parseFloat(getComputedStyle(p).fontSize);
+                size = isNaN(f) ? 16 : f;
+                __manulSizes.set(p, size);
+            }
+            if (size < 1) {
+                const i = out.indexOf(t);
+                if (i >= 0) out = out.slice(0, i) + out.slice(i + t.length);
+            }
+        }
+        return out;
+    }
     function bestLabel(el) {
         const tag  = (el.tagName || '').toUpperCase();
         const bound = labelText(el);
@@ -283,7 +315,7 @@ const FULL_SCAN_JS = `() => {
             return ph.trim();
         }
         // A <select>'s text is its options, not its name.
-        const text = tag === 'SELECT' ? '' : (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+        const text = tag === 'SELECT' ? '' : shownText(el).replace(/\s+/g, ' ').trim();
         if (text && text.length <= 80) return text;
         const title = el.getAttribute('title') || '';
         if (title.trim()) return title.trim();

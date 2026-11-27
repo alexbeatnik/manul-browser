@@ -193,6 +193,39 @@
         return '/' + parts.join('/');
     };
 
+    // The text a person sees in el: its innerText without the text drawn at
+    // font-size 0. Allo writes "hex" into each colour swatch at size 0, and
+    // Comfy's rating link repeats its score in a star at size 0; the map
+    // listed 'hex' five times and '4.9 4.9 218'. It goes text node by text
+    // node, because a container at size 0 whose children set a size of their
+    // own — the way inline-blocks are packed without gaps — shows them all.
+    // The same function is in pkg/scan's map probe, so a label the map gives
+    // is the text a step matches.
+    const __manulSizes = new WeakMap();
+    function shownText(el) {
+        const text = el.innerText || el.textContent || '';
+        if (!text.trim() || text.length > 300) return text;
+        let out = text;
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        let node, seen = 0;
+        while ((node = walker.nextNode()) && seen++ < 64) {
+            const t = node.nodeValue.trim();
+            const p = node.parentElement;
+            if (!t || !p) continue;
+            let size = __manulSizes.get(p);
+            if (size === undefined) {
+                const f = parseFloat(getComputedStyle(p).fontSize);
+                size = isNaN(f) ? 16 : f;
+                __manulSizes.set(p, size);
+            }
+            if (size < 1) {
+                const i = out.indexOf(t);
+                if (i >= 0) out = out.slice(0, i) + out.slice(i + t.length);
+            }
+        }
+        return out;
+    }
+
     // ── Element ID registry ────────────────────────────────────────────────────
 
     // Use expando property to avoid mutating the live DOM with attributes.
@@ -226,7 +259,7 @@
         }
         reg[eid] = el;
 
-        const visibleText = normalize((el.innerText || el.textContent || '').slice(0, 300));
+        const visibleText = normalize(shownText(el).slice(0, 300));
         const labelText   = getLabelText(el);
         const accessibleName = getAccessibleName(el);
 
@@ -286,7 +319,7 @@
             name:           name,
             xpath:          buildXPath(el),
             tag:            tag,
-            input_type:     el.type || '',
+            input_type:     typeof el.type === 'string' ? el.type : '',
             visible_text:   visibleText,
             aria_label:     el.getAttribute('aria-label') || '',
             placeholder:    placeholder,
@@ -296,25 +329,30 @@
             data_testid:    el.getAttribute('data-testid') || el.getAttribute('data-test') || '',
             label_text:     labelText,
             name_attr:      el.getAttribute('name') || '',
-            html_id:        el.id || '',
+            html_id:        el.getAttribute('id') || '',
             class_name:     (typeof el.className === 'string' ? el.className : '') || '',
             icon_classes:   iconClasses,
             role:           el.getAttribute('role') || '',
-            value:          (el.value !== undefined ? el.value : '') || '',
+            value:          typeof el.value === 'string' ? el.value : (typeof el.value === 'number' && el.value !== 0 ? String(el.value) : ''),
             accessible_name: accessibleName,
             ancestors:      ancestors,
             is_visible:     vis,
-            is_disabled:    el.disabled || el.getAttribute('aria-disabled') === 'true',
+            is_disabled:    el.disabled === true || el.getAttribute('aria-disabled') === 'true',
             is_hidden:      !vis,
             is_select:      tag === 'select',
             is_contenteditable: el.contentEditable === 'true' || el.getAttribute('contenteditable') === 'true',
-            is_editable:    !el.disabled && !el.readOnly &&
-                            ((tag === 'input' && !['radio','checkbox','submit','button','image','reset','file','hidden'].includes((el.type || '').toLowerCase())) ||
+            is_editable:    el.disabled !== true && el.readOnly !== true &&
+                            ((tag === 'input' && !['radio','checkbox','submit','button','image','reset','file','hidden'].includes((typeof el.type === 'string' ? el.type : '').toLowerCase())) ||
                              tag === 'textarea' ||
                              el.getAttribute('contenteditable') === 'true' ||
                              (el.getAttribute('role') || '') === 'textbox'),
-            is_checked:     el.checked || el.getAttribute('aria-checked') === 'true',
-            is_selected:    el.selected || el.getAttribute('aria-selected') === 'true',
+            // Read as true or false, never as whatever the element holds:
+            // YouTube's tabs keep the selected tab's index in `selected`, a
+            // component may keep `disabled` as a word, and a number where a
+            // boolean belongs failed the snapshot of the whole page. So do
+            // value and type, which a custom element may hold as anything.
+            is_checked:     el.checked === true || el.getAttribute('aria-checked') === 'true',
+            is_selected:    el.selected === true || el.getAttribute('aria-selected') === 'true',
             is_in_shadow:   inShadow,
             rect: {
                 top:    rect.top,

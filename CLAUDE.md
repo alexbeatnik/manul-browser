@@ -222,6 +222,26 @@ count (`pagejs.RequestWatchFunction`) is a preload script on every page,
 app that keeps the `fetch` it found at start-up, as ofetch does, never calls
 one replaced later, and installed at the first step the count saw nothing.
 
+**An element's properties are whatever it says they are.** The snapshot
+read `el.selected || …`, `el.checked`, `el.disabled` and `el.value` as if every
+element were a native control. YouTube's tabs keep the index of the selected
+tab in `selected`; after a click on 'Videos' it was 1, the probe sent
+`is_selected: 1`, the whole snapshot failed to decode, and every step on the
+page failed with "cannot unmarshal number … of type bool". The probe now sends
+`=== true` for flags and strings for `value`, `type` and `id`, and
+`ParseProbeResult` decodes element by element, so one that still does not fit
+costs only itself.
+
+**A failure message is advice a model follows.** `DescribeForLLM` told the
+model that a label "was probably made up" and to "NOT retry", and that a target
+it could not find was "too vague". On Comfy the label had come from map and the
+page changed it; on YouTube 'All' was a precise label, only absent. Both
+messages sent the model the wrong way. They now say what happened (nothing was
+done), what usually causes it (the page changed since map; something is not
+open yet; the text is not on the page as written) and which page is open. The
+runtime's raw errors stay as they are — `core/AGENTS.md` keeps them stable for
+consumers that match on them — and the wording lives only in `pkg/agent`.
+
 **A word inside another word is not a match.** Every comparison of a query
 with text was `strings.Contains`, so on YouTube `CLICK the 'All' tab`, on a
 page with no such tab, clicked the search box — it held "… in a small town" —
@@ -272,6 +292,13 @@ topmost transparent elements (under 0.01, the snapshot's bar) and takes each
 one's text out of the page text once — once, so the same words shown
 elsewhere stay present. A test that recognises a probe by a fragment of its
 code breaks when the probe changes; compare with the probe itself.
+
+Font-size 0 hides text too, and innerText keeps it as well. Allo writes "hex"
+into each colour swatch at size 0 and Comfy repeats a rating inside a star at
+size 0, so the map listed 'hex' five times and '4.9 4.9 218'. `shownText`, in
+both the map's scan (`pkg/scan`) and the snapshot probe, drops such text
+node by node — by element it would also drop the children of a container set
+to size 0 to pack inline-blocks, which set a size of their own and show.
 
 **Each engine picks its own language.** Headless Chrome asks for en-US,
 Firefox for the system's language, so the same hunt met YouTube in English on

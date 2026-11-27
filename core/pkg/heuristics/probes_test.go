@@ -79,3 +79,26 @@ func TestParseProbeResult_RawArrayFallbackPreservesFrameIndex(t *testing.T) {
 		t.Fatalf("NormHTMLId = %q, want widget_save", elements[0].NormHTMLId)
 	}
 }
+
+// YouTube's tabs keep the index of the selected one in `selected`, and the
+// probe sent it as is_selected: 1. One element like that failed the whole
+// snapshot, and every step on the page with it.
+func TestParseProbeResult_AnElementThatDoesNotFitCostsOnlyItself(t *testing.T) {
+	raw := []byte(`{"elements": [
+		{"id": 1, "tag": "x-tabs", "is_selected": 1},
+		{"id": 2, "tag": "x-tab", "visible_text": "Videos", "is_visible": true},
+		{"id": 3, "tag": "x-slider", "value": 50},
+		{"id": 4, "tag": "x-tab", "visible_text": "Shorts", "is_visible": true}
+	]}`)
+	elements, err := ParseProbeResult(raw)
+	if err != nil {
+		t.Fatalf("one element that does not fit failed the snapshot: %v", err)
+	}
+	var got []string
+	for _, e := range elements {
+		got = append(got, e.NormText)
+	}
+	if len(elements) != 2 || got[0] != "videos" || got[1] != "shorts" {
+		t.Errorf("elements = %v, want the two that fit", got)
+	}
+}

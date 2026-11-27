@@ -43,8 +43,12 @@ func TestDescribeForLLM_AmbiguousFailureExplains(t *testing.T) {
 	if !strings.HasPrefix(out, "FAILED: CLICK 'перше відео'") {
 		t.Errorf("failure must echo the step: %q", out)
 	}
-	if !strings.Contains(out, "too vague") || !strings.Contains(out, "EXACT visible text") {
+	if !strings.Contains(out, "describes an element") || !strings.Contains(out, "exact label") || !strings.Contains(out, "nothing was done") {
 		t.Errorf("ambiguous advice missing: %q", out)
+	}
+	// 'All' on a page without it was a precise label, only absent.
+	if strings.Contains(out, "too vague") {
+		t.Errorf("a target that is not there is not too vague: %q", out)
 	}
 	if !strings.Contains(out, "'Хімера — Love Will Find You' (0.18)") {
 		t.Errorf("real candidates must be listed: %q", out)
@@ -52,10 +56,18 @@ func TestDescribeForLLM_AmbiguousFailureExplains(t *testing.T) {
 }
 
 func TestDescribeForLLM_NotFound(t *testing.T) {
-	o := StepOutcome{OK: false, Step: "CLICK 'Nonexistent'", Reason: ReasonNotFound}
+	o := StepOutcome{OK: false, Step: "CLICK 'Nonexistent'", Reason: ReasonNotFound, URL: "https://x/cart"}
 	out := o.DescribeForLLM()
-	if !strings.Contains(out, "does not exist") || !strings.Contains(out, "Do NOT retry") {
+	if !strings.Contains(out, "call map again") || !strings.Contains(out, "open that first") || !strings.Contains(out, "fail the same way") {
 		t.Errorf("not-found advice missing: %q", out)
+	}
+	// On Comfy the label came from map and the page changed it; the model was
+	// told it had made the label up.
+	if strings.Contains(out, "made up") {
+		t.Errorf("a label from map is not made up: %q", out)
+	}
+	if !strings.Contains(out, "The page open now is https://x/cart.") {
+		t.Errorf("the page it is on is missing: %q", out)
 	}
 }
 

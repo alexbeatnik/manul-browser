@@ -1,0 +1,27 @@
+<!doctype html><html><head><title>Odd properties</title></head>
+<body style="font-family:sans-serif">
+<!-- Properties the snapshot reads as booleans or strings are not always
+     those. YouTube's tabs keep the index of the selected one in `selected`;
+     a custom slider holds a number in `value`, and so does <li value>; a
+     component may keep `disabled` as a word. One such element failed the
+     snapshot, and so every step on the page. -->
+<x-tabs role="tablist"><x-tab role="tab">Videos</x-tab> <x-tab role="tab">Shorts</x-tab></x-tabs>
+<x-slider role="slider" aria-label="Volume" tabindex="0">50</x-slider>
+<ol><li value="3">Third place</li></ol>
+<p id="out"></p>
+<script>
+customElements.define('x-tabs', class extends HTMLElement {});
+customElements.define('x-tab', class extends HTMLElement {});
+customElements.define('x-slider', class extends HTMLElement {});
+var out = document.getElementById('out');
+var tabs = document.querySelector('x-tabs');
+var slider = document.querySelector('x-slider');
+tabs.selected = 1;
+slider.value = 50;
+slider.disabled = 'no';
+document.querySelectorAll('x-tab').forEach(function (t, i) {
+  t.checked = i;
+  t.onclick = function () { tabs.selected = i; out.textContent = 'Showing ' + t.textContent; };
+});
+</script>
+</body></html>

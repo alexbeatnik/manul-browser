@@ -1,0 +1,12 @@
+@title: An element whose properties are not what the snapshot expects does not break the page
+# YouTube's tabs keep the selected tab's index in `selected`; after a click on
+# 'Videos' it was 1, and every step on the page failed with "cannot unmarshal
+# number into … is_selected of type bool".
+STEP 1: Use the page
+    NAVIGATE to @SITE@/oddprops.html
+    CLICK the 'Shorts' tab
+    VERIFY that 'Showing Shorts' is present
+    CLICK the 'Videos' tab
+    VERIFY that 'Showing Videos' is present
+    VERIFY that 'Third place' is present
+DONE.

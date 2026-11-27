@@ -174,6 +174,7 @@
       "Exception: hidden input[type='file|checkbox|radio'] are KEPT",
       "Exception: a <select> below opacity 0.01 is KEPT and counted visible: it is the native control laid transparent over a styled facade, and what a click on that facade reaches"
     ],
+    "fieldTypes": "Every field has the type listed, whatever the element holds: a flag is true only for a property that is exactly true (or the ARIA attribute 'true'), value is a string or a non-zero number written as one, and input_type and html_id are strings. A custom element may keep anything in those properties — YouTube's tabs keep the selected tab's index in selected — and one number where a flag belonged failed the snapshot of the whole page. The engine also decodes each element on its own, and drops one that still does not fit rather than the snapshot.",
     "fields": [
       { "key": "id",                  "type": "int",      "description": "Stable runtime ID (manulIdCounter per page load)." },
       { "key": "name",                "type": "string",   "description": "Display name (max 150 chars). Format: 'context -> core_name [METADATA]'." },

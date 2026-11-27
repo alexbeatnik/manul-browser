@@ -1,0 +1,24 @@
+<!doctype html><html><head><title>Product tiles</title>
+<style>
+  .swatch { font-size: 0; display: inline-block; }
+  .swatch span { display: inline-block; width: 17px; height: 17px; border-radius: 50%; }
+  .stars { position: relative; display: inline-block; width: 12px; height: 12px; }
+  .stars__fill { position: absolute; font-size: 0; }
+  /* inline-blocks without the gaps between them: the container's size is 0,
+     its children's is not */
+  .tight { font-size: 0; }
+  .tight a { font-size: 14px; margin-right: 8px; }
+</style></head>
+<body style="font-family:sans-serif">
+<!-- Allo's colour swatches carry the word "hex" or "gradient" at font-size 0,
+     and Comfy's rating link repeats its score in a star drawn at font-size 0.
+     A person sees a coloured dot and "4.9 218"; the map listed 'hex' five
+     times and '4.9 4.9 218'. -->
+<h3>Manul Plush</h3>
+<a class="swatch" href="#orange"><span style="background:#FFA500">hex</span></a>
+<a class="swatch" href="#silver"><span style="background:linear-gradient(#eee,#bbb)">gradient</span></a>
+<a href="#reviews" onclick="out.textContent='Reviews of Manul Plush'"><span class="stars"><span class="stars__fill">4.9</span></span> <span>4.9</span> <span>218</span></a>
+<p class="tight"><a href="#one" onclick="out.textContent='Page one'">One</a><a href="#two">Two</a></p>
+<p id="out"></p>
+<script>var out = document.getElementById('out');</script>
+</body></html>
