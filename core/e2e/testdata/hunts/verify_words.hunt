@@ -1,0 +1,15 @@
+@title: VERIFY keeps numbers whole, and does not count text nobody sees
+# VERIFY that 'Cart: 1' is present passed on "Cart: 10", and 'hex' on Allo's
+# swatches, where it is drawn at font-size 0.
+STEP 1: Numbers
+    NAVIGATE to @SITE@/words.html
+    VERIFY that 'Cart: 1' is NOT present
+    VERIFY that 'Cart: 10' is present
+    VERIFY that 'Workshop at 10' is present
+STEP 2: Text drawn at font-size 0
+    NAVIGATE to @SITE@/swatches.html
+    VERIFY that 'hex' is NOT present
+    VERIFY that 'gradient' is NOT present
+    VERIFY that '4.9 218' is present
+    VERIFY that 'One' is present
+DONE.

@@ -135,12 +135,19 @@ type ScheduledHunt struct {
 
 // CollectScheduledHunts recursively scans dir for .hunt files with @schedule: headers.
 func CollectScheduledHunts(dir string) ([]ScheduledHunt, error) {
+	return CollectScheduledHuntsWithVars(dir, nil)
+}
+
+// CollectScheduledHuntsWithVars is CollectScheduledHunts with variables given
+// for the whole run (`manul daemon --var`, MANUL_VAR_*), parsed in as
+// `manul run` parses them: see dsl.ParseFileWithVars.
+func CollectScheduledHuntsWithVars(dir string, runVars map[string]string) ([]ScheduledHunt, error) {
 	var out []ScheduledHunt
 	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(d.Name(), ".hunt") {
 			return nil
 		}
-		hunt, err := dsl.ParseFile(path)
+		hunt, err := dsl.ParseFileWithVars(path, runVars)
 		if err != nil {
 			return nil
 		}
@@ -169,7 +176,13 @@ func CollectScheduledHunts(dir string) ([]ScheduledHunt, error) {
 
 // Run starts the daemon loop for scheduled hunts in dir.
 func Run(ctx context.Context, dir string, cfg config.Config, logger *utils.Logger) error {
-	hunts, err := CollectScheduledHunts(dir)
+	return RunWithVars(ctx, dir, cfg, logger, nil)
+}
+
+// RunWithVars is Run with variables given for the whole run; see
+// CollectScheduledHuntsWithVars.
+func RunWithVars(ctx context.Context, dir string, cfg config.Config, logger *utils.Logger, runVars map[string]string) error {
+	hunts, err := CollectScheduledHuntsWithVars(dir, runVars)
 	if err != nil {
 		return err
 	}

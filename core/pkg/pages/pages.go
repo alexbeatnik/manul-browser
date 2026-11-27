@@ -78,14 +78,27 @@ func (r *Registry) Reload() {
 // Matching logic:
 //  1. Reload registry from disk on every call so manual edits are picked up.
 //  2. Find best-matching site block by longest-prefix against URL scheme+host+path.
-//  3. Within site block:
-//     a. Exact URL equality.
-//     b. Regex via regexp.MatchString (invalid regex falls back to substring).
+//  3. Within site block, the most specific of:
+//     a. The address itself, then the address without its query and fragment.
+//     b. Every other key that matches: a plain path ("/login") matches the
+//     path from its start, a segment at a time; any other key matches as a
+//     regular expression, or failing that as a substring, of the address.
+//     The longest such key wins, and of keys as long, the first in order.
 //     c. The special "Domain" key as fallback.
 //  4. If no site block matches, auto-populate a placeholder.
+//
+// Two keys that both matched one address used to name it at random — Go
+// walks a map in no fixed order — and a plain path matched anywhere in the
+// address, so '/admin' named a post about admin tips.
 func (r *Registry) LookupPageName(rawURL string) string {
 	r.Reload()
+	if name, ok := r.lookup(rawURL); ok {
+		return name
+	}
+	return r.autoPopulate(rawURL)
+}
 
+func (r *Registry) lookup(rawURL string) (string, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -93,57 +106,94 @@ func (r *Registry) LookupPageName(rawURL string) string {
 	var bestSite string
 	for siteRoot := range r.data {
 		if belongsToSite(rawURL, siteRoot) {
-			if bestSite == "" || len(siteRoot) > len(bestSite) {
+			if bestSite == "" || len(siteRoot) > len(bestSite) || (len(siteRoot) == len(bestSite) && siteRoot < bestSite) {
 				bestSite = siteRoot
 			}
 		}
 	}
+	if bestSite == "" {
+		return "", false
+	}
 
 	// 3. Match within site block.
-	if bestSite != "" {
-		pages := r.data[bestSite]
-		domainName := pages["Domain"]
-
-		// a. Exact URL match.
-		if name, ok := pages[rawURL]; ok {
-			return name
+	pages := r.data[bestSite]
+	bare := withoutQuery(rawURL)
+	if name, ok := pages[rawURL]; ok {
+		return name, true
+	}
+	if name, ok := pages[bare]; ok {
+		return name, true
+	}
+	var best, bestName string
+	for pattern, name := range pages {
+		if pattern == "Domain" || pattern == "site" || !patternMatches(pattern, rawURL, bare) {
+			continue
 		}
-
-		// b. Regex / substring patterns.
-		for pattern, name := range pages {
-			if pattern == "Domain" || pattern == "site" {
-				continue
-			}
-			matched, reErr := regexp.MatchString(pattern, rawURL)
-			if reErr == nil && matched {
-				return name
-			}
-			if strings.Contains(rawURL, pattern) {
-				return name
-			}
-		}
-
-		// c. Domain fallback.
-		if domainName != "" {
-			return domainName
+		if best == "" || len(pattern) > len(best) || (len(pattern) == len(best) && pattern < best) {
+			best, bestName = pattern, name
 		}
 	}
-
-	// 4. Auto-populate.
-	return r.autoPopulate(rawURL)
+	if best != "" {
+		return bestName, true
+	}
+	if domainName := pages["Domain"]; domainName != "" {
+		return domainName, true
+	}
+	return "", false
 }
 
-// AutoPopulate creates a placeholder entry for an unmapped URL and persists it.
+// patternMatches reports whether a registry key names rawURL.
+func patternMatches(pattern, rawURL, bare string) bool {
+	if isPlainPath(pattern) {
+		path := parseURL(bare).path
+		root := strings.TrimSuffix(pattern, "/")
+		return path == pattern || path == root || strings.HasPrefix(path, root+"/")
+	}
+	if re, err := regexp.Compile(pattern); err == nil && re.MatchString(rawURL) {
+		return true
+	}
+	return strings.Contains(rawURL, pattern)
+}
+
+// isPlainPath reports whether a key is a path and nothing more: it starts
+// with '/' and has none of the characters a regular expression is made of.
+// A dot in it is a dot.
+func isPlainPath(pattern string) bool {
+	return strings.HasPrefix(pattern, "/") && !strings.ContainsAny(pattern, `^$*+?()[]{}|\`)
+}
+
+// withoutQuery is rawURL without its query and fragment: the same page.
+func withoutQuery(rawURL string) string {
+	if i := strings.IndexAny(rawURL, "?#"); i >= 0 {
+		return rawURL[:i]
+	}
+	return rawURL
+}
+
+// autoPopulate creates a placeholder entry for an address on a site the
+// registry does not know, persists it, and returns the page's placeholder.
+//
+// The site is named after its host and the page after its path, neither with
+// a query: the site used to take the first address it was seen at, query and
+// all ("Auto: other.test/p/1?ref=a"), and every other page of it was then
+// reported under that name. The fragment is written to a temporary file and
+// renamed into place, so parallel workers never read one half written.
 func (r *Registry) autoPopulate(rawURL string) string {
-	parsed := parseURL(rawURL)
+	bare := withoutQuery(rawURL)
+	parsed := parseURL(bare)
 
 	siteRoot := fmt.Sprintf("%s://%s/", parsed.scheme, parsed.host)
-	slug := (parsed.host + parsed.path)
-	slug = strings.Trim(slug, "/")
-	placeholder := fmt.Sprintf("Auto: %s", slug)
-	if slug == "" {
-		placeholder = fmt.Sprintf("Auto: %s", rawURL)
+	sitePlaceholder := fmt.Sprintf("Auto: %s", parsed.host)
+	if parsed.host == "" {
+		sitePlaceholder = fmt.Sprintf("Auto: %s", bare)
 	}
+	placeholder := sitePlaceholder
+	if slug := strings.Trim(parsed.host+parsed.path, "/"); slug != "" && strings.Trim(parsed.path, "/") != "" {
+		placeholder = fmt.Sprintf("Auto: %s", slug)
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	fragmentPath := filepath.Join(r.dir, safeSiteFilename(siteRoot))
 
@@ -177,17 +227,15 @@ func (r *Registry) autoPopulate(rawURL string) string {
 	// Merge: never overwrite existing keys.
 	updated := false
 	if _, ok := siteBlock["Domain"]; !ok {
-		siteBlock["Domain"] = placeholder
+		siteBlock["Domain"] = sitePlaceholder
 		updated = true
 	}
-	if _, ok := siteBlock[rawURL]; !ok {
-		siteBlock[rawURL] = placeholder
+	if _, ok := siteBlock[bare]; !ok {
+		siteBlock[bare] = placeholder
 		updated = true
 	}
 
 	// Update in-memory registry.
-	r.mu.RUnlock()
-	r.mu.Lock()
 	siteEntry, ok := r.data[fragmentSite]
 	if !ok {
 		siteEntry = map[string]string{}
@@ -196,8 +244,6 @@ func (r *Registry) autoPopulate(rawURL string) string {
 	for k, v := range siteBlock {
 		siteEntry[k] = v
 	}
-	r.mu.Unlock()
-	r.mu.RLock()
 
 	// Persist back to disk.
 	if updated {
@@ -207,11 +253,22 @@ func (r *Registry) autoPopulate(rawURL string) string {
 			payload[k] = v
 		}
 		if data, marshalErr := json.MarshalIndent(payload, "", "    "); marshalErr == nil {
-			_ = os.WriteFile(fragmentPath, append(data, '\n'), 0644)
+			if tmp, err := os.CreateTemp(r.dir, ".fragment-*.tmp"); err == nil {
+				_, werr := tmp.Write(append(data, '\n'))
+				cerr := tmp.Close()
+				if werr == nil && cerr == nil {
+					_ = os.Chmod(tmp.Name(), 0644)
+					if os.Rename(tmp.Name(), fragmentPath) != nil {
+						_ = os.Remove(tmp.Name())
+					}
+				} else {
+					_ = os.Remove(tmp.Name())
+				}
+			}
 		}
 	}
 
-	return placeholder
+	return siteBlock[bare]
 }
 
 // Dir returns the directory backing this registry.

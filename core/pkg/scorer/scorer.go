@@ -836,26 +836,67 @@ func wordOverlap(q, s string) float64 {
 // at any character. Developer-facing attributes (id, data-qa, class) are not
 // compared this way: their words are joined by conventions of their own.
 func containsWord(s, q string) bool {
+	return q == "" || indexWord(s, q, 0) >= 0
+}
+
+// indexWord is the byte offset of the first occurrence of q in s, at or
+// after from, that begins where a word of s begins — the rule containsWord
+// states — and ends where one ends, unless q's last word is long enough to
+// be the stem of a longer one; or -1 when there is none.
+//
+// The end matters as much as the start. 'All' scored 0.21 against "Allow
+// cookies" and as much against "Allergy info", above the bar at which a tie
+// is refused, so CLICK the 'All' tab clicked the cookie banner. A word of
+// minStemRunes letters or more may be the start of a longer form of itself —
+// 'Product' of "Products", 'товар' of "товари", 'Work' of "Workshop" — a
+// shorter one may not, and a number is never the start of a longer number:
+// 'Cart: 1' is not in "Cart: 10".
+func indexWord(s, q string, from int) int {
 	if q == "" {
-		return true
+		return from
 	}
 	first, _ := utf8.DecodeRuneInString(q)
-	for i := 0; i <= len(s)-len(q); {
+	last, _ := utf8.DecodeLastRuneInString(q)
+	stem := lastWordRunes(q) >= minStemRunes
+	for i := from; i >= 0 && i <= len(s)-len(q); {
 		j := strings.Index(s[i:], q)
 		if j < 0 {
-			return false
+			return -1
 		}
 		at := i + j
-		if at == 0 || !joinsWord(first) {
-			return true
-		}
-		if prev, _ := utf8.DecodeLastRuneInString(s[:at]); !joinsWord(prev) {
-			return true
-		}
 		_, size := utf8.DecodeRuneInString(s[at:])
 		i = at + size
+		if at > 0 && joinsWord(first) {
+			if prev, _ := utf8.DecodeLastRuneInString(s[:at]); joinsWord(prev) {
+				continue
+			}
+		}
+		if end := at + len(q); end < len(s) && joinsWord(last) {
+			next, _ := utf8.DecodeRuneInString(s[end:])
+			if joinsWord(next) && (!stem || unicode.IsDigit(last) && unicode.IsDigit(next)) {
+				continue
+			}
+		}
+		return at
 	}
-	return false
+	return -1
+}
+
+// minStemRunes is how long a word must be to match the start of a longer one.
+const minStemRunes = 4
+
+// lastWordRunes counts the letters and digits at the end of q.
+func lastWordRunes(q string) int {
+	n := 0
+	for len(q) > 0 {
+		r, size := utf8.DecodeLastRuneInString(q)
+		if !joinsWord(r) {
+			break
+		}
+		n++
+		q = q[:len(q)-size]
+	}
+	return n
 }
 
 // joinsWord reports whether r continues a word written before it: a letter or

@@ -31,10 +31,12 @@
 > SELECT, CHECK, UNCHECK, HOVER, DRAG, UPLOAD, EXTRACT, PRESS … ON and
 > SCROLL … inside look again every 250ms, on a fresh snapshot, until the
 > target is there or `timeout` (default 5s) has passed, and only then fail
-> with failure_reason not_found. Only a not-found failure is retried, and only
-> while the step has changed nothing: once it has typed, clicked, chosen,
-> scrolled or pressed, it is never run a second time, whatever its failure
-> says. An ambiguous target fails at once. So a target that is not on the page
+> with failure_reason not_found. Only a target that is not there is retried —
+> including an ambiguous one, since the engine refuses only weak, nearly tied
+> best guesses, which is what a page shows while the real target is still on
+> its way (YouTube's 'All' tab lost to "Allow…") — and only while the step has
+> changed nothing: once it has typed, clicked, chosen, scrolled or pressed, it
+> is never run a second time, whatever its failure says. So a target that is not on the page
 > costs `timeout` before the step fails; WAIT FOR is still the way to wait for
 > something other than a target to act on.
 >
@@ -257,7 +259,7 @@
       "uiText": "VERIFY that '' is present",
       "snippet": "VERIFY that '${1:target}' is ${2|present,NOT present,ENABLED,DISABLED,checked,NOT checked|}",
       "regex": "\\bVERIFY\\b",
-      "description": "Asserts that an element or text is present, not present, enabled, disabled, checked, or not checked. Fails the mission on mismatch. State is read off the element whether or not it is disabled — 'is disabled' finds the disabled control, and a read-only checkbox still reports 'is checked'. Text that cannot be seen is not present: what is display:none, visibility:hidden, or transparent — opacity under 0.01, on the element or on any element around it — is left out, so a faded-out notice or a button hidden by opacity:0 makes 'is NOT present' pass. Text shown once and also present transparently elsewhere is still present. Text compares the way it reads: case-insensitively, with every run of whitespace, line breaks and no-break spaces included, counted as one space on both sides, so two spans shown on one line as 'Shopping cart (1)' match although the page's innerText breaks them apart. A text check that could not read the page at all fails rather than concluding the text is absent. The text read includes that of every shadow root however deeply nested, a top-level child of each at a time, so text drawn by web components (archive.org, Lit and Stencil apps) is seen, and so is the text of every <iframe>, nested ones included. A cross-origin iframe's text is read as well. A text check polls for up to the step timeout until it is satisfied: 'is present' until the text appears, 'is NOT present' until it is gone — so a negated check passes on the first look when the text is absent, and waits for text that is still disappearing.",
+      "description": "Asserts that an element or text is present, not present, enabled, disabled, checked, or not checked. Fails the mission on mismatch. State is read off the element whether or not it is disabled — 'is disabled' finds the disabled control, and a read-only checkbox still reports 'is checked'. Text that cannot be seen is not present: what is display:none, visibility:hidden, or transparent — opacity under 0.01, on the element or on any element around it — is left out, so a faded-out notice or a button hidden by opacity:0 makes 'is NOT present' pass. Text shown once and also present transparently elsewhere is still present. So is text drawn at font-size 0, text node by text node — Allo's colour swatches carry the word 'hex' that way — while the children of a container set to size 0 that set a size of their own are shown. A number in the target stands alone: 'Cart: 1' is not present on a page that says 'Cart: 10', nor '1 item' on one that says '21 items'. Otherwise the comparison is a substring one, because the page text is innerText, which puts nothing between neighbouring inline elements ('Deep button' then 'inner clicked' reads 'Deep buttoninner clicked'), so 'Shop' is present on a page that says 'Workshop'. Text compares the way it reads: case-insensitively, with every run of whitespace, line breaks and no-break spaces included, counted as one space on both sides, so two spans shown on one line as 'Shopping cart (1)' match although the page's innerText breaks them apart. A text check that could not read the page at all fails rather than concluding the text is absent. The text read includes that of every shadow root however deeply nested, a top-level child of each at a time, so text drawn by web components (archive.org, Lit and Stencil apps) is seen, and so is the text of every <iframe>, nested ones included. A cross-origin iframe's text is read as well. A text check polls for up to the step timeout until it is satisfied: 'is present' until the text appears, 'is NOT present' until it is gone — so a negated check passes on the first look when the text is absent, and waits for text that is still disappearing.",
       "category": "assertion"
     },
     {

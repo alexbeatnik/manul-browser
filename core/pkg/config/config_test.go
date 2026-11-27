@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -529,5 +530,22 @@ func TestLoad_EnvEmptyStringDoesNotOverride(t *testing.T) {
 	}
 	if cfg.Browser != "firefox" {
 		t.Errorf("Browser=%q want firefox (empty env should not override JSON)", cfg.Browser)
+	}
+}
+
+// MANUL_BROWSER_ARGS was split at every comma, so the contract's own example,
+// --window-size=1920,1080, reached the browser in two pieces.
+func TestSplitArgs_ACommaInsideAValueStays(t *testing.T) {
+	for in, want := range map[string][]string{
+		"--window-size=1920,1080": {"--window-size=1920,1080"},
+		"--a,--b":                 {"--a", "--b"},
+		"--a --b":                 {"--a", "--b"},
+		"--disable-features=A,B --window-size=1,2": {"--disable-features=A,B", "--window-size=1,2"},
+		"-width 1000 -height 700":                  {"-width", "1000", "-height", "700"},
+		"  ":                                       nil,
+	} {
+		if got := splitArgs(in); strings.Join(got, "|") != strings.Join(want, "|") {
+			t.Errorf("splitArgs(%q) = %q, want %q", in, got, want)
+		}
 	}
 }

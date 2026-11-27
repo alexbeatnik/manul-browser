@@ -2,6 +2,7 @@ package browser
 
 import (
 	"context"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -87,10 +88,21 @@ func TestConnect_SelectsBackendByEndpointScheme(t *testing.T) {
 // DefaultChromeOptions is the old name of DefaultLaunchOptions; callers still
 // use it, and it must keep producing the same defaults.
 func TestDefaultOptionsAgree(t *testing.T) {
-	if DefaultChromeOptions() != DefaultLaunchOptions() {
+	if !reflect.DeepEqual(DefaultChromeOptions(), DefaultLaunchOptions()) {
 		t.Fatal("DefaultChromeOptions drifted from DefaultLaunchOptions")
 	}
 	if DefaultLaunchOptions().Browser != EngineChromium {
 		t.Fatal("the default engine must stay Chromium")
+	}
+}
+
+// browser_args was read from the config and MANUL_BROWSER_ARGS and given to
+// no browser: the contract's --window-size example did nothing.
+func TestChromeArgs_TheConfigsArgsComeLast(t *testing.T) {
+	opts := DefaultLaunchOptions()
+	opts.Args = []string{"--window-size=1920,1080", "--force-dark-mode"}
+	args := chromeArgs(opts)
+	if n := len(args); n < 2 || args[n-2] != "--window-size=1920,1080" || args[n-1] != "--force-dark-mode" {
+		t.Errorf("args end with %v, want the configured ones last", args[max(0, len(args)-3):])
 	}
 }

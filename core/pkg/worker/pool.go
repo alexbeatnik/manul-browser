@@ -275,6 +275,7 @@ func RunHuntsInParallel(ctx context.Context, cfg config.Config, hunts []*dsl.Hun
 	launchOpts := browser.DefaultLaunchOptions()
 	launchOpts.Browser = cfg.Browser
 	launchOpts.Headless = cfg.Headless
+	launchOpts.Args = cfg.BrowserArgs
 	if cfg.Channel != nil && *cfg.Channel != "" {
 		launchOpts.Channel = *cfg.Channel
 	}

@@ -66,7 +66,7 @@
     {
       "id": "daemon",
       "syntax": "manul daemon <directory>",
-      "description": "Run scheduled .hunt files (those with @schedule: headers) as a long-running daemon.",
+      "description": "Run scheduled .hunt files (those with @schedule: headers) as a long-running daemon. --var and MANUL_VAR_* set variables as for run. A flag overrides manul.config.json and MANUL_* only when it is passed: it used to copy every default across, so \"headless\": true and \"browser\": \"firefox\" from the config were undone.",
       "positionalArgs": [
         {
           "name": "directory",
@@ -213,7 +213,7 @@
       "envVar": "MANUL_VAR_<name>",
       "description": "Set a variable for every hunt of the run: --var site=https://staging.example.com is {site}. It is the value of its name from the first line of each hunt on, so a @var: of the same name — or one built from it, such as @var: {login} = {site}/login — does not replace it but falls back to it; an imported @var: is below it too, and a row of @data: is above it. The environment does the same: MANUL_VAR_password=… is {password}, the rest of the name taken as written, so a CI secret reaches a hunt without being written into one. A flag wins over the environment. A name may be written with its braces ({site}=…); a value without a name, or without '=', exits 1 before anything runs.",
       "example": "--var site=https://staging.example.com --var user=ada",
-      "appliesTo": ["run"]
+      "appliesTo": ["run", "daemon"]
     },
     {
       "id": "hooks",

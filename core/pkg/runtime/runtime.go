@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/alexbeatnik/manul-browser/core/pkg/browser"
 	"github.com/alexbeatnik/manul-browser/core/pkg/config"
@@ -1308,7 +1310,7 @@ func (rt *Runtime) executeCommandOnce(ctx context.Context, cmd dsl.Command) (res
 				rt.logger.ActionWarn(fmt.Sprintf("VERIFY SOFTLY skipped: probe error: %v", errProbe))
 				break
 			}
-			satisfied = strings.Contains(foldSpace(string(raw)), foldSpace(target))
+			satisfied = pageShows(foldSpace(string(raw)), target)
 		}
 		if cmd.VerifyNegated {
 			satisfied = !satisfied
@@ -1344,7 +1346,7 @@ func (rt *Runtime) executeCommandOnce(ctx context.Context, cmd dsl.Command) (res
 			if errProbe == nil {
 				probed = true
 				pageText = foldSpace(string(raw))
-				present = strings.Contains(pageText, foldSpace(target))
+				present = pageShows(pageText, target)
 			} else {
 				lastProbeErr = errProbe
 			}
@@ -1950,6 +1952,42 @@ func (rt *Runtime) waitForLoad(ctx context.Context) error {
 	limited, cancel := rt.withNavTimeout(ctx)
 	defer cancel()
 	return rt.page.WaitForLoad(limited)
+}
+
+// pageShows reports whether the folded page text shows target, with every
+// number in it standing alone: VERIFY that 'Cart: 1' is present passed on
+// "Cart: 10", and '1 item' would on "21 items".
+//
+// It is a substring search otherwise, not one for where a word begins as the
+// scorer's is. The page text is innerText, which puts nothing between
+// neighbouring inline elements: <button>Deep button</button><span>inner
+// clicked</span> reads "Deep buttoninner clicked", and VERIFY that 'inner
+// clicked' is present must hold there. So 'Shop' is still found in
+// "Workshop".
+func pageShows(page, target string) bool {
+	t := foldSpace(target)
+	if t == "" {
+		return true
+	}
+	first, _ := utf8.DecodeRuneInString(t)
+	last, _ := utf8.DecodeLastRuneInString(t)
+	for i := 0; i <= len(page)-len(t); {
+		j := strings.Index(page[i:], t)
+		if j < 0 {
+			return false
+		}
+		at := i + j
+		_, size := utf8.DecodeRuneInString(page[at:])
+		i = at + size
+		if prev, _ := utf8.DecodeLastRuneInString(page[:at]); at > 0 && unicode.IsDigit(first) && unicode.IsDigit(prev) {
+			continue
+		}
+		if next, _ := utf8.DecodeRuneInString(page[at+len(t):]); at+len(t) < len(page) && unicode.IsDigit(last) && unicode.IsDigit(next) {
+			continue
+		}
+		return true
+	}
+	return false
 }
 
 // foldSpace lowercases s and collapses every run of whitespace, line breaks

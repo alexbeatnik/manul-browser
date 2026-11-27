@@ -82,14 +82,15 @@ Each site gets its own JSON file: `pages/<safe-netloc>.json`
 ### Matching logic
 
 1. **Longest-prefix site match** — `https://app.example.com/` shadows `https://example.com/`
-2. **Exact URL match**
-3. **Regex pattern** via `regexp.MatchString`
-4. **Substring fallback**
-5. **`"Domain"` key** as final fallback
+2. **Exact URL match**, then the URL without its `?query` and `#fragment` — the same page
+3. **The most specific matching key** among the rest — the longest, and of keys as long the first in order — so `/login/sso` beats `/login` for `/login/sso`, every time:
+   - a **plain path** (`/login`, `/index.html`: starts with `/`, no regex characters) matches the path from its start, a whole segment at a time — `/admin` names `/admin/users`, not `/blog/admin-tips`; a dot is a dot
+   - any other key is a **regular expression** (`.*/products/\d+`), or failing that a **substring**, of the URL
+4. **`"Domain"` key** as final fallback
 
 ### Auto-populate
 
-Unknown URLs are automatically added as `Auto: domain/path` placeholders:
+An address on a site with no fragment is added as an `Auto:` placeholder — the site named after its host, the page after its path, neither with its query:
 
 ```json
 {
@@ -99,7 +100,7 @@ Unknown URLs are automatically added as `Auto: domain/path` placeholders:
 }
 ```
 
-This happens transparently on the first `NAVIGATE` to an unmapped URL.
+This happens on the first `NAVIGATE` to an unmapped site when `auto_annotate` is on — the only time the registry is consulted during a run. The fragment is written to a temporary file and renamed into place, so parallel workers never read one half written.
 
 ### Using page names in custom controls
 

@@ -193,7 +193,7 @@ func chromeArgs(opts LaunchOptions) []string {
 		// one headless Firefox draws at its default of 1366×768.
 		args = append(args, "--headless=new", headlessWindowSize)
 	}
-	return args
+	return append(args, opts.Args...)
 }
 
 // removeStaleDevToolsPort deletes the DevToolsActivePort a previous run left

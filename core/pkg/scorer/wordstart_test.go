@@ -29,8 +29,14 @@ func TestMatchesQuery_AWordInsideAnotherIsNotAMatch(t *testing.T) {
 		{"mall Town", "", false},
 		{"$24.50", "Price: $24.50", true}, // a query that starts with a sign
 		{"e-mail", "Your e-mail", true},
-		{"mail", "Your e-mail", true}, // after a hyphen a word begins
-		{"购物车", "加入购物车", true},        // no spaces in Chinese: any character begins one
+		{"mail", "Your e-mail", true},   // after a hyphen a word begins
+		{"All", "Allow cookies", false}, // a short word is not the start of a longer one
+		{"All", "Allergy info", false},
+		{"Log", "Login", false},
+		{"Work", "Workshop", true},     // four letters may be a stem
+		{"Cart: 1", "Cart: 10", false}, // a number is not the start of a longer number
+		{"Cart: 10", "Cart: 10", true},
+		{"购物车", "加入购物车", true}, // no spaces in Chinese: any character begins one
 		{"カート", "カートに入れる", true},
 	} {
 		el := &search

@@ -433,6 +433,7 @@ manul --headless --html-report examples/         # CI mode with reports
 | `channel` | `null` | Chrome/Chromium binary to launch (`chrome`, `msedge`, `chromium`, …). |
 | `executable_path` | `null` | Explicit path to a Chrome/Chromium (or Electron) executable. |
 | `locale` | `"en-US"` | Language the launched browser uses and asks pages for (`navigator.language`, `Accept-Language`), the same on both engines. |
+| `browser_args` | `[]` | Extra flags for the browser, after the engine's own: `["--no-sandbox"]` in a container, `["--window-size=1920,1080"]` for Chrome, `["-width", "1920", "-height", "1080"]` for Firefox. `MANUL_BROWSER_ARGS` takes them separated by spaces. |
 | `retries` | `0` | Run a failed hunt file again, up to N times; one that passes on a retry is reported as flaky. |
 | `screenshot` | `"on-fail"` | `none`, `on-fail`, or `always`. |
 | `html_report` | `false` | Generate an HTML report. |

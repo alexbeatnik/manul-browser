@@ -104,3 +104,30 @@ func runOnCfg(t *testing.T, page browser.Page, cfg config.Config, src string) er
 	_, err = New(cfg, page, utils.NewLoggerTo(nopWriter{}, nil)).RunHunt(context.Background(), hunt)
 	return err
 }
+
+// A weak, nearly tied best guess is what is on the page while the real
+// target is still on its way. The step refused it as ambiguous and failed at
+// once; it now looks again, as for a target that is not there, and acts on
+// the real one when it arrives.
+func TestWait_AWeakGuessIsLookedAtAgainUntilTheTargetArrives(t *testing.T) {
+	weak := []dom.ElementSnapshot{
+		{ID: 1, XPath: "/html/body/button[1]", Tag: "button", ClassName: "alpha-trigger", IsVisible: true, Rect: dom.Rect{Top: 20, Left: 20, Width: 120, Height: 32}},
+		{ID: 2, XPath: "/html/body/button[2]", Tag: "button", ClassName: "alpha-launch", IsVisible: true, Rect: dom.Rect{Top: 20, Left: 180, Width: 120, Height: 32}},
+	}
+	page := &lateMock{
+		MockPage: &MockPage{Elements: weak},
+		after:    3,
+		late:     []dom.ElementSnapshot{regEl(3, "button", "Alpha")},
+	}
+	cfg := regConfig()
+	cfg.DefaultTimeout = 3 * time.Second
+	if err := runOnCfg(t, page, cfg, "CLICK 'Alpha'\n"); err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Clicks) != 1 {
+		t.Fatalf("clicked %d times, want 1", len(page.Clicks))
+	}
+	if p := page.Clicks[0]; p.Y < 120 {
+		t.Errorf("clicked %v: one of the weak guesses, not the button that arrived", p)
+	}
+}

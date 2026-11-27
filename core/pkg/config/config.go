@@ -259,7 +259,7 @@ func overrideFromEnv(cfg *Config) {
 		cfg.BrowserMode = v
 	}
 	if v := os.Getenv("MANUL_BROWSER_ARGS"); v != "" {
-		cfg.BrowserArgs = splitCSV(v)
+		cfg.BrowserArgs = splitArgs(v)
 	}
 	if v := os.Getenv("MANUL_EXECUTABLE_PATH"); v != "" {
 		cfg.ExecutablePath = &v
@@ -354,6 +354,30 @@ func overrideFromEnv(cfg *Config) {
 }
 
 // splitCSV splits a comma-separated string, trimming whitespace from each part.
+// splitArgs reads MANUL_BROWSER_ARGS: flags separated by spaces or commas.
+// A comma separates two flags only where the next one starts with '-'; it
+// was split at every comma, so the contract's own example,
+// --window-size=1920,1080, reached the browser as "--window-size=1920" and
+// "1080", and flags separated by spaces arrived as one.
+func splitArgs(s string) []string {
+	var out []string
+	for _, field := range strings.Fields(s) {
+		start := 0
+		for i := 0; i < len(field); i++ {
+			if field[i] == ',' && i+1 < len(field) && field[i+1] == '-' {
+				if part := field[start:i]; part != "" {
+					out = append(out, part)
+				}
+				start = i + 1
+			}
+		}
+		if part := strings.TrimSuffix(field[start:], ","); part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
+}
+
 func splitCSV(s string) []string {
 	parts := strings.Split(s, ",")
 	out := make([]string, 0, len(parts))

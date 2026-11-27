@@ -270,3 +270,24 @@ func TestCollectScheduledHunts_ExpandsImports(t *testing.T) {
 		t.Errorf("USE was not expanded: %+v", cmds)
 	}
 }
+
+// A scheduled hunt is pointed at staging the way `manul run` is: --var and
+// MANUL_VAR_* replace its own @var. The daemon parsed hunts without them.
+func TestCollectScheduledHuntsWithVars_TheRunsValueReplacesTheDefault(t *testing.T) {
+	dir := t.TempDir()
+	src := "@schedule: every 5 minutes\n@var: {site} = http://localhost:8000\nSTEP 1: Look\n    NAVIGATE to {site}/health\nDONE.\n"
+	if err := os.WriteFile(filepath.Join(dir, "health.hunt"), []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	hunts, err := CollectScheduledHuntsWithVars(dir, map[string]string{"site": "https://staging.example.com"})
+	if err != nil || len(hunts) != 1 {
+		t.Fatalf("hunts = %v, err = %v", hunts, err)
+	}
+	if got := hunts[0].Hunt.Commands[0].URL; got != "https://staging.example.com/health" {
+		t.Errorf("NAVIGATE to %q, want the run's site", got)
+	}
+	plain, _ := CollectScheduledHunts(dir)
+	if got := plain[0].Hunt.Commands[0].URL; got != "http://localhost:8000/health" {
+		t.Errorf("without --var: NAVIGATE to %q, want the default", got)
+	}
+}

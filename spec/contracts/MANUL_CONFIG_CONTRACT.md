@@ -75,9 +75,9 @@
       "envVar": "MANUL_BROWSER_ARGS",
       "type": "string[]",
       "default": [],
-      "description": "Extra launch flags passed to the browser. JSON: native array. Env: comma-or-space-separated string.",
-      "examples": [["--disable-gpu"], ["--window-size=1920,1080"]],
-      "specialHandling": "List cannot round-trip via plain env string; env is split on comma/space."
+      "description": "Extra launch flags passed to the browser, after the engine's own, so a later flag of the same name wins: every browser `manul run`, its --workers, `manul serve`, `manul mcp` and the Go API launch gets them. They were read and passed to no browser. Each engine has its own flags: headless Firefox ignores --window-size and takes -width and -height. JSON: native array. Env: flags separated by spaces or commas, where a comma separates two flags only if the next starts with '-', so --window-size=1920,1080 stays one flag (it used to be split at the comma).",
+      "examples": [["--disable-gpu"], ["--window-size=1920,1080"], ["-width", "1920", "-height", "1080"]],
+      "specialHandling": "Env: split on whitespace, and on a comma followed by '-'. A flag whose value has a space in it needs the JSON array."
     },
     {
       "key": "channel",
@@ -287,8 +287,8 @@
     "lookupBehavior": [
       "Re-merges every pages/*.json fragment from disk on every call (live edits picked up instantly)",
       "Finds best-matching site block (longest-prefix wins across all fragments)",
-      "Within site block: exact URL → regex/substring patterns (skipping 'Domain' key) → 'Domain' fallback",
-      "Auto-populates new URLs by writing a per-site fragment pages/<safe_netloc>.json with placeholder 'Auto: domain/path'"
+      "Within site block, the most specific of: the address itself; the address without its query and fragment; every other key that matches — a plain path key ('/login': starts with '/', no regular-expression characters, a dot is a dot) matches the path from its start, a whole segment at a time, and any other key matches as a regular expression, or failing that as a substring, of the address — the longest such key winning, and of keys as long the first in byte order; then the 'Domain' fallback. Two keys that matched one address used to name it at random, and a path key matched anywhere in the address ('/admin' named /blog/admin-tips).",
+      "Auto-populates an address on a site with no fragment by writing pages/<safe_netloc>.json: 'Domain' is 'Auto: <host>' and the address, without its query and fragment, is 'Auto: <host>/<path>'. It used to name the whole site after the first address it saw, query and all. The fragment is written to a temporary file and renamed into place, so a parallel worker never reads one half written. Lookups, and so writes, happen only for auto_annotate and `manul pages`."
     ],
     "introspection": {
       "cli": "manul pages list",

@@ -96,6 +96,7 @@ func LaunchFirefox(ctx context.Context, opts LaunchOptions) (*FirefoxProcess, er
 	if opts.Headless {
 		args = append(args, "--headless")
 	}
+	args = append(args, opts.Args...)
 
 	// Firefox must outlive ctx for the same reason Chrome does — see the note
 	// in LaunchChrome. ctx bounds startup only.

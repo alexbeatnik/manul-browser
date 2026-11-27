@@ -182,3 +182,81 @@ func TestNormalizeFragment_Wrapped(t *testing.T) {
 		t.Errorf("login = %q", got["https://example.com/"]["/login"])
 	}
 }
+
+// Two patterns that both matched one address named it at random: Go walks a
+// map in no fixed order, and /login/sso was "Login" 156 times in 200 and
+// "Single sign-on" 44. The most specific match wins now, every time.
+func TestRegistry_TheMostSpecificPatternWins(t *testing.T) {
+	dir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "shop.test.json"), []byte(`{
+    "site": "https://shop.test/",
+    "Domain": "Shop",
+    "/login": "Login",
+    "/login/sso": "Single sign-on"
+}`), 0o644)
+	r := NewRegistry(dir)
+	for i := 0; i < 100; i++ {
+		if got := r.LookupPageName("https://shop.test/login/sso"); got != "Single sign-on" {
+			t.Fatalf("lookup %d: /login/sso = %q, want Single sign-on", i, got)
+		}
+	}
+	if got := r.LookupPageName("https://shop.test/login?next=/cart"); got != "Login" {
+		t.Errorf("/login?next=… = %q, want Login", got)
+	}
+}
+
+// A path key was a substring of the whole address: '/admin' named a blog
+// post about admin tips. It matches the path from its start, a segment at a
+// time.
+func TestRegistry_APathKeyMatchesFromTheStartOfThePath(t *testing.T) {
+	dir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "site.test.json"), []byte(`{"site": "https://site.test/", "Domain": "Site", "/admin": "Admin", "/index.html": "Home"}`), 0o644)
+	r := NewRegistry(dir)
+	for url, want := range map[string]string{
+		"https://site.test/admin":           "Admin",
+		"https://site.test/admin/users":     "Admin",
+		"https://site.test/blog/admin-tips": "Site",
+		"https://site.test/administrators":  "Site",
+		"https://site.test/index.html?x=1":  "Home",
+		"https://site.test/indexXhtml":      "Site", // the dot is a dot
+	} {
+		if got := r.LookupPageName(url); got != want {
+			t.Errorf("%s = %q, want %q", url, got, want)
+		}
+	}
+}
+
+// An exact address is the same page with a query or a fragment after it.
+func TestRegistry_TheQueryAndFragmentDoNotChangeThePage(t *testing.T) {
+	dir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "shop.test.json"), []byte(`{"site": "https://shop.test/", "Domain": "Shop", "https://shop.test/cart": "Cart"}`), 0o644)
+	r := NewRegistry(dir)
+	if got := r.LookupPageName("https://shop.test/cart?step=2#top"); got != "Cart" {
+		t.Errorf("cart with a query = %q, want Cart", got)
+	}
+}
+
+// Auto-populate named the whole site after the first address it saw, query
+// and all — "Auto: other.test/p/1?ref=a" — and every other page of the site
+// was then called that.
+func TestRegistry_AutoPopulateNamesTheSiteAfterItsHost(t *testing.T) {
+	dir := t.TempDir()
+	r := NewRegistry(dir)
+	if got := r.LookupPageName("https://other.test/p/1?ref=a"); got != "Auto: other.test/p/1" {
+		t.Errorf("first page = %q, want Auto: other.test/p/1", got)
+	}
+	if got := r.LookupPageName("https://other.test/p/2"); got != "Auto: other.test" {
+		t.Errorf("another page of the site = %q, want the site's name Auto: other.test", got)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "other.test.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "?") {
+		t.Errorf("the fragment keeps a query:\n%s", data)
+	}
+	entries, _ := os.ReadDir(dir)
+	if len(entries) != 1 {
+		t.Errorf("the directory holds %d files, want the one fragment: a write left a temporary behind", len(entries))
+	}
+}

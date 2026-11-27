@@ -53,6 +53,10 @@ type LaunchOptions struct {
 	// firefox-esr, firefox-dev, firefox-nightly). Empty = platform defaults.
 	// Set by `--channel` / MANUL_CHANNEL.
 	Channel string
+	// Args are extra command-line flags for the browser, after the engine's
+	// own: `browser_args` / MANUL_BROWSER_ARGS. They are read and used to be
+	// dropped, so the contract's --window-size example did nothing.
+	Args []string
 	// Locale is the language the browser asks pages for (Accept-Language,
 	// navigator.language) and uses itself, as a BCP 47 tag: "en-US",
 	// "uk-UA". Empty is DefaultLocale. Set by `locale` / MANUL_LOCALE /

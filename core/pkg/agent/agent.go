@@ -110,6 +110,7 @@ func Launch(ctx context.Context, opts Options) (*Session, error) {
 	// for en-US whatever `locale` said.
 	if opts.Config != nil {
 		launchOpts.Locale = opts.Config.Locale
+		launchOpts.Args = opts.Config.BrowserArgs
 		if opts.Config.Channel != nil {
 			launchOpts.Channel = *opts.Config.Channel
 		}

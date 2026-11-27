@@ -232,6 +232,13 @@ page failed with "cannot unmarshal number … of type bool". The probe now sends
 `ParseProbeResult` decodes element by element, so one that still does not fit
 costs only itself.
 
+**A map has no order.** The `pages/` registry walked its patterns with
+`range` over a map, so two keys that both matched an address named it at
+random: `/login/sso` was "Login" 156 times in 200 and "Single sign-on" 44.
+`lookup` now takes the longest matching key, and the first in byte order of
+keys as long. Any "best of" over a Go map needs a tie-break that is not the
+iteration order.
+
 **A failure message is advice a model follows.** `DescribeForLLM` told the
 model that a label "was probably made up" and to "NOT retry", and that a target
 it could not find was "too vague". On Comfy the label had come from map and the
@@ -251,6 +258,16 @@ begins, which keeps the forms a word grows into ('Product' → "Products",
 Southeast Asian scripts have no spaces and so no word starts; there any
 character begins one. A test that passed because "a" was inside "change" had
 to be told what it was really checking.
+
+The end of a match matters too: 'All' scored 0.21 against "Allow cookies" and
+the same against "Allergy info", a tie above the bar at which ties are refused,
+so the cookie banner got the click. A match may end inside a word only when
+the query's last word has four letters or more — a stem: 'Product' →
+"Products", 'Work' → "Workshop" — and a number never runs on into a longer one.
+VERIFY does not take the word rules, only the number one: its page text is
+innerText, which glues neighbouring inline elements ("Deep button" + "inner
+clicked" = "Deep buttoninner clicked"), and the frame hunts failed the moment
+it required a word start.
 
 **An empty query matches everything.** Pass 3 ranks the controls beside a
 caption with `""`, and `strings.Contains(x, "")` is true — every labelled field

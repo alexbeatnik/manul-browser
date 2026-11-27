@@ -32,10 +32,13 @@ var waitsForTarget = map[dsl.CommandType]bool{
 // NAVIGATE fail "target not found" unless the hunt put a WAIT FOR in front of
 // it. A person waits for the thing to show up; so does the engine now.
 //
-// Only a not-found failure is retried, and only while the step has changed
-// nothing: once it has typed, clicked or scrolled (rt.acted), running it
-// again would do that twice. An ambiguous target is not retried either —
-// more content does not usually make a choice clearer.
+// Only a target that is not on the page is retried, and only while the step
+// has changed nothing: once it has typed, clicked or scrolled (rt.acted),
+// running it again would do that twice. That includes an ambiguous one: the
+// engine refuses only weak, nearly tied best guesses — an exact label scores
+// far above them — and a weak guess is what is left while the real target is
+// still on its way. YouTube's 'All' tab, not drawn yet, lost to "Allow…" by a
+// few hundredths and the step failed at once instead of waiting for it.
 func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (explain.ExecutionResult, error) {
 	if !waitsForTarget[cmd.Type] || rt.cfg.DefaultTimeout <= 0 {
 		rt.acted = false
@@ -72,8 +75,9 @@ func (rt *Runtime) executeCommand(ctx context.Context, cmd dsl.Command) (explain
 }
 
 func notFound(ctx context.Context, cmd dsl.Command, res explain.ExecutionResult, err error) bool {
-	if res.FailureReason != "" {
-		return res.FailureReason == explain.ReasonNotFound
+	reason := res.FailureReason
+	if reason == "" {
+		reason = classifyFailure(ctx, cmd, err)
 	}
-	return classifyFailure(ctx, cmd, err) == explain.ReasonNotFound
+	return reason == explain.ReasonNotFound || reason == explain.ReasonAmbiguous
 }

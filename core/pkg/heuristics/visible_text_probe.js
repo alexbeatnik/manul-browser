@@ -22,6 +22,7 @@
     };
     const faded = [];
     const inFaded = (el) => faded.some(f => f.contains(el));
+    const sizes = new WeakMap();
     roots.forEach((root, i) => {
         if (i > 0) {
             // A shadow root's own text, a top-level child at a time:
@@ -35,6 +36,7 @@
         }
         root.querySelectorAll('*').forEach(el => {
             const st = window.getComputedStyle(el);
+            sizes.set(el, parseFloat(st.fontSize));
             if (transparent(st) && !inFaded(el)) faded.push(el);
             if (st.display === 'none' || st.visibility === 'hidden' || inFaded(el)) return;
             if (el.title)       t += el.title + " ";
@@ -55,6 +57,25 @@
         if (!s) return;
         const at = t.indexOf(s);
         if (at >= 0) t = t.slice(0, at) + ' ' + t.slice(at + s.length);
+    });
+    // Text drawn at font-size 0 is not shown either: Allo writes "hex" into
+    // its colour swatches that way. It goes text node by text node, as the
+    // map's labels do, because a container at size 0 whose children set a
+    // size of their own shows them; and only where innerText took the text
+    // in, or the same words shown elsewhere would go instead.
+    roots.forEach(root => {
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        let node;
+        while ((node = walker.nextNode())) {
+            const p = node.parentElement;
+            const size = p ? sizes.get(p) : undefined;
+            if (size === undefined || isNaN(size) || size >= 1 || inFaded(p)) continue;
+            if (p.checkVisibility && !p.checkVisibility()) continue;
+            const s = fold(node.nodeValue || '');
+            if (!s) continue;
+            const at = t.indexOf(s);
+            if (at >= 0) t = t.slice(0, at) + ' ' + t.slice(at + s.length);
+        }
     });
     return t;
 })()

@@ -634,6 +634,7 @@ func runSequential(ctx context.Context, cfg config.Config, hunts []*dsl.Hunt, op
 			opts.Channel = *cfg.Channel
 		}
 		opts.Locale = cfg.Locale
+		opts.Args = cfg.BrowserArgs
 		engine, err := browser.NormalizeEngine(opts.Browser)
 		if err != nil {
 			logger.Error("%v", err)
@@ -1095,9 +1096,15 @@ func cmdDaemon(args []string) error {
 	browserType := fs.String("browser", "chromium", "browser engine: chromium (CDP) or firefox (WebDriver BiDi)")
 	screenshot := fs.String("screenshot", "on-fail", "screenshot mode: none, on-fail, always")
 	htmlReport := fs.Bool("html-report", false, "generate HTML report after each run")
+	var flagVars runVarFlag
+	fs.Var(&flagVars, "var", "set a variable for every hunt, replacing a hunt's @var of that name (repeatable; MANUL_VAR_<name> does the same from the environment)")
 	positionals, perr := parseInterleaved(fs, args)
 	if perr != nil {
 		return perr
+	}
+	runVars, err := collectRunVars(flagVars, os.Environ())
+	if err != nil {
+		return err
 	}
 	var dir string
 	if len(positionals) > 0 {
@@ -1111,13 +1118,28 @@ func cmdDaemon(args []string) error {
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
-	cfg.Headless = *headless
-	cfg.Verbose = *verbose
-	cfg.Browser = *browserType
-	cfg.Screenshot = *screenshot
-	cfg.HTMLReport = *htmlReport
+	// A flag overrides config and env only when it was passed, as for `manul
+	// run`: copying every default across undid "headless": true and
+	// "browser": "firefox" from manul.config.json and MANUL_*.
+	passed := map[string]bool{}
+	fs.Visit(func(f *flag.Flag) { passed[f.Name] = true })
+	if passed["headless"] {
+		cfg.Headless = *headless
+	}
+	if passed["verbose"] {
+		cfg.Verbose = *verbose
+	}
+	if passed["browser"] {
+		cfg.Browser = *browserType
+	}
+	if passed["screenshot"] {
+		cfg.Screenshot = *screenshot
+	}
+	if passed["html-report"] {
+		cfg.HTMLReport = *htmlReport
+	}
 	logLevel := utils.LogLevelInfo
-	if *verbose {
+	if cfg.Verbose {
 		logLevel = utils.LogLevelDebug
 	}
 	logger := utils.NewLogger(nil).WithLevel(logLevel)
@@ -1130,7 +1152,7 @@ func cmdDaemon(args []string) error {
 		<-sigCh
 		cancel()
 	}()
-	return daemon.Run(ctx, dir, cfg, logger)
+	return daemon.RunWithVars(ctx, dir, cfg, logger, runVars)
 }
 
 // cmdRecord handles the `record` subcommand.
