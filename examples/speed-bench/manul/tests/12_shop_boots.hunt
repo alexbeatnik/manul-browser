@@ -1,0 +1,36 @@
+@title: shop_boots
+@context: The most expensive product, more than once, and the total adds up.
+@tags: shop
+@import: * from '../lib/env.hunt'
+
+STEP 1: Open the shop
+    NAVIGATE to 'Shop'
+    VERIFY that the page is 'Shop'
+
+STEP 2: Boots
+    CLICK the 'Add to cart' button NEAR 'Snow Boots'
+    VERIFY 'Cart total' field has value '89.99'
+
+STEP 3: Boots again
+    CLICK the 'Add to cart' button NEAR 'Snow Boots'
+    VERIFY 'Cart total' field has value '179.98'
+
+STEP 4: A plush
+    CLICK the 'Add to cart' button NEAR 'Manul Plush'
+    VERIFY 'Cart total' field has value '204.48'
+
+STEP 5: A map
+    CLICK the 'Add to cart' button NEAR 'Steppe Map'
+    VERIFY 'Cart total' field has value '216.48'
+    VERIFY that 'Cart: 4' is present
+
+STEP 6: Edit a team member
+    CLICK the 'Edit' button INSIDE 'Team' row with 'Ada Lovelace'
+    VERIFY that 'Editing Ada Lovelace' is present
+
+STEP 7: Boots a third time
+    CLICK the 'Add to cart' button NEAR 'Snow Boots'
+    VERIFY that 'Cart: 5' is present
+    VERIFY 'Cart total' field has value '306.47'
+
+DONE.

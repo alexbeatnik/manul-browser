@@ -1,0 +1,22 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Moved up</title></head>
+<body style="font-family:sans-serif;margin:0">
+<!-- A line above the button goes as the pointer arrives, as the quickstart's
+     "Loading page..." does a second after load: the button moves up, and the
+     press lands on its own section where the button was. -->
+<section id="drafts" style="padding:8px 8px 200px">
+  <p id="line" style="height:60px;margin:0">Loading drafts...</p>
+  <button id="draft">Save draft</button>
+</section>
+<p id="note"></p>
+<script>
+var draft = document.getElementById('draft'), note = document.getElementById('note');
+draft.addEventListener('mouseenter', function () {
+  var line = document.getElementById('line');
+  if (line) line.remove();
+});
+draft.addEventListener('click', function () { note.textContent = 'Draft saved'; });
+document.addEventListener('click', function (e) {
+  if (e.target !== draft) note.textContent = 'Clicked ' + e.target.tagName;
+});
+</script>
+</body></html>

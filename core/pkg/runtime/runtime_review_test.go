@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/alexbeatnik/manul-browser/core/pkg/config"
 	"github.com/alexbeatnik/manul-browser/core/pkg/dom"
@@ -855,33 +854,54 @@ func TestRuntime_FillUsesFieldsetLegendAsLabel(t *testing.T) {
 	}
 }
 
+// lateElement is an element a page draws a moment after an action: it is in
+// no snapshot taken at once, and in the next one. The actions used to sleep
+// 300 ms, which these pages answered by drawing it; the step after the
+// action now waits for its target instead.
+type lateElement struct {
+	el    *dom.ElementSnapshot
+	looks int
+}
+
+func (l *lateElement) set(el dom.ElementSnapshot) {
+	el.Normalize()
+	l.el, l.looks = &el, 0
+}
+
+func (l *lateElement) look(m *MockPage) {
+	if l.el == nil {
+		return
+	}
+	if l.looks++; l.looks < 2 {
+		return
+	}
+	m.Elements = append(m.Elements, *l.el)
+	l.el = nil
+}
+
 type delayedAutocompletePage struct {
 	*MockPage
-	pendingSuggestion bool
+	late lateElement
 }
 
 func (p *delayedAutocompletePage) SetInputValue(ctx context.Context, id int, xpath, value string) error {
 	if err := p.MockPage.SetInputValue(ctx, id, xpath, value); err != nil {
 		return err
 	}
-	p.pendingSuggestion = true
+	p.late.set(dom.ElementSnapshot{
+		ID:          2,
+		XPath:       "/html/body/ul[1]/li[1]/div[1]",
+		Tag:         "div",
+		VisibleText: "Ukraine",
+		IsVisible:   true,
+		Rect:        dom.Rect{Top: 120, Left: 20, Bottom: 150, Right: 220, Width: 200, Height: 30},
+	})
 	return nil
 }
 
-func (p *delayedAutocompletePage) Wait(ctx context.Context, d time.Duration) error {
-	if p.pendingSuggestion {
-		p.pendingSuggestion = false
-		p.Elements = append(p.Elements, dom.ElementSnapshot{
-			ID:          2,
-			XPath:       "/html/body/ul[1]/li[1]/div[1]",
-			Tag:         "div",
-			VisibleText: "Ukraine",
-			IsVisible:   true,
-			Rect:        dom.Rect{Top: 120, Left: 20, Bottom: 150, Right: 220, Width: 200, Height: 30},
-		})
-		p.Elements[len(p.Elements)-1].Normalize()
-	}
-	return nil
+func (p *delayedAutocompletePage) CallProbe(ctx context.Context, fn string, arg any) ([]byte, error) {
+	p.late.look(p.MockPage)
+	return p.MockPage.CallProbe(ctx, fn, arg)
 }
 
 func TestRuntime_FillWaitsForReactiveAutocompleteSuggestions(t *testing.T) {
@@ -894,7 +914,7 @@ func TestRuntime_FillWaitsForReactiveAutocompleteSuggestions(t *testing.T) {
 		page.Elements[i].Normalize()
 	}
 
-	rt := New(config.Config{}, page, utils.NewLogger(nil))
+	rt := New(regConfig(), page, utils.NewLogger(nil))
 	if _, err := rt.executeCommand(context.Background(), dsl.Command{
 		Type:   dsl.CmdFill,
 		Raw:    "FILL 'Suggession Class' field with 'Ukra'",
@@ -923,29 +943,25 @@ func TestRuntime_FillWaitsForReactiveAutocompleteSuggestions(t *testing.T) {
 
 type delayedHoverMenuPage struct {
 	*MockPage
-	pendingReveal bool
+	late lateElement
 }
 
 func (p *delayedHoverMenuPage) Hover(ctx context.Context, x, y float64) error {
 	p.Clicks = append(p.Clicks, Point{X: x, Y: y})
-	p.pendingReveal = true
+	p.late.set(dom.ElementSnapshot{
+		ID:          2,
+		XPath:       "/html/body/div[1]/a[1]",
+		Tag:         "a",
+		VisibleText: "Top",
+		IsVisible:   true,
+		Rect:        dom.Rect{Top: 120, Left: 20, Bottom: 165, Right: 180, Width: 160, Height: 45},
+	})
 	return nil
 }
 
-func (p *delayedHoverMenuPage) Wait(ctx context.Context, d time.Duration) error {
-	if p.pendingReveal {
-		p.pendingReveal = false
-		p.Elements = append(p.Elements, dom.ElementSnapshot{
-			ID:          2,
-			XPath:       "/html/body/div[1]/a[1]",
-			Tag:         "a",
-			VisibleText: "Top",
-			IsVisible:   true,
-			Rect:        dom.Rect{Top: 120, Left: 20, Bottom: 165, Right: 180, Width: 160, Height: 45},
-		})
-		p.Elements[len(p.Elements)-1].Normalize()
-	}
-	return nil
+func (p *delayedHoverMenuPage) CallProbe(ctx context.Context, fn string, arg any) ([]byte, error) {
+	p.late.look(p.MockPage)
+	return p.MockPage.CallProbe(ctx, fn, arg)
 }
 
 func TestRuntime_HoverWaitsForReactiveMenuReveal(t *testing.T) {
@@ -958,7 +974,7 @@ func TestRuntime_HoverWaitsForReactiveMenuReveal(t *testing.T) {
 		page.Elements[i].Normalize()
 	}
 
-	rt := New(config.Config{}, page, utils.NewLogger(nil))
+	rt := New(regConfig(), page, utils.NewLogger(nil))
 	if _, err := rt.executeCommand(context.Background(), dsl.Command{
 		Type:     dsl.CmdHover,
 		Raw:      "HOVER over the 'Mouse Hover' button",

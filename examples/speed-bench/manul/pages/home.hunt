@@ -1,0 +1,4 @@
+@page: Home
+@url: /index.html /
+@expect: 'Welcome to the Manul quickstart site'
+@context: The home page, with a link to every other page.

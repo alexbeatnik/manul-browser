@@ -175,6 +175,10 @@ type BiDiPage struct {
 	contextID string
 	// mocks is nil until the first MOCK: no request is blocked before then.
 	mocks *mockTable
+	// intercept and mockSub are what the first MOCK set up, for Close to
+	// take away again.
+	intercept string
+	mockSub   *bidi.Subscription
 }
 
 // ContextID exposes the browsing-context id this page drives.
@@ -345,6 +349,7 @@ func (p *BiDiPage) Mock(ctx context.Context, rule MockRule) error {
 		// for everything not already cached.
 		_ = bidi.BypassCache(ctx, p.conn, p.contextID)
 		p.mocks = &mockTable{}
+		p.intercept, p.mockSub = intercept, sub
 		go p.answerBlocked(sub, intercept)
 	}
 	p.mocks.set(rule)
@@ -600,4 +605,23 @@ func (p *BiDiPage) frameContextID(ctx context.Context, frameIndex int) (string, 
 // Close releases the page handle. The connection stays open because it is
 // shared with every other page of this browser; the tab itself is closed by
 // CloseTarget, and the browser by Process.Close.
-func (p *BiDiPage) Close() error { return nil }
+// Close ends what this page set up on the browser. It leaves the connection
+// open: every page of this Firefox shares it.
+//
+// A run gives each hunt a page of its own on the same tab. The intercept the
+// last one's MOCK made stayed on the tab, and its rules went on answering:
+// a hunt that mocked the quotes API made every hunt after it, in the same
+// Firefox, read the mocked quotes. Over CDP each page has a connection of its
+// own, and closing it ends its interception.
+func (p *BiDiPage) Close() error {
+	if p.mockSub == nil {
+		return nil
+	}
+	p.mocks.clear()
+	p.mockSub.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), mockAnswerTimeout)
+	defer cancel()
+	err := bidi.RemoveIntercept(ctx, p.conn, p.intercept)
+	p.mockSub, p.intercept = nil, ""
+	return err
+}

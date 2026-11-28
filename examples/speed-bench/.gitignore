@@ -1,0 +1,6 @@
+# playwright/node_modules is a local symlink to ../token-bench/node_modules.
+playwright/node_modules
+playwright/test-results/
+manul/screenshots/
+manul/reports/
+results/*.log

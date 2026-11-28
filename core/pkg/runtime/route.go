@@ -25,6 +25,15 @@ const (
 	routeQuietTimeout = time.Second
 	// routePollInterval is how often the page is asked.
 	routePollInterval = 50 * time.Millisecond
+	// actionGrace is how long an action that has set nothing off yet is
+	// given to start something: a form that Enter submits navigates from a
+	// task of its own, a framework sends its request from an effect after
+	// it renders. Every action used to sleep 300–500 ms before its settle
+	// instead, whether the page did anything or not: three quarters of a
+	// suite's time on a page that answers at once.
+	actionGrace = 50 * time.Millisecond
+	// gracePollInterval is how often the page is asked during actionGrace.
+	gracePollInterval = 10 * time.Millisecond
 )
 
 // settleNavigation waits, no longer than nav_timeout, for what the last
@@ -50,6 +59,13 @@ const (
 func (rt *Runtime) settleNavigation(ctx context.Context) {
 	limited, cancel := rt.withNavTimeout(ctx)
 	defer cancel()
+	for end := time.Now().Add(actionGrace); time.Now().Before(end) && !rt.actionStarted(limited); {
+		select {
+		case <-limited.Done():
+			return
+		case <-time.After(gracePollInterval):
+		}
+	}
 	// From here on a request counts as the action's only if the address has
 	// moved: the action has had its moment to start what it starts.
 	_, _ = rt.page.EvalJS(limited, pagejs.CloseActionWindow)
@@ -81,6 +97,18 @@ func (rt *Runtime) settleNavigation(ctx context.Context) {
 		case <-time.After(routePollInterval):
 		}
 	}
+}
+
+// actionStarted reports whether the last action has set anything off: the
+// document is leaving or gone, the address moved, or a request it started is
+// in flight. A page that cannot be asked is one in transit.
+func (rt *Runtime) actionStarted(ctx context.Context) bool {
+	raw, err := rt.page.EvalJS(ctx, pagejs.NavigationState)
+	if err != nil || strings.TrimSpace(string(raw)) != "0" {
+		return true
+	}
+	st := rt.routeState(ctx)
+	return !st.ok || st.Pending > 0 || st.Moved
 }
 
 // routeStatus is pagejs.RouteState's answer.

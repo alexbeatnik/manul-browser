@@ -1,0 +1,38 @@
+@title: form_resubmit
+@context: The form is sent, changed and sent again, and each answer reflects the change.
+@tags: form
+@import: * from '../lib/env.hunt'
+
+STEP 1: Open the sign-up form
+    NAVIGATE to 'Signup'
+    VERIFY that the page is 'Signup'
+
+STEP 2: A short name
+    FILL 'Full name' field with 'Ada'
+    VERIFY 'Full name' field has value 'Ada'
+
+STEP 3: Send it
+    CHECK the checkbox for 'I accept the Terms'
+    CLICK the 'Create account' button
+    VERIFY that 'Thanks, Ada! Plan: free, country: Choose…, newsletter: yes' is present
+
+STEP 4: The full name and a country
+    FILL 'Full name' field with 'Ada Lovelace'
+    SELECT 'Canada' from the 'Country' dropdown
+    VERIFY 'Country' field has value 'Canada'
+
+STEP 5: Send it again
+    CLICK the 'Create account' button
+    VERIFY that 'Thanks, Ada Lovelace! Plan: free, country: Canada, newsletter: yes' is present
+
+STEP 6: Change the plan
+    CLICK the radio button for 'Pro'
+    CLICK the 'Create account' button
+    VERIFY that 'Thanks, Ada Lovelace! Plan: pro, country: Canada, newsletter: yes' is present
+
+STEP 7: Drop the newsletter
+    UNCHECK the checkbox for 'Newsletter'
+    CLICK the 'Create account' button
+    VERIFY that 'Thanks, Ada Lovelace! Plan: pro, country: Canada, newsletter: no' is present
+
+DONE.

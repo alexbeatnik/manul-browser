@@ -1,0 +1,37 @@
+@title: form_pro_plan
+@context: A sign-up on the pro plan, from Japan, without the newsletter.
+@tags: form
+@import: * from '../lib/env.hunt'
+
+STEP 1: Open the sign-up form
+    NAVIGATE to 'Signup'
+    VERIFY that the page is 'Signup'
+
+STEP 2: Name and email
+    SET {name} = Grace Hopper
+    SET {email} = grace@example.com
+    USE Signup.Fill
+    VERIFY 'Email' field has value 'grace@example.com'
+
+STEP 3: Country
+    SELECT 'Japan' from the 'Country' dropdown
+    VERIFY 'Country' field has value 'Japan'
+
+STEP 4: The pro plan
+    CLICK the radio button for 'Pro'
+    VERIFY that 'Pro' is checked
+    VERIFY that 'Free' is NOT checked
+
+STEP 5: No newsletter
+    UNCHECK the checkbox for 'Newsletter'
+    VERIFY that 'Newsletter' is NOT checked
+
+STEP 6: Accept the terms
+    CHECK the checkbox for 'I accept the Terms'
+    VERIFY that 'Create account' is enabled
+
+STEP 7: Create the account
+    CLICK the 'Create account' button
+    VERIFY that 'Thanks, Grace Hopper! Plan: pro, country: Japan, newsletter: no' is present
+
+DONE.

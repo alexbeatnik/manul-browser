@@ -1,0 +1,34 @@
+@title: form_free_plan
+@context: A sign-up on the free plan, from Ukraine, with the newsletter.
+@tags: form
+@import: * from '../lib/env.hunt'
+
+STEP 1: Open the sign-up form
+    NAVIGATE to 'Signup'
+    VERIFY that the page is 'Signup'
+
+STEP 2: Full name
+    FILL 'Full name' field with 'Ada Lovelace'
+    VERIFY 'Full name' field has value 'Ada Lovelace'
+
+STEP 3: Email
+    FILL 'Email' field with 'ada@example.com'
+    VERIFY 'Email' field has value 'ada@example.com'
+
+STEP 4: Phone, typed
+    TYPE '+380 44 000 0000' into the 'Phone' field
+    VERIFY 'Phone' field has value '+380 44 000 0000'
+
+STEP 5: Country
+    SELECT 'Ukraine' from the 'Country' dropdown
+    VERIFY 'Country' field has value 'Ukraine'
+
+STEP 6: Accept the terms
+    CHECK the checkbox for 'I accept the Terms'
+    VERIFY that 'Create account' is enabled
+
+STEP 7: Create the account
+    CLICK the 'Create account' button
+    VERIFY that 'Thanks, Ada Lovelace! Plan: free, country: Ukraine, newsletter: yes' is present
+
+DONE.

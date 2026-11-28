@@ -1,0 +1,41 @@
+@title: shop_team_remove
+@context: Rows are removed one by one and stay gone.
+@tags: shop
+@import: * from '../lib/env.hunt'
+
+STEP 1: Open the shop
+    NAVIGATE to 'Shop'
+    VERIFY that 'Alan Turing' is present
+
+STEP 2: Remove Alan
+    CLICK the 'Remove' button INSIDE 'Team' row with 'Alan Turing'
+    VERIFY that 'Removed Alan Turing' is present
+
+STEP 3: He is gone from the table
+    CLICK the 'Help' link ON FOOTER
+    VERIFY that 'Help from the footer' is present
+    VERIFY that 'Alan Turing' is NOT present
+
+STEP 4: Remove Grace
+    CLICK the 'Remove' button INSIDE 'Team' row with 'Grace Hopper'
+    VERIFY that 'Removed Grace Hopper' is present
+
+STEP 5: She is gone too
+    CLICK the 'Edit' button INSIDE 'Team' row with 'Ada Lovelace'
+    VERIFY that 'Editing Ada Lovelace' is present
+    VERIFY that 'Grace Hopper' is NOT present
+
+STEP 6: The shop still works
+    CLICK the 'Add to cart' button NEAR 'Steppe Map'
+    VERIFY that 'Added Steppe Map' is present
+
+STEP 7: Remove Ada
+    CLICK the 'Remove' button INSIDE 'Team' row with 'Ada Lovelace'
+    VERIFY that 'Removed Ada Lovelace' is present
+
+STEP 8: The table is empty
+    CLICK the 'Help' link ON HEADER
+    VERIFY that 'Help from the header' is present
+    VERIFY that 'Ada Lovelace' is NOT present
+
+DONE.

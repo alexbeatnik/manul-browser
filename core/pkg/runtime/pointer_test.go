@@ -74,3 +74,28 @@ func TestPointer_ADisabledControlIsNotChecked(t *testing.T) {
 		t.Errorf("checked a disabled control %d times", *checks)
 	}
 }
+
+// The quickstart's slow page drops a line a second after it loads. A click
+// on 'Save settings' measured just before landed just after, where the button
+// no longer was, and passed with nothing saved. Such a press is stopped in
+// the page and made again where the element is now.
+func TestPointer_APressThatWentToAnotherElementIsMadeAgain(t *testing.T) {
+	page, _ := pointerPage("3", "1")
+	if _, err := runSource(t, page, "CLICK the 'Add to cart' button\n"); err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Clicks) != 2 {
+		t.Errorf("clicked %d times, want 2: the stopped press and the one where the button is now", len(page.Clicks))
+	}
+}
+
+func TestPointer_AnElementThatKeepsMovingFailsTheStep(t *testing.T) {
+	page, _ := pointerPage("3", "3", "3")
+	_, err := runSource(t, page, "CLICK the 'Add to cart' button\n")
+	if err == nil || !strings.Contains(err.Error(), "moves as it is clicked, and nothing was clicked") {
+		t.Fatalf("want a moving-element failure, got %v", err)
+	}
+	if len(page.Clicks) != pointerMoves {
+		t.Errorf("clicked %d times, want %d", len(page.Clicks), pointerMoves)
+	}
+}

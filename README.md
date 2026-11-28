@@ -22,7 +22,7 @@ histories are merged into this one; neither is maintained any more.
 core/            The engine. Go. The only implementation.
 spec/            Contracts + the stdio session protocol. Source of truth.
 bindings/        Thin Python and Node clients that drive the binary.
-examples/        Quickstart, full demos for each binding, the token benchmark.
+examples/        Quickstart, full demos for each binding, the token and speed benchmarks.
 conformance/     Fixtures every path must agree on. (planned)
 ```
 
@@ -58,6 +58,34 @@ existed — it just needed a session that outlives a single command.
 | What-If REPL | Ported to Go — terminal-only, see the debug contract |
 | Custom controls, `CALL HOST` | Go handlers, client handlers via reverse call, or a `--hooks` script |
 | Suite hooks | `pkg/lifecycle` — `before_all`/`after_all`/`before_group`/`after_group` |
+
+## Tokens and speed
+
+Measured against Playwright on the same Chrome. Both benchmarks are in
+`examples/` and can be run again.
+
+| | Manul | Playwright |
+|---|---:|---:|
+| Seeing a page: `map` against a snapshot, 8 pages | 1.7–18× fewer tokens | |
+| One task end to end: sign in, add to cart, check the cart | 570 tokens (`manul mcp`) | 4,314 (Playwright MCP) |
+| Sent with every request: tool definitions and instructions | 1,322 tokens, 6 tools | 4,484, 25 tools |
+| 26 tests, 185 steps, one worker | 32.2 s | 40.9 s (Playwright Test) |
+| The same, four workers | 12.0 s | 16.8 s |
+
+**Tokens.** Playwright acts on an element through a ref from a snapshot, and
+every action makes the refs stale, so an agent takes a new snapshot before
+each action. Manul acts on the label a person sees, which does not go stale,
+so it looks at a page once. A snapshot and a map do not hold the same
+things: the map lists labelled controls, not the page's text.
+
+**Speed.** On a page that answers at once the two are about even; on a page
+whose content arrives late Manul is faster, because it looks again every
+200 ms where Playwright's checks back off to once a second. The suite runs
+against a local site, so the network is not in it.
+
+Details, and what the numbers do not show:
+[`core/docs/token-efficiency.md`](core/docs/token-efficiency.md) and
+[`core/docs/speed.md`](core/docs/speed.md).
 
 ## Use it
 
@@ -157,6 +185,7 @@ is one static binary with `gorilla/websocket` as its only dependency.
 - [`examples/node-demo/`](examples/node-demo/) — the same, from Node
 - [`core/docs/integration.md`](core/docs/integration.md#mcp-server-claude-desktop-claude-code) — `manul mcp` in Claude Desktop and Claude Code
 - [`core/docs/token-efficiency.md`](core/docs/token-efficiency.md) — tokens an agent spends, against Playwright MCP; rerun it with [`examples/token-bench/`](examples/token-bench/)
+- [`core/docs/speed.md`](core/docs/speed.md) — how long the same suite takes, against Playwright Test; rerun it with [`examples/speed-bench/`](examples/speed-bench/)
 - [`core/examples/`](core/examples/) — sample `.hunt` files
 - [`CLAUDE.md`](CLAUDE.md) — working notes: invariants and traps
 - [`ROADMAP.md`](ROADMAP.md) — what is unverified, and what is missing

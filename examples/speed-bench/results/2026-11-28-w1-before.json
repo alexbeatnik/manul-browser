@@ -1,0 +1,1653 @@
+{
+ "date": "2026-11-28T08:50:58.036Z",
+ "rounds": 5,
+ "workers": 1,
+ "machine": "Darwin 24.6.0 arm64, Apple M1, 8 cores",
+ "node": "v26.13.1",
+ "manul": "manul 0.1.6",
+ "playwright": "1.66.0-alpha-2026-11-18",
+ "runs": {
+  "manul": [
+   {
+    "wall": 128431.006708,
+    "code": 0,
+    "tests": {
+     "login_admin": {
+      "ms": 3324,
+      "ok": true
+     },
+     "login_member": {
+      "ms": 5605,
+      "ok": true
+     },
+     "login_wrong_password": {
+      "ms": 5762,
+      "ok": true
+     },
+     "login_unknown_user": {
+      "ms": 6044,
+      "ok": true
+     },
+     "login_switch_users": {
+      "ms": 5993,
+      "ok": true
+     },
+     "form_free_plan": {
+      "ms": 2869,
+      "ok": true
+     },
+     "form_pro_plan": {
+      "ms": 3244,
+      "ok": true
+     },
+     "form_terms_gate": {
+      "ms": 2417,
+      "ok": true
+     },
+     "form_resubmit": {
+      "ms": 4840,
+      "ok": true
+     },
+     "form_countries": {
+      "ms": 6252,
+      "ok": true
+     },
+     "shop_add_each": {
+      "ms": 4186,
+      "ok": true
+     },
+     "shop_boots": {
+      "ms": 4154,
+      "ok": true
+     },
+     "shop_team_edit": {
+      "ms": 4097,
+      "ok": true
+     },
+     "shop_team_remove": {
+      "ms": 4630,
+      "ok": true
+     },
+     "shop_help_links": {
+      "ms": 4130,
+      "ok": true
+     },
+     "shop_from_home": {
+      "ms": 4197,
+      "ok": true
+     },
+     "mouse_hover_copy": {
+      "ms": 3378,
+      "ok": true
+     },
+     "mouse_menu_and_board": {
+      "ms": 3734,
+      "ok": true
+     },
+     "keyboard_search": {
+      "ms": 4462,
+      "ok": true
+     },
+     "mouse_everything": {
+      "ms": 4031,
+      "ok": true
+     },
+     "slow_report": {
+      "ms": 6920,
+      "ok": true
+     },
+     "slow_feed": {
+      "ms": 5661,
+      "ok": true
+     },
+     "quotes_cycle": {
+      "ms": 6173,
+      "ok": true
+     },
+     "quotes_mocked": {
+      "ms": 5422,
+      "ok": true
+     },
+     "home_navigation": {
+      "ms": 6483,
+      "ok": true
+     },
+     "cross_page_journey": {
+      "ms": 9355,
+      "ok": true
+     }
+    },
+    "byCommand": {
+     "NAVIGATE": {
+      "n": 26,
+      "ms": 21700
+     },
+     "VERIFY_PAGE": {
+      "n": 42,
+      "ms": 341
+     },
+     "FILL": {
+      "n": 44,
+      "ms": 14002
+     },
+     "VERIFY_FIELD": {
+      "n": 46,
+      "ms": 447
+     },
+     "CHECK": {
+      "n": 9,
+      "ms": 1474
+     },
+     "CLICK": {
+      "n": 130,
+      "ms": 69929
+     },
+     "VERIFY": {
+      "n": 150,
+      "ms": 7351
+     },
+     "SET": {
+      "n": 22,
+      "ms": 23
+     },
+     "TYPE": {
+      "n": 1,
+      "ms": 313
+     },
+     "SELECT": {
+      "n": 6,
+      "ms": 1903
+     },
+     "UNCHECK": {
+      "n": 5,
+      "ms": 824
+     },
+     "HOVER": {
+      "n": 4,
+      "ms": 1325
+     },
+     "DOUBLE_CLICK": {
+      "n": 3,
+      "ms": 1001
+     },
+     "PRESS": {
+      "n": 9,
+      "ms": 2799
+     },
+     "RIGHT_CLICK": {
+      "n": 2,
+      "ms": 653
+     },
+     "DRAG": {
+      "n": 3,
+      "ms": 639
+     },
+     "WAIT_FOR": {
+      "n": 3,
+      "ms": 2382
+     },
+     "MOCK": {
+      "n": 1,
+      "ms": 4
+     }
+    },
+    "stderr": ""
+   },
+   {
+    "wall": 128255.185917,
+    "code": 0,
+    "tests": {
+     "login_admin": {
+      "ms": 3358,
+      "ok": true
+     },
+     "login_member": {
+      "ms": 5606,
+      "ok": true
+     },
+     "login_wrong_password": {
+      "ms": 5747,
+      "ok": true
+     },
+     "login_unknown_user": {
+      "ms": 5982,
+      "ok": true
+     },
+     "login_switch_users": {
+      "ms": 5976,
+      "ok": true
+     },
+     "form_free_plan": {
+      "ms": 2872,
+      "ok": true
+     },
+     "form_pro_plan": {
+      "ms": 3270,
+      "ok": true
+     },
+     "form_terms_gate": {
+      "ms": 2420,
+      "ok": true
+     },
+     "form_resubmit": {
+      "ms": 4842,
+      "ok": true
+     },
+     "form_countries": {
+      "ms": 6229,
+      "ok": true
+     },
+     "shop_add_each": {
+      "ms": 4183,
+      "ok": true
+     },
+     "shop_boots": {
+      "ms": 4090,
+      "ok": true
+     },
+     "shop_team_edit": {
+      "ms": 4083,
+      "ok": true
+     },
+     "shop_team_remove": {
+      "ms": 4629,
+      "ok": true
+     },
+     "shop_help_links": {
+      "ms": 4124,
+      "ok": true
+     },
+     "shop_from_home": {
+      "ms": 4208,
+      "ok": true
+     },
+     "mouse_hover_copy": {
+      "ms": 3359,
+      "ok": true
+     },
+     "mouse_menu_and_board": {
+      "ms": 3729,
+      "ok": true
+     },
+     "keyboard_search": {
+      "ms": 4456,
+      "ok": true
+     },
+     "mouse_everything": {
+      "ms": 4042,
+      "ok": true
+     },
+     "slow_report": {
+      "ms": 6893,
+      "ok": true
+     },
+     "slow_feed": {
+      "ms": 5649,
+      "ok": true
+     },
+     "quotes_cycle": {
+      "ms": 6123,
+      "ok": true
+     },
+     "quotes_mocked": {
+      "ms": 5374,
+      "ok": true
+     },
+     "home_navigation": {
+      "ms": 6484,
+      "ok": true
+     },
+     "cross_page_journey": {
+      "ms": 9353,
+      "ok": true
+     }
+    },
+    "byCommand": {
+     "NAVIGATE": {
+      "n": 26,
+      "ms": 21721
+     },
+     "VERIFY_PAGE": {
+      "n": 42,
+      "ms": 294
+     },
+     "FILL": {
+      "n": 44,
+      "ms": 13929
+     },
+     "VERIFY_FIELD": {
+      "n": 46,
+      "ms": 435
+     },
+     "CHECK": {
+      "n": 9,
+      "ms": 1469
+     },
+     "CLICK": {
+      "n": 130,
+      "ms": 69828
+     },
+     "VERIFY": {
+      "n": 150,
+      "ms": 7326
+     },
+     "SET": {
+      "n": 22,
+      "ms": 24
+     },
+     "TYPE": {
+      "n": 1,
+      "ms": 312
+     },
+     "SELECT": {
+      "n": 6,
+      "ms": 1901
+     },
+     "UNCHECK": {
+      "n": 5,
+      "ms": 820
+     },
+     "HOVER": {
+      "n": 4,
+      "ms": 1325
+     },
+     "DOUBLE_CLICK": {
+      "n": 3,
+      "ms": 1000
+     },
+     "PRESS": {
+      "n": 9,
+      "ms": 2789
+     },
+     "RIGHT_CLICK": {
+      "n": 2,
+      "ms": 662
+     },
+     "DRAG": {
+      "n": 3,
+      "ms": 623
+     },
+     "WAIT_FOR": {
+      "n": 3,
+      "ms": 2369
+     },
+     "MOCK": {
+      "n": 1,
+      "ms": 4
+     }
+    },
+    "stderr": ""
+   },
+   {
+    "wall": 128878.425166,
+    "code": 0,
+    "tests": {
+     "login_admin": {
+      "ms": 3380,
+      "ok": true
+     },
+     "login_member": {
+      "ms": 5651,
+      "ok": true
+     },
+     "login_wrong_password": {
+      "ms": 5810,
+      "ok": true
+     },
+     "login_unknown_user": {
+      "ms": 6009,
+      "ok": true
+     },
+     "login_switch_users": {
+      "ms": 6009,
+      "ok": true
+     },
+     "form_free_plan": {
+      "ms": 2884,
+      "ok": true
+     },
+     "form_pro_plan": {
+      "ms": 3274,
+      "ok": true
+     },
+     "form_terms_gate": {
+      "ms": 2437,
+      "ok": true
+     },
+     "form_resubmit": {
+      "ms": 4855,
+      "ok": true
+     },
+     "form_countries": {
+      "ms": 6247,
+      "ok": true
+     },
+     "shop_add_each": {
+      "ms": 4185,
+      "ok": true
+     },
+     "shop_boots": {
+      "ms": 4172,
+      "ok": true
+     },
+     "shop_team_edit": {
+      "ms": 4095,
+      "ok": true
+     },
+     "shop_team_remove": {
+      "ms": 4655,
+      "ok": true
+     },
+     "shop_help_links": {
+      "ms": 4170,
+      "ok": true
+     },
+     "shop_from_home": {
+      "ms": 4245,
+      "ok": true
+     },
+     "mouse_hover_copy": {
+      "ms": 3376,
+      "ok": true
+     },
+     "mouse_menu_and_board": {
+      "ms": 3728,
+      "ok": true
+     },
+     "keyboard_search": {
+      "ms": 4482,
+      "ok": true
+     },
+     "mouse_everything": {
+      "ms": 4038,
+      "ok": true
+     },
+     "slow_report": {
+      "ms": 6927,
+      "ok": true
+     },
+     "slow_feed": {
+      "ms": 5674,
+      "ok": true
+     },
+     "quotes_cycle": {
+      "ms": 6174,
+      "ok": true
+     },
+     "quotes_mocked": {
+      "ms": 5423,
+      "ok": true
+     },
+     "home_navigation": {
+      "ms": 6516,
+      "ok": true
+     },
+     "cross_page_journey": {
+      "ms": 9317,
+      "ok": true
+     }
+    },
+    "byCommand": {
+     "NAVIGATE": {
+      "n": 26,
+      "ms": 21819
+     },
+     "VERIFY_PAGE": {
+      "n": 42,
+      "ms": 314
+     },
+     "FILL": {
+      "n": 44,
+      "ms": 13976
+     },
+     "VERIFY_FIELD": {
+      "n": 46,
+      "ms": 446
+     },
+     "CHECK": {
+      "n": 9,
+      "ms": 1480
+     },
+     "CLICK": {
+      "n": 130,
+      "ms": 70215
+     },
+     "VERIFY": {
+      "n": 150,
+      "ms": 7359
+     },
+     "SET": {
+      "n": 22,
+      "ms": 24
+     },
+     "TYPE": {
+      "n": 1,
+      "ms": 314
+     },
+     "SELECT": {
+      "n": 6,
+      "ms": 1910
+     },
+     "UNCHECK": {
+      "n": 5,
+      "ms": 823
+     },
+     "HOVER": {
+      "n": 4,
+      "ms": 1323
+     },
+     "DOUBLE_CLICK": {
+      "n": 3,
+      "ms": 1003
+     },
+     "PRESS": {
+      "n": 9,
+      "ms": 2801
+     },
+     "RIGHT_CLICK": {
+      "n": 2,
+      "ms": 664
+     },
+     "DRAG": {
+      "n": 3,
+      "ms": 621
+     },
+     "WAIT_FOR": {
+      "n": 3,
+      "ms": 2378
+     },
+     "MOCK": {
+      "n": 1,
+      "ms": 4
+     }
+    },
+    "stderr": ""
+   },
+   {
+    "wall": 128061.416917,
+    "code": 0,
+    "tests": {
+     "login_admin": {
+      "ms": 3354,
+      "ok": true
+     },
+     "login_member": {
+      "ms": 5602,
+      "ok": true
+     },
+     "login_wrong_password": {
+      "ms": 5750,
+      "ok": true
+     },
+     "login_unknown_user": {
+      "ms": 5981,
+      "ok": true
+     },
+     "login_switch_users": {
+      "ms": 5974,
+      "ok": true
+     },
+     "form_free_plan": {
+      "ms": 2871,
+      "ok": true
+     },
+     "form_pro_plan": {
+      "ms": 3239,
+      "ok": true
+     },
+     "form_terms_gate": {
+      "ms": 2405,
+      "ok": true
+     },
+     "form_resubmit": {
+      "ms": 4842,
+      "ok": true
+     },
+     "form_countries": {
+      "ms": 6214,
+      "ok": true
+     },
+     "shop_add_each": {
+      "ms": 4187,
+      "ok": true
+     },
+     "shop_boots": {
+      "ms": 4087,
+      "ok": true
+     },
+     "shop_team_edit": {
+      "ms": 4064,
+      "ok": true
+     },
+     "shop_team_remove": {
+      "ms": 4613,
+      "ok": true
+     },
+     "shop_help_links": {
+      "ms": 4115,
+      "ok": true
+     },
+     "shop_from_home": {
+      "ms": 4199,
+      "ok": true
+     },
+     "mouse_hover_copy": {
+      "ms": 3343,
+      "ok": true
+     },
+     "mouse_menu_and_board": {
+      "ms": 3703,
+      "ok": true
+     },
+     "keyboard_search": {
+      "ms": 4459,
+      "ok": true
+     },
+     "mouse_everything": {
+      "ms": 4036,
+      "ok": true
+     },
+     "slow_report": {
+      "ms": 6909,
+      "ok": true
+     },
+     "slow_feed": {
+      "ms": 5631,
+      "ok": true
+     },
+     "quotes_cycle": {
+      "ms": 6136,
+      "ok": true
+     },
+     "quotes_mocked": {
+      "ms": 5391,
+      "ok": true
+     },
+     "home_navigation": {
+      "ms": 6505,
+      "ok": true
+     },
+     "cross_page_journey": {
+      "ms": 9317,
+      "ok": true
+     }
+    },
+    "byCommand": {
+     "NAVIGATE": {
+      "n": 26,
+      "ms": 21652
+     },
+     "VERIFY_PAGE": {
+      "n": 42,
+      "ms": 290
+     },
+     "FILL": {
+      "n": 44,
+      "ms": 13900
+     },
+     "VERIFY_FIELD": {
+      "n": 46,
+      "ms": 422
+     },
+     "CHECK": {
+      "n": 9,
+      "ms": 1467
+     },
+     "CLICK": {
+      "n": 130,
+      "ms": 69800
+     },
+     "VERIFY": {
+      "n": 150,
+      "ms": 7311
+     },
+     "SET": {
+      "n": 22,
+      "ms": 22
+     },
+     "TYPE": {
+      "n": 1,
+      "ms": 312
+     },
+     "SELECT": {
+      "n": 6,
+      "ms": 1897
+     },
+     "UNCHECK": {
+      "n": 5,
+      "ms": 814
+     },
+     "HOVER": {
+      "n": 4,
+      "ms": 1346
+     },
+     "DOUBLE_CLICK": {
+      "n": 3,
+      "ms": 997
+     },
+     "PRESS": {
+      "n": 9,
+      "ms": 2790
+     },
+     "RIGHT_CLICK": {
+      "n": 2,
+      "ms": 655
+     },
+     "DRAG": {
+      "n": 3,
+      "ms": 624
+     },
+     "WAIT_FOR": {
+      "n": 3,
+      "ms": 2371
+     },
+     "MOCK": {
+      "n": 1,
+      "ms": 4
+     }
+    },
+    "stderr": ""
+   },
+   {
+    "wall": 128734.111166,
+    "code": 0,
+    "tests": {
+     "login_admin": {
+      "ms": 3331,
+      "ok": true
+     },
+     "login_member": {
+      "ms": 5638,
+      "ok": true
+     },
+     "login_wrong_password": {
+      "ms": 5795,
+      "ok": true
+     },
+     "login_unknown_user": {
+      "ms": 6023,
+      "ok": true
+     },
+     "login_switch_users": {
+      "ms": 6010,
+      "ok": true
+     },
+     "form_free_plan": {
+      "ms": 2870,
+      "ok": true
+     },
+     "form_pro_plan": {
+      "ms": 3240,
+      "ok": true
+     },
+     "form_terms_gate": {
+      "ms": 2431,
+      "ok": true
+     },
+     "form_resubmit": {
+      "ms": 4862,
+      "ok": true
+     },
+     "form_countries": {
+      "ms": 6262,
+      "ok": true
+     },
+     "shop_add_each": {
+      "ms": 4189,
+      "ok": true
+     },
+     "shop_boots": {
+      "ms": 4170,
+      "ok": true
+     },
+     "shop_team_edit": {
+      "ms": 4146,
+      "ok": true
+     },
+     "shop_team_remove": {
+      "ms": 4624,
+      "ok": true
+     },
+     "shop_help_links": {
+      "ms": 4134,
+      "ok": true
+     },
+     "shop_from_home": {
+      "ms": 4198,
+      "ok": true
+     },
+     "mouse_hover_copy": {
+      "ms": 3360,
+      "ok": true
+     },
+     "mouse_menu_and_board": {
+      "ms": 3730,
+      "ok": true
+     },
+     "keyboard_search": {
+      "ms": 4481,
+      "ok": true
+     },
+     "mouse_everything": {
+      "ms": 4030,
+      "ok": true
+     },
+     "slow_report": {
+      "ms": 6937,
+      "ok": true
+     },
+     "slow_feed": {
+      "ms": 5670,
+      "ok": true
+     },
+     "quotes_cycle": {
+      "ms": 6172,
+      "ok": true
+     },
+     "quotes_mocked": {
+      "ms": 5425,
+      "ok": true
+     },
+     "home_navigation": {
+      "ms": 6533,
+      "ok": true
+     },
+     "cross_page_journey": {
+      "ms": 9317,
+      "ok": true
+     }
+    },
+    "byCommand": {
+     "NAVIGATE": {
+      "n": 26,
+      "ms": 21716
+     },
+     "VERIFY_PAGE": {
+      "n": 42,
+      "ms": 311
+     },
+     "FILL": {
+      "n": 44,
+      "ms": 13971
+     },
+     "VERIFY_FIELD": {
+      "n": 46,
+      "ms": 435
+     },
+     "CHECK": {
+      "n": 9,
+      "ms": 1478
+     },
+     "CLICK": {
+      "n": 130,
+      "ms": 70202
+     },
+     "VERIFY": {
+      "n": 150,
+      "ms": 7354
+     },
+     "SET": {
+      "n": 22,
+      "ms": 25
+     },
+     "TYPE": {
+      "n": 1,
+      "ms": 311
+     },
+     "SELECT": {
+      "n": 6,
+      "ms": 1910
+     },
+     "UNCHECK": {
+      "n": 5,
+      "ms": 825
+     },
+     "HOVER": {
+      "n": 4,
+      "ms": 1300
+     },
+     "DOUBLE_CLICK": {
+      "n": 3,
+      "ms": 1002
+     },
+     "PRESS": {
+      "n": 9,
+      "ms": 2804
+     },
+     "RIGHT_CLICK": {
+      "n": 2,
+      "ms": 665
+     },
+     "DRAG": {
+      "n": 3,
+      "ms": 619
+     },
+     "WAIT_FOR": {
+      "n": 3,
+      "ms": 2380
+     },
+     "MOCK": {
+      "n": 1,
+      "ms": 4
+     }
+    },
+    "stderr": ""
+   }
+  ],
+  "playwright": [
+   {
+    "wall": 41688.4855,
+    "code": 0,
+    "tests": {
+     "login_admin": {
+      "ms": 562,
+      "ok": true
+     },
+     "login_member": {
+      "ms": 512,
+      "ok": true
+     },
+     "login_wrong_password": {
+      "ms": 565,
+      "ok": true
+     },
+     "login_unknown_user": {
+      "ms": 524,
+      "ok": true
+     },
+     "login_switch_users": {
+      "ms": 478,
+      "ok": true
+     },
+     "form_free_plan": {
+      "ms": 367,
+      "ok": true
+     },
+     "form_pro_plan": {
+      "ms": 402,
+      "ok": true
+     },
+     "form_terms_gate": {
+      "ms": 419,
+      "ok": true
+     },
+     "form_resubmit": {
+      "ms": 493,
+      "ok": true
+     },
+     "form_countries": {
+      "ms": 564,
+      "ok": true
+     },
+     "shop_add_each": {
+      "ms": 463,
+      "ok": true
+     },
+     "shop_boots": {
+      "ms": 447,
+      "ok": true
+     },
+     "shop_team_edit": {
+      "ms": 447,
+      "ok": true
+     },
+     "shop_team_remove": {
+      "ms": 481,
+      "ok": true
+     },
+     "shop_help_links": {
+      "ms": 474,
+      "ok": true
+     },
+     "shop_from_home": {
+      "ms": 568,
+      "ok": true
+     },
+     "mouse_hover_copy": {
+      "ms": 433,
+      "ok": true
+     },
+     "mouse_menu_and_board": {
+      "ms": 645,
+      "ok": true
+     },
+     "keyboard_search": {
+      "ms": 352,
+      "ok": true
+     },
+     "mouse_everything": {
+      "ms": 642,
+      "ok": true
+     },
+     "slow_report": {
+      "ms": 8741,
+      "ok": true
+     },
+     "slow_feed": {
+      "ms": 5676,
+      "ok": true
+     },
+     "quotes_cycle": {
+      "ms": 7049,
+      "ok": true
+     },
+     "quotes_mocked": {
+      "ms": 5712,
+      "ok": true
+     },
+     "home_navigation": {
+      "ms": 1170,
+      "ok": true
+     },
+     "cross_page_journey": {
+      "ms": 1111,
+      "ok": true
+     }
+    },
+    "stderr": ""
+   },
+   {
+    "wall": 40501.891125,
+    "code": 0,
+    "tests": {
+     "login_admin": {
+      "ms": 599,
+      "ok": true
+     },
+     "login_member": {
+      "ms": 499,
+      "ok": true
+     },
+     "login_wrong_password": {
+      "ms": 466,
+      "ok": true
+     },
+     "login_unknown_user": {
+      "ms": 525,
+      "ok": true
+     },
+     "login_switch_users": {
+      "ms": 488,
+      "ok": true
+     },
+     "form_free_plan": {
+      "ms": 379,
+      "ok": true
+     },
+     "form_pro_plan": {
+      "ms": 405,
+      "ok": true
+     },
+     "form_terms_gate": {
+      "ms": 416,
+      "ok": true
+     },
+     "form_resubmit": {
+      "ms": 485,
+      "ok": true
+     },
+     "form_countries": {
+      "ms": 562,
+      "ok": true
+     },
+     "shop_add_each": {
+      "ms": 476,
+      "ok": true
+     },
+     "shop_boots": {
+      "ms": 441,
+      "ok": true
+     },
+     "shop_team_edit": {
+      "ms": 442,
+      "ok": true
+     },
+     "shop_team_remove": {
+      "ms": 490,
+      "ok": true
+     },
+     "shop_help_links": {
+      "ms": 463,
+      "ok": true
+     },
+     "shop_from_home": {
+      "ms": 545,
+      "ok": true
+     },
+     "mouse_hover_copy": {
+      "ms": 434,
+      "ok": true
+     },
+     "mouse_menu_and_board": {
+      "ms": 627,
+      "ok": true
+     },
+     "keyboard_search": {
+      "ms": 360,
+      "ok": true
+     },
+     "mouse_everything": {
+      "ms": 620,
+      "ok": true
+     },
+     "slow_report": {
+      "ms": 8216,
+      "ok": true
+     },
+     "slow_feed": {
+      "ms": 5684,
+      "ok": true
+     },
+     "quotes_cycle": {
+      "ms": 6976,
+      "ok": true
+     },
+     "quotes_mocked": {
+      "ms": 5771,
+      "ok": true
+     },
+     "home_navigation": {
+      "ms": 900,
+      "ok": true
+     },
+     "cross_page_journey": {
+      "ms": 1060,
+      "ok": true
+     }
+    },
+    "stderr": ""
+   },
+   {
+    "wall": 41934.500625,
+    "code": 0,
+    "tests": {
+     "login_admin": {
+      "ms": 571,
+      "ok": true
+     },
+     "login_member": {
+      "ms": 529,
+      "ok": true
+     },
+     "login_wrong_password": {
+      "ms": 476,
+      "ok": true
+     },
+     "login_unknown_user": {
+      "ms": 509,
+      "ok": true
+     },
+     "login_switch_users": {
+      "ms": 494,
+      "ok": true
+     },
+     "form_free_plan": {
+      "ms": 378,
+      "ok": true
+     },
+     "form_pro_plan": {
+      "ms": 410,
+      "ok": true
+     },
+     "form_terms_gate": {
+      "ms": 417,
+      "ok": true
+     },
+     "form_resubmit": {
+      "ms": 477,
+      "ok": true
+     },
+     "form_countries": {
+      "ms": 566,
+      "ok": true
+     },
+     "shop_add_each": {
+      "ms": 465,
+      "ok": true
+     },
+     "shop_boots": {
+      "ms": 482,
+      "ok": true
+     },
+     "shop_team_edit": {
+      "ms": 461,
+      "ok": true
+     },
+     "shop_team_remove": {
+      "ms": 479,
+      "ok": true
+     },
+     "shop_help_links": {
+      "ms": 471,
+      "ok": true
+     },
+     "shop_from_home": {
+      "ms": 567,
+      "ok": true
+     },
+     "mouse_hover_copy": {
+      "ms": 430,
+      "ok": true
+     },
+     "mouse_menu_and_board": {
+      "ms": 666,
+      "ok": true
+     },
+     "keyboard_search": {
+      "ms": 351,
+      "ok": true
+     },
+     "mouse_everything": {
+      "ms": 628,
+      "ok": true
+     },
+     "slow_report": {
+      "ms": 8729,
+      "ok": true
+     },
+     "slow_feed": {
+      "ms": 5699,
+      "ok": true
+     },
+     "quotes_cycle": {
+      "ms": 6979,
+      "ok": true
+     },
+     "quotes_mocked": {
+      "ms": 5779,
+      "ok": true
+     },
+     "home_navigation": {
+      "ms": 900,
+      "ok": true
+     },
+     "cross_page_journey": {
+      "ms": 1802,
+      "ok": true
+     }
+    },
+    "stderr": ""
+   },
+   {
+    "wall": 40971.939083,
+    "code": 0,
+    "tests": {
+     "login_admin": {
+      "ms": 570,
+      "ok": true
+     },
+     "login_member": {
+      "ms": 544,
+      "ok": true
+     },
+     "login_wrong_password": {
+      "ms": 510,
+      "ok": true
+     },
+     "login_unknown_user": {
+      "ms": 538,
+      "ok": true
+     },
+     "login_switch_users": {
+      "ms": 547,
+      "ok": true
+     },
+     "form_free_plan": {
+      "ms": 371,
+      "ok": true
+     },
+     "form_pro_plan": {
+      "ms": 409,
+      "ok": true
+     },
+     "form_terms_gate": {
+      "ms": 422,
+      "ok": true
+     },
+     "form_resubmit": {
+      "ms": 483,
+      "ok": true
+     },
+     "form_countries": {
+      "ms": 562,
+      "ok": true
+     },
+     "shop_add_each": {
+      "ms": 483,
+      "ok": true
+     },
+     "shop_boots": {
+      "ms": 462,
+      "ok": true
+     },
+     "shop_team_edit": {
+      "ms": 444,
+      "ok": true
+     },
+     "shop_team_remove": {
+      "ms": 500,
+      "ok": true
+     },
+     "shop_help_links": {
+      "ms": 481,
+      "ok": true
+     },
+     "shop_from_home": {
+      "ms": 598,
+      "ok": true
+     },
+     "mouse_hover_copy": {
+      "ms": 408,
+      "ok": true
+     },
+     "mouse_menu_and_board": {
+      "ms": 624,
+      "ok": true
+     },
+     "keyboard_search": {
+      "ms": 341,
+      "ok": true
+     },
+     "mouse_everything": {
+      "ms": 591,
+      "ok": true
+     },
+     "slow_report": {
+      "ms": 8693,
+      "ok": true
+     },
+     "slow_feed": {
+      "ms": 5670,
+      "ok": true
+     },
+     "quotes_cycle": {
+      "ms": 6977,
+      "ok": true
+     },
+     "quotes_mocked": {
+      "ms": 5754,
+      "ok": true
+     },
+     "home_navigation": {
+      "ms": 882,
+      "ok": true
+     },
+     "cross_page_journey": {
+      "ms": 1077,
+      "ok": true
+     }
+    },
+    "stderr": ""
+   },
+   {
+    "wall": 40983.010834,
+    "code": 0,
+    "tests": {
+     "login_admin": {
+      "ms": 541,
+      "ok": true
+     },
+     "login_member": {
+      "ms": 522,
+      "ok": true
+     },
+     "login_wrong_password": {
+      "ms": 480,
+      "ok": true
+     },
+     "login_unknown_user": {
+      "ms": 515,
+      "ok": true
+     },
+     "login_switch_users": {
+      "ms": 494,
+      "ok": true
+     },
+     "form_free_plan": {
+      "ms": 374,
+      "ok": true
+     },
+     "form_pro_plan": {
+      "ms": 412,
+      "ok": true
+     },
+     "form_terms_gate": {
+      "ms": 416,
+      "ok": true
+     },
+     "form_resubmit": {
+      "ms": 475,
+      "ok": true
+     },
+     "form_countries": {
+      "ms": 566,
+      "ok": true
+     },
+     "shop_add_each": {
+      "ms": 486,
+      "ok": true
+     },
+     "shop_boots": {
+      "ms": 461,
+      "ok": true
+     },
+     "shop_team_edit": {
+      "ms": 470,
+      "ok": true
+     },
+     "shop_team_remove": {
+      "ms": 498,
+      "ok": true
+     },
+     "shop_help_links": {
+      "ms": 470,
+      "ok": true
+     },
+     "shop_from_home": {
+      "ms": 572,
+      "ok": true
+     },
+     "mouse_hover_copy": {
+      "ms": 431,
+      "ok": true
+     },
+     "mouse_menu_and_board": {
+      "ms": 629,
+      "ok": true
+     },
+     "keyboard_search": {
+      "ms": 369,
+      "ok": true
+     },
+     "mouse_everything": {
+      "ms": 614,
+      "ok": true
+     },
+     "slow_report": {
+      "ms": 8728,
+      "ok": true
+     },
+     "slow_feed": {
+      "ms": 5680,
+      "ok": true
+     },
+     "quotes_cycle": {
+      "ms": 7048,
+      "ok": true
+     },
+     "quotes_mocked": {
+      "ms": 5759,
+      "ok": true
+     },
+     "home_navigation": {
+      "ms": 901,
+      "ok": true
+     },
+     "cross_page_journey": {
+      "ms": 1063,
+      "ok": true
+     }
+    },
+    "stderr": ""
+   }
+  ]
+ },
+ "perTest": [
+  {
+   "title": "cross_page_journey",
+   "manul": 9317,
+   "playwright": 1077,
+   "ratio": 8.650882079851439
+  },
+  {
+   "title": "form_countries",
+   "manul": 6247,
+   "playwright": 564,
+   "ratio": 11.076241134751774
+  },
+  {
+   "title": "form_free_plan",
+   "manul": 2871,
+   "playwright": 374,
+   "ratio": 7.676470588235294
+  },
+  {
+   "title": "form_pro_plan",
+   "manul": 3244,
+   "playwright": 409,
+   "ratio": 7.931540342298288
+  },
+  {
+   "title": "form_resubmit",
+   "manul": 4842,
+   "playwright": 483,
+   "ratio": 10.024844720496894
+  },
+  {
+   "title": "form_terms_gate",
+   "manul": 2420,
+   "playwright": 417,
+   "ratio": 5.803357314148681
+  },
+  {
+   "title": "home_navigation",
+   "manul": 6505,
+   "playwright": 900,
+   "ratio": 7.227777777777778
+  },
+  {
+   "title": "keyboard_search",
+   "manul": 4462,
+   "playwright": 352,
+   "ratio": 12.676136363636363
+  },
+  {
+   "title": "login_admin",
+   "manul": 3354,
+   "playwright": 570,
+   "ratio": 5.88421052631579
+  },
+  {
+   "title": "login_member",
+   "manul": 5606,
+   "playwright": 522,
+   "ratio": 10.739463601532567
+  },
+  {
+   "title": "login_switch_users",
+   "manul": 5993,
+   "playwright": 494,
+   "ratio": 12.131578947368421
+  },
+  {
+   "title": "login_unknown_user",
+   "manul": 6009,
+   "playwright": 524,
+   "ratio": 11.467557251908397
+  },
+  {
+   "title": "login_wrong_password",
+   "manul": 5762,
+   "playwright": 480,
+   "ratio": 12.004166666666666
+  },
+  {
+   "title": "mouse_everything",
+   "manul": 4036,
+   "playwright": 620,
+   "ratio": 6.509677419354839
+  },
+  {
+   "title": "mouse_hover_copy",
+   "manul": 3360,
+   "playwright": 431,
+   "ratio": 7.795823665893272
+  },
+  {
+   "title": "mouse_menu_and_board",
+   "manul": 3729,
+   "playwright": 629,
+   "ratio": 5.92845786963434
+  },
+  {
+   "title": "quotes_cycle",
+   "manul": 6172,
+   "playwright": 6979,
+   "ratio": 0.8843673878779195
+  },
+  {
+   "title": "quotes_mocked",
+   "manul": 5422,
+   "playwright": 5759,
+   "ratio": 0.9414828963361694
+  },
+  {
+   "title": "shop_add_each",
+   "manul": 4186,
+   "playwright": 476,
+   "ratio": 8.794117647058824
+  },
+  {
+   "title": "shop_boots",
+   "manul": 4154,
+   "playwright": 461,
+   "ratio": 9.010845986984815
+  },
+  {
+   "title": "shop_from_home",
+   "manul": 4199,
+   "playwright": 568,
+   "ratio": 7.392605633802817
+  },
+  {
+   "title": "shop_help_links",
+   "manul": 4130,
+   "playwright": 471,
+   "ratio": 8.768577494692144
+  },
+  {
+   "title": "shop_team_edit",
+   "manul": 4095,
+   "playwright": 447,
+   "ratio": 9.161073825503356
+  },
+  {
+   "title": "shop_team_remove",
+   "manul": 4629,
+   "playwright": 490,
+   "ratio": 9.446938775510205
+  },
+  {
+   "title": "slow_feed",
+   "manul": 5661,
+   "playwright": 5680,
+   "ratio": 0.9966549295774648
+  },
+  {
+   "title": "slow_report",
+   "manul": 6920,
+   "playwright": 8728,
+   "ratio": 0.7928505957836847
+  }
+ ]
+}

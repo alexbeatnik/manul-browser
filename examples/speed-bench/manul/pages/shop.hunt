@@ -1,0 +1,9 @@
+@page: Shop
+@url: /shop.html
+@expect: 'Cart total'
+@context: Three products, a cart, and the team table.
+@export: Add
+
+STEP Add:
+    CLICK the 'Add to cart' button NEAR '{product}'
+    VERIFY that 'Added {product}' is present

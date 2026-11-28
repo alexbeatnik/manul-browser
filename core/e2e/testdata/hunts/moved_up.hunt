@@ -1,0 +1,7 @@
+@title: A click on an element that moves up out of the pointer
+STEP 1: The press that went to the button's own section is stopped, and made where the button is now
+    NAVIGATE to @SITE@/moved_up.html
+    CLICK the 'Save draft' button
+    VERIFY that 'Draft saved' is present
+    VERIFY that 'Clicked' is NOT present
+DONE.

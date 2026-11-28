@@ -603,6 +603,15 @@ func AddIntercept(ctx context.Context, c *Conn, contextID string) (string, error
 	return res.Intercept, nil
 }
 
+// RemoveIntercept takes away an intercept AddIntercept made. Requests it
+// would have blocked go to the network again.
+func RemoveIntercept(ctx context.Context, c *Conn, intercept string) error {
+	if _, err := c.Call(ctx, "network.removeIntercept", map[string]interface{}{"intercept": intercept}); err != nil {
+		return fmt.Errorf("bidi: network.removeIntercept: %w", err)
+	}
+	return nil
+}
+
 // BypassCache stops the page at contextID being served from the HTTP cache. A
 // cached response never becomes a request, and so is never blocked.
 func BypassCache(ctx context.Context, c *Conn, contextID string) error {

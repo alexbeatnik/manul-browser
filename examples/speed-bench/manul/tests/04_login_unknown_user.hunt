@@ -1,0 +1,42 @@
+@title: login_unknown_user
+@context: Names that are not accounts are refused, and a password belongs to its own account.
+@tags: login
+@import: * from '../lib/env.hunt'
+
+STEP 1: Open the login page
+    NAVIGATE to 'Login'
+    VERIFY that the page is 'Login'
+
+STEP 2: A name that is not an account
+    FILL 'Username' field with 'alan'
+    FILL 'Password' field with 'turing'
+    CLICK the 'Sign in' button
+    VERIFY that 'Invalid username or password' is present
+
+STEP 3: Another one
+    FILL 'Username' field with 'manul'
+    CLICK the 'Sign in' button
+    VERIFY that 'Invalid username or password' is present
+    VERIFY that 'Welcome' is NOT present
+
+STEP 4: Another account's password
+    FILL 'Username' field with 'grace'
+    FILL 'Password' field with 'lovelace'
+    CLICK the 'Sign in' button
+    VERIFY that 'Invalid username or password' is present
+
+STEP 5: Her own password
+    FILL 'Password' field with 'hopper'
+    CLICK the 'Sign in' button
+    VERIFY that 'Welcome, grace' is present
+    VERIFY 'Role' field has value 'member'
+
+STEP 6: Sign out
+    CLICK the 'Logout' button
+    VERIFY that the page is 'Login'
+
+STEP 7: Go home
+    CLICK the 'Home' link
+    VERIFY that the page is 'Home'
+
+DONE.

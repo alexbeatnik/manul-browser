@@ -1,0 +1,4 @@
+@page: Mouse and keyboard
+@url: /mouse.html
+@expect: 'Board'
+@context: Hover, double click, context menu, a board to drag on, keys and a confirm dialog.

@@ -28,12 +28,12 @@
 
 | | |
 |---|---|
-| Date | 2026-11-26 |
+| Date | 2026-11-28: pages, one action, what is sent with every request. 2026-11-26: the task |
 | Playwright MCP | `@playwright/mcp` 0.0.86 (playwright-core 1.66.0-alpha-2026-11-18), default options |
 | Manul | 0.1.6: its MCP server (`manul mcp`) and its agent CLI (`manul map`, `manul run-step`) |
-| Browser | Chrome 157, headless, 1366×768, en-US, password manager off |
+| Browser | Chrome 158 (157 for the task), headless, 1366×768, en-US, password manager off |
 | Tokenizer | `cl100k_base` (js-tiktoken) |
-| Raw data | [`examples/token-bench/results/2026-11-26.json`](../../examples/token-bench/results/2026-11-26.json) |
+| Raw data | [`results/2026-11-28.json`](../../examples/token-bench/results/2026-11-28.json), run with `TASK=0`; the task from [`results/2026-11-26.json`](../../examples/token-bench/results/2026-11-26.json) |
 
 Both tools attach to **one** Chrome over CDP. Playwright MCP and `manul mcp`
 are each driven through their MCP server over stdio, exactly as a Claude app
@@ -54,12 +54,12 @@ What an agent feeds the model so it can decide what to do next.
 |---|---:|---:|---:|---:|---:|---:|
 | Local fixture: form in iframes | 172 | 375 | 225 | 225 | 1.7× | 1.7× |
 | Local fixture: order summary | 208 | 258 | 29 | 29 | 8.9× | 8.9× |
-| the-internet: home | 4,397 | 5,706 | 1,681 | 334 | 17.1× | 3.4× |
-| Sauce Demo: login | 711 | 290 | 110 | 110 | 2.6× | 2.6× |
+| the-internet: home | 4,397 | 5,707 | 1,681 | 334 | 17.1× | 3.4× |
+| Sauce Demo: login | 711 | 304 | 110 | 110 | 2.8× | 2.8× |
 | Books to Scrape: catalogue | 9,820 | 8,675 | 2,081 | 1,276 | 6.8× | 4.2× |
-| Wikipedia: *Web browser* | 199,076 | 38,042 | 18,476 | 3,126 | 12.2× | 2.1× |
-| GitHub: microsoft/playwright | 182,116 | 20,207 | 4,021 | 1,321 | 15.3× | 5.0× |
-| MDN: `<button>` reference | 37,466 | 60,580 | 11,690 | 3,288 | 18.4× | 5.2× |
+| Wikipedia: *Web browser* | 200,421 | 38,059 | 18,496 | 3,126 | 12.2× | 2.1× |
+| GitHub: microsoft/playwright | 180,972 | 20,054 | 4,047 | 1,318 | 15.2× | 5.0× |
+| MDN: `<button>` reference | 37,454 | 60,583 | 11,692 | 3,290 | 18.4× | 5.2× |
 
 Reading the table:
 
@@ -77,7 +77,7 @@ Reading the table:
   against 225) and this table was kinder to Manul than the page.
 - Raw HTML is shown for scale. It includes scripts and styles, which no
   reasonable agent sends. A snapshot can still be larger than the HTML: on
-  MDN it is 60,581 tokens against 37,466.
+  MDN it is 60,583 tokens against 37,454.
 
 ## One action
 
@@ -85,13 +85,13 @@ The reply to a single click, each tool from the same freshly loaded page.
 
 | Page | Playwright `browser_click` | Manul `run-step CLICK` |
 |---|---:|---:|
-| Local fixture: form in iframes | 131 | 63 |
-| the-internet: home | 194 | 56 |
-| Sauce Demo: login | 111 | 55 |
+| Local fixture: form in iframes | 132 | 63 |
+| the-internet: home | 196 | 56 |
+| Sauce Demo: login | 123 | 55 |
 | Books to Scrape: catalogue | 208 | 64 |
-| Wikipedia: *Web browser* | 200 | 58 |
-| GitHub: microsoft/playwright | 123 | 65 |
-| MDN: `<button>` reference | 213 | 66 |
+| Wikipedia: *Web browser* | 202 | 58 |
+| GitHub: microsoft/playwright | 124 | 65 |
+| MDN: `<button>` reference | 215 | 66 |
 
 Both replies are small, and `manul mcp`'s are smaller still: a plain-language
 line such as *"OK: CLICK the 'Login' button — the page is now …"* is 23–29
@@ -174,11 +174,11 @@ input on every later turn.
 | `manul mcp`: server instructions | | 188 |
 
 The model receives these with every request, whatever the page, unless the
-client caches them. The sixth tool, `suite_guide`, was added after the run in
-`results/2026-11-26.json`, which counted five tools at 997 and instructions at
-168. Its definition is 137 tokens; the guide it returns, 2,427, is sent only
-when the model asks for it. Manul's CLI is not counted here: how much describing it
-costs depends on how it is exposed, such as a shell tool or a binding.
+client caches them. The guide `suite_guide` returns is 3,043 tokens, and the
+`build_test_suite` prompt, which carries it, 3,146; both are sent only when
+the model or the person asks for them. Manul's CLI is not counted here: how
+much describing it costs depends on how it is exposed, such as a shell tool
+or a binding.
 
 ## What this does not show
 
@@ -209,7 +209,8 @@ npm install
 MANUL=/path/to/manul node bench.mjs > results/$(date +%F).json
 ```
 
-This needs Google Chrome. Point `CHROME` at its binary outside macOS. The
+`TASK=0` leaves out the Sauce Demo task, which signs in. This needs Google
+Chrome. Point `CHROME` at its binary outside macOS. The
 benchmark serves the local fixtures from `core/e2e/testdata/site` itself; the
 public pages need the network. Pages and click targets are listed in
 `pages.json`.

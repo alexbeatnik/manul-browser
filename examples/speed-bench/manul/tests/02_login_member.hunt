@@ -1,0 +1,42 @@
+@title: login_member
+@context: A member and the admin take turns, each seeing their own role.
+@tags: login
+@import: * from '../lib/env.hunt'
+
+STEP 1: Open the login page
+    NAVIGATE to 'Login'
+    VERIFY that the page is 'Login'
+
+STEP 2: Sign in as grace
+    SET {user} = grace
+    SET {password} = hopper
+    USE Login.SignIn
+    VERIFY that 'Welcome, grace' is present
+    VERIFY 'Role' field has value 'member'
+
+STEP 3: Sign out, and the fields are empty
+    USE Login.SignOut
+    VERIFY 'Username' field has value ''
+
+STEP 4: Sign in as ada
+    SET {user} = ada
+    SET {password} = lovelace
+    USE Login.SignIn
+    VERIFY that 'Welcome, ada' is present
+    VERIFY 'Role' field has value 'admin'
+
+STEP 5: Sign out again
+    USE Login.SignOut
+    VERIFY that 'Welcome, ada' is NOT present
+
+STEP 6: Ask to remember grace
+    FILL 'Username' field with 'grace'
+    CHECK the checkbox for 'Remember me'
+    VERIFY that 'Remember me' is checked
+
+STEP 7: Sign in as grace once more
+    FILL 'Password' field with 'hopper'
+    CLICK the 'Sign in' button
+    VERIFY that 'Welcome, grace' is present
+
+DONE.

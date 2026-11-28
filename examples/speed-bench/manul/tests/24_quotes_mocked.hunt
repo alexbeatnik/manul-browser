@@ -1,0 +1,38 @@
+@title: quotes_mocked
+@context: The quotes API answered from a file, across clicks and a second visit.
+@tags: network
+@import: * from '../lib/env.hunt'
+
+STEP 1: Answer the API from a file
+    MOCK GET "api/quotes.json" with 'mocks/quotes.json'
+    NAVIGATE to 'Quotes'
+    VERIFY that 'Mocked one.' is present
+    VERIFY that 'Alan Kay' is NOT present
+
+STEP 2: The next quote
+    CLICK the 'Next quote' button
+    VERIFY that 'Mocked two.' is present
+    VERIFY that 'Pallas' is present
+
+STEP 3: Round to the first
+    CLICK the 'Next quote' button
+    VERIFY that 'Mocked one.' is present
+
+STEP 4: The second again
+    CLICK the 'Next quote' button
+    VERIFY that 'Mocked two.' is present
+
+STEP 5: Go home
+    CLICK the 'Home' link
+    VERIFY that the page is 'Home'
+
+STEP 6: Back to the quotes
+    CLICK the 'Quote of the day' link
+    VERIFY that 'Mocked one.' is present
+
+STEP 7: Still mocked
+    CLICK the 'Next quote' button
+    VERIFY that 'Mocked two.' is present
+    VERIFY that 'Kent Beck' is NOT present
+
+DONE.

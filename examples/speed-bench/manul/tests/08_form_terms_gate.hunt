@@ -1,0 +1,35 @@
+@title: form_terms_gate
+@context: The button unlocks only while the terms are accepted.
+@tags: form
+@import: * from '../lib/env.hunt'
+
+STEP 1: Open the sign-up form
+    NAVIGATE to 'Signup'
+    VERIFY that 'Create account' is disabled
+
+STEP 2: A name alone does not unlock it
+    FILL 'Full name' field with 'Alan Turing'
+    VERIFY that 'Create account' is disabled
+
+STEP 3: Accept the terms
+    CHECK the checkbox for 'I accept the Terms'
+    VERIFY that 'Create account' is enabled
+
+STEP 4: Take them back
+    UNCHECK the checkbox for 'I accept the Terms'
+    VERIFY that 'Create account' is disabled
+
+STEP 5: Accept them again
+    CHECK the checkbox for 'I accept the Terms'
+    VERIFY that 'I accept the Terms' is checked
+
+STEP 6: Create the account
+    CLICK the 'Create account' button
+    VERIFY that 'Thanks, Alan Turing! Plan: free, country: Choose…, newsletter: yes' is present
+
+STEP 7: Take them back once more
+    UNCHECK the checkbox for 'I accept the Terms'
+    VERIFY that 'Create account' is disabled
+    VERIFY that 'Thanks, Alan Turing!' is present
+
+DONE.

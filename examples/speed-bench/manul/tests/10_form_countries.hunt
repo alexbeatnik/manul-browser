@@ -1,0 +1,41 @@
+@title: form_countries
+@context: Every country and both plans reach the answer.
+@tags: form
+@import: * from '../lib/env.hunt'
+
+STEP 1: Open the sign-up form
+    NAVIGATE to 'Signup'
+    VERIFY that the page is 'Signup'
+
+STEP 2: Name and terms
+    FILL 'Full name' field with 'Kent Beck'
+    CHECK the checkbox for 'I accept the Terms'
+    VERIFY that 'Create account' is enabled
+
+STEP 3: Ukraine
+    SELECT 'Ukraine' from the 'Country' dropdown
+    CLICK the 'Create account' button
+    VERIFY that 'Thanks, Kent Beck! Plan: free, country: Ukraine, newsletter: yes' is present
+
+STEP 4: Japan
+    SELECT 'Japan' from the 'Country' dropdown
+    CLICK the 'Create account' button
+    VERIFY that 'Thanks, Kent Beck! Plan: free, country: Japan, newsletter: yes' is present
+
+STEP 5: Canada
+    SELECT 'Canada' from the 'Country' dropdown
+    CLICK the 'Create account' button
+    VERIFY that 'Thanks, Kent Beck! Plan: free, country: Canada, newsletter: yes' is present
+
+STEP 6: Pro, without the newsletter
+    CLICK the radio button for 'Pro'
+    UNCHECK the checkbox for 'Newsletter'
+    CLICK the 'Create account' button
+    VERIFY that 'Thanks, Kent Beck! Plan: pro, country: Canada, newsletter: no' is present
+
+STEP 7: Back to free
+    CLICK the radio button for 'Free'
+    CLICK the 'Create account' button
+    VERIFY that 'Thanks, Kent Beck! Plan: free, country: Canada, newsletter: no' is present
+
+DONE.

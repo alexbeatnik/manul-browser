@@ -1,0 +1,10 @@
+{
+  "browser": "chromium",
+  "headless": true,
+  "timeout": 5000,
+  "nav_timeout": 30000,
+  "screenshot": "on-fail",
+  "retries": 0,
+  "workers": 1,
+  "locale": "en-US"
+}

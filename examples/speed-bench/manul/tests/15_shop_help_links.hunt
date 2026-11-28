@@ -1,0 +1,37 @@
+@title: shop_help_links
+@context: The same Help link in the header and the footer, each answering for itself.
+@tags: shop
+@import: * from '../lib/env.hunt'
+
+STEP 1: Open the shop
+    NAVIGATE to 'Shop'
+    VERIFY that the page is 'Shop'
+
+STEP 2: Help from the header
+    CLICK the 'Help' link ON HEADER
+    VERIFY that 'Help from the header' is present
+
+STEP 3: Help from the footer
+    CLICK the 'Help' link ON FOOTER
+    VERIFY that 'Help from the footer' is present
+    VERIFY that 'Help from the header' is NOT present
+
+STEP 4: A product
+    CLICK the 'Add to cart' button NEAR 'Manul Plush'
+    VERIFY that 'Added Manul Plush' is present
+
+STEP 5: Help replaces it
+    CLICK the 'Help' link ON HEADER
+    VERIFY that 'Help from the header' is present
+    VERIFY that 'Added Manul Plush' is NOT present
+
+STEP 6: The footer once more
+    CLICK the 'Help' link ON FOOTER
+    VERIFY that 'Help from the footer' is present
+
+STEP 7: An edit replaces that
+    CLICK the 'Edit' button INSIDE 'Team' row with 'Alan Turing'
+    VERIFY that 'Editing Alan Turing' is present
+    VERIFY that 'Help from the footer' is NOT present
+
+DONE.

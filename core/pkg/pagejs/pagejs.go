@@ -614,6 +614,16 @@ func ValueBesideCaption(id int, xpath string) string {
 	})()`, id, xpath)
 }
 
+// ClearSelection removes the document's text selection, if it has one.
+const ClearSelection = `(window.getSelection && window.getSelection().removeAllRanges(), true)`
+
+// MarkDocument marks the document open now, for DocumentReplaced.
+const MarkDocument = `window.__manulNavFrom = true`
+
+// DocumentReplaced is true once the document MarkDocument marked has given
+// way to another, or to one still loading.
+const DocumentReplaced = `(window.__manulNavFrom !== true || document.readyState !== 'complete')`
+
 // CurrentURL is the expression whose value is the page's current URL.
 const CurrentURL = "window.location.href"
 
@@ -622,27 +632,98 @@ const ReadyState = "document.readyState"
 
 // ArmPointerWatch counts the pointer events the document receives from now on,
 // on window in the capture phase, ahead of any handler of the page's that
-// could stop them. PointerReceived then says whether any came.
+// could stop them, for a press meant for the element at ID or XPath.
+// PointerReceived then says whether any came, and whether they reached it.
 //
 // A click is dispatched at coordinates; whether it arrives is the browser's
 // business. In a browser the engine did not launch, the password manager's
 // prompt after a sign-in took clicks meant for the page, and the step passed
 // with nothing clicked.
-const ArmPointerWatch = `(() => {
+//
+// And what is at those coordinates may have changed since they were measured.
+// The quickstart's slow page drops its "Loading page..." line a second after
+// it loads; a click on 'Save settings' measured just before landed just after,
+// where the button no longer was, and passed. A press whose target is not the
+// element — nor inside it, around it, or its <label>, as CoveredBy counts — is
+// stopped here, every event of it, before the page sees it, so nothing else is
+// clicked; the engine measures again and clicks where the element is now. A
+// press on something the element is inside counts only within the element's
+// own box: the button moved up out of the point, and its section took the
+// press there. An
+// element that is no longer in the document replaced itself under the pointer,
+// as a link that redraws on hover does, and the press is let through.
+func ArmPointerWatch(id int, xpath string) string {
+	return fmt.Sprintf(`(() => {
 	if (!window.__manulPointerHooked) {
 		window.__manulPointerHooked = true;
-		['pointerdown', 'mousedown', 'mouseup', 'click', 'dblclick', 'contextmenu'].forEach(function (t) {
-			window.addEventListener(t, function () { if (window.__manulPointer) window.__manulPointer.n++; }, true);
+		var within = function (outer, node) {
+			for (var n = node; n; n = n.parentNode || n.host) {
+				if (n === outer) return true;
+			}
+			return false;
+		};
+		// Something the element is inside counts only where the element is:
+		// an icon's button takes the press made on the icon, but the section
+		// a button moved out of takes one made where the button was.
+		var reaches = function (el, t, e) {
+			if (!el || !el.isConnected || !t || t.nodeType !== 1) return true;
+			if (within(el, t)) return true;
+			if (within(t, el)) {
+				var r = el.getBoundingClientRect();
+				return e.clientX >= r.left - 1 && e.clientX <= r.right + 1 && e.clientY >= r.top - 1 && e.clientY <= r.bottom + 1;
+			}
+			var label = t.closest && t.closest('label');
+			return !!(label && (label.control === el || within(label, el)));
+		};
+		var name = function (t) {
+			var n = t.tagName.toLowerCase();
+			if (t.id) n += '#' + t.id;
+			if (typeof t.className === 'string' && t.className.trim()) {
+				n += '.' + t.className.trim().split(/\s+/).slice(0, 2).join('.');
+			}
+			var text = (t.innerText || '').trim().replace(/\s+/g, ' ');
+			return '<' + n + '>' + (text ? ' "' + text.slice(0, 40) + '"' : '');
+		};
+		['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click', 'dblclick', 'contextmenu', 'auxclick'].forEach(function (type) {
+			window.addEventListener(type, function (e) {
+				var w = window.__manulPointer;
+				if (!w) return;
+				if (!w.block && (type === 'pointerdown' || type === 'mousedown')) {
+					var t = e.composedPath ? e.composedPath()[0] : e.target;
+					if (!reaches(w.el, t, e)) {
+						w.block = true;
+						window.__manulPointerMiss = name(t);
+					}
+				}
+				if (w.block) {
+					e.preventDefault();
+					e.stopImmediatePropagation();
+					return;
+				}
+				w.n++;
+			}, true);
 		});
 	}
-	window.__manulPointer = {n: 0};
+	var el = (window.__manulReg && window.__manulReg[%d]) || document.evaluate(%q, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+	window.__manulPointer = {n: 0, el: el, block: false};
 	return true;
-})()`
+})()`, id, xpath)
+}
 
 // PointerReceived is 1 when the document received a pointer event since
-// ArmPointerWatch, 0 when it received none, and 2 when it is another document
-// — the action navigated, which is an answer of its own.
-const PointerReceived = `(window.__manulPointer ? (window.__manulPointer.n > 0 ? 1 : 0) : 2)`
+// ArmPointerWatch, 0 when it received none, 3 when the press went to another
+// element and was stopped, and 2 when it is another document — the action
+// navigated, which is an answer of its own. It ends the watch: a stopped
+// press stops nothing after it.
+const PointerReceived = `(function () {
+	var w = window.__manulPointer;
+	if (!w) return 2;
+	window.__manulPointer = null;
+	return w.block ? 3 : (w.n > 0 ? 1 : 0);
+})()`
+
+// PointerMissedBy names what the last stopped press went to.
+const PointerMissedBy = `(window.__manulPointerMiss || 'something else')`
 
 // RequestWatchFunction installs, once per document, what RouteState reads: a
 // count of the fetch and XMLHttpRequest requests an action started that have

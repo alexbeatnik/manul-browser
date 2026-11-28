@@ -1,0 +1,7 @@
+@title: A click on an element that moves as the pointer reaches it
+STEP 1: The press that went to the notice is stopped, and made where the button is now
+    NAVIGATE to @SITE@/moved.html
+    CLICK the 'Save settings' button
+    VERIFY that 'Settings saved' is present
+    VERIFY that 'Clicked' is NOT present
+DONE.

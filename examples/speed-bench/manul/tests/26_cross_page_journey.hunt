@@ -1,0 +1,47 @@
+@title: cross_page_journey
+@context: One visitor goes through every part of the site in a row.
+@tags: navigation
+@import: * from '../lib/env.hunt'
+
+STEP 1: Open home
+    NAVIGATE to 'Home'
+    VERIFY that the page is 'Home'
+
+STEP 2: Sign in
+    CLICK the 'Login page' link
+    SET {user} = ada
+    SET {password} = lovelace
+    USE Login.SignIn
+    VERIFY that 'Welcome, ada' is present
+
+STEP 3: To the shop
+    CLICK the 'Home' link
+    CLICK the 'Shop' link ON HEADER
+    VERIFY that the page is 'Shop'
+
+STEP 4: Buy a plush
+    SET {product} = Manul Plush
+    USE Shop.Add
+    VERIFY that 'Cart: 1' is present
+
+STEP 5: Sign up
+    CLICK the 'Home' link
+    CLICK the 'Sign-up form' link
+    SET {name} = Ada Lovelace
+    SET {email} = ada@example.com
+    USE Signup.Fill
+    USE Signup.Submit
+    VERIFY that 'Thanks, Ada Lovelace! Plan: free, country: Choose…, newsletter: yes' is present
+
+STEP 6: Hover the avatar
+    CLICK the 'Home' link
+    CLICK the 'Mouse and keyboard' link
+    HOVER over the 'Avatar'
+    VERIFY that 'Signed in as Manul' is present
+
+STEP 7: Read a quote
+    CLICK the 'Home' link
+    CLICK the 'Quote of the day' link
+    VERIFY that 'Simple things should be simple.' is present
+
+DONE.

@@ -1,0 +1,4 @@
+@page: Slow page
+@url: /dynamic.html
+@expect: 'Report'
+@context: Everything here arrives late on purpose.

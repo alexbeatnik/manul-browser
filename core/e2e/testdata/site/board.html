@@ -1,0 +1,27 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Board</title>
+<style>
+body { font-family: sans-serif; margin: 16px; }
+.column { display: inline-block; vertical-align: top; width: 200px; min-height: 80px; margin-right: 16px; padding: 8px; border: 2px dashed #bbb; }
+.tile { padding: 8px; background: #e3ecf7; }
+</style></head>
+<body>
+<!-- A board dragged with the pointer, as most kanban widgets are. The first
+     drag sweeps across the second tile and selects its text; on Firefox a
+     press on selected text drags the text, and the second tile never let go. -->
+<div class="column" aria-label="To do"><div class="tile">Write tests</div><div class="tile">Fix the build</div></div>
+<div class="column" id="done" aria-label="Done"></div>
+<p id="note"></p>
+<script>
+var dragging = null, note = document.getElementById('note'), done = document.getElementById('done');
+document.querySelectorAll('.tile').forEach(function (t) { t.addEventListener('mousedown', function () { dragging = t; }); });
+document.addEventListener('mouseup', function (e) {
+  if (!dragging) return;
+  var tile = dragging, r = done.getBoundingClientRect();
+  dragging = null;
+  if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
+    done.appendChild(tile);
+    note.textContent = tile.textContent + ' moved to Done';
+  }
+});
+</script>
+</body></html>

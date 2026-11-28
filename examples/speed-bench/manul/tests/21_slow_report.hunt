@@ -1,0 +1,36 @@
+@title: slow_report
+@context: A page whose content arrives late: a spinner, a report, a feed and a toast.
+@tags: slow
+@import: * from '../lib/env.hunt'
+
+STEP 1: Open the slow page
+    NAVIGATE to 'Slow page'
+    VERIFY that the page is 'Slow page'
+
+STEP 2: The spinner goes
+    WAIT FOR 'Loading page...' to disappear
+    VERIFY that 'Feed item 2' is present
+
+STEP 3: Build the report
+    CLICK the 'Build report' button
+    VERIFY that 'Report ready: 3 orders' is present
+
+STEP 4: Build it again
+    CLICK the 'Build report' button
+    VERIFY that 'Report ready: 3 orders' is present
+
+STEP 5: More of the feed
+    CLICK the 'Load more' button
+    VERIFY that 'Feed item 4' is present
+
+STEP 6: The rest of the feed
+    CLICK the 'Load more' button
+    VERIFY that 'Feed item 6' is present
+    VERIFY that 'Load more' is NOT present
+
+STEP 7: Save the settings
+    CLICK the 'Save settings' button
+    VERIFY that 'Settings saved' is present
+    WAIT FOR 'Settings saved' to disappear
+
+DONE.

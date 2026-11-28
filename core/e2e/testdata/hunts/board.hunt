@@ -1,0 +1,9 @@
+@title: Two tiles dragged onto a board, one after the other
+STEP 1: The first tile
+    NAVIGATE to @SITE@/board.html
+    DRAG 'Write tests' and drop it into 'Done'
+    VERIFY that 'Write tests moved to Done' is present
+STEP 2: The second, across the text the first drag selected
+    DRAG 'Fix the build' and drop it into 'Done'
+    VERIFY that 'Fix the build moved to Done' is present
+DONE.

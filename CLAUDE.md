@@ -196,6 +196,17 @@ the element's document receives (a capture listener on window, not on the
 element, which may replace itself under the pointer); none means a second try,
 then a failed step.
 
+What is at the point may also change between measuring it and pressing
+there. The quickstart's slow page drops a line a second after it loads, and
+once the fixed pauses were gone a click on 'Save settings' landed where the
+button had been, about one run in four, and passed. The pointer watch is
+armed with the element: a press whose target is not it (nor inside it,
+around it, or its label) is stopped in the page, every event of it, and the
+click is measured again and made where the element is now. A press on an
+element no longer in the document goes through: that is the link that
+replaces itself on hover. `moved.html` moves its button as the pointer
+arrives.
+
 **A page that is leaving still says `complete`.** After a click, a sort
 dropdown's change or Enter in a form, the old document keeps
 `readyState === "complete"` until the new one's response arrives, so polling
@@ -221,6 +232,17 @@ count (`pagejs.RequestWatchFunction`) is a preload script on every page,
 `Page.addScriptToEvaluateOnNewDocument` and `script.addPreloadScript`: an
 app that keeps the `fetch` it found at start-up, as ofetch does, never calls
 one replaced later, and installed at the first step the count saw nothing.
+
+**A fixed pause is paid on every page.** CLICK slept 500 ms before its
+settle and FILL, PRESS, HOVER, SELECT, NAVIGATE and the other pointer actions
+300 ms each, whether the page did anything or not; `CDPPage.Navigate` waited
+another 500 ms for `readyState` to leave "complete", which a page that loads
+at once never does. On a local site that was three quarters of a suite's
+time, and Manul ran three times longer than the same suite on Playwright
+(`examples/speed-bench`: 128 s against 41 s; 32 s without the pauses). What an action sets off is waited for by
+`settleNavigation`, which gives it `actionGrace` (50 ms) to start; what the
+next step looks for is waited for by that step. A pause added "for the page
+to react" is waste on every page that already has.
 
 **An element's properties are whatever it says they are.** The snapshot
 read `el.selected || …`, `el.checked`, `el.disabled` and `el.value` as if every
@@ -361,6 +383,16 @@ every launch asked for port 9222 was a trap: a second Firefox — a hunt run
 while `manul mcp --browser firefox` had one open — reached the first one's
 agent on that port and was refused ("Maximum number of active sessions").
 `LaunchFirefox` passes port 0 and reads the port Firefox took from its banner.
+For the same reason a page's own state on the browser outlives the page
+unless `Close` takes it away: a run gives each hunt a page of its own on the
+same tab, and the intercept a MOCK added stayed there, answering from its
+rules, so every hunt after a mocked one read the mock. `BiDiPage.Close`
+removes its intercept; over CDP the page's own connection closing did that.
+
+**A drag selects the text it crosses.** On Firefox a press on selected text
+starts a drag of the text, which takes the mouse events: after one tile had
+been dragged across the board, the second never let go. DRAG clears the
+selection first; `board.html` drags two tiles in a row.
 
 **BiDi sends no events until asked.** `Conn.Subscribe` only opens a local
 channel; without `session.subscribe` for the event name, nothing arrives.

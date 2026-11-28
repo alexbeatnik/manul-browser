@@ -1,0 +1,41 @@
+@title: home_navigation
+@context: Every link on the home page leads to its page, and Home leads back.
+@tags: navigation
+@import: * from '../lib/env.hunt'
+
+STEP 1: Open home
+    NAVIGATE to 'Home'
+    VERIFY that the page is 'Home'
+
+STEP 2: The login page
+    CLICK the 'Login page' link
+    VERIFY that the page is 'Login'
+
+STEP 3: Back home
+    CLICK the 'Home' link
+    VERIFY that the page is 'Home'
+
+STEP 4: The sign-up form
+    CLICK the 'Sign-up form' link
+    VERIFY that the page is 'Signup'
+
+STEP 5: The slow page
+    CLICK the 'Home' link
+    CLICK the 'Slow page' link
+    VERIFY that the page is 'Slow page'
+
+STEP 6: Mouse and keyboard
+    CLICK the 'Home' link
+    CLICK the 'Mouse and keyboard' link
+    VERIFY that the page is 'Mouse and keyboard'
+
+STEP 7: The quote of the day
+    CLICK the 'Home' link
+    CLICK the 'Quote of the day' link
+    VERIFY that the page is 'Quotes'
+
+STEP 8: Home once more
+    CLICK the 'Home' link
+    VERIFY that the page is 'Home'
+
+DONE.

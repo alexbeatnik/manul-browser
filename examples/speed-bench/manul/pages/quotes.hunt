@@ -1,0 +1,4 @@
+@page: Quotes
+@url: /quotes.html
+@expect: 'Quote of the day'
+@context: A quote fetched from api/quotes.json.

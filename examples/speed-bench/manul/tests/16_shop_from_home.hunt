@@ -1,0 +1,37 @@
+@title: shop_from_home
+@context: The shop is reached from home, and its cart starts over when it is opened again.
+@tags: shop
+@import: * from '../lib/env.hunt'
+
+STEP 1: Open home
+    NAVIGATE to 'Home'
+    VERIFY that the page is 'Home'
+
+STEP 2: The shop from the header
+    CLICK the 'Shop' link ON HEADER
+    VERIFY that the page is 'Shop'
+
+STEP 3: A map
+    CLICK the 'Add to cart' button NEAR 'Steppe Map'
+    VERIFY that 'Cart: 1' is present
+
+STEP 4: Boots
+    CLICK the 'Add to cart' button NEAR 'Snow Boots'
+    VERIFY that 'Cart: 2' is present
+    VERIFY 'Cart total' field has value '101.99'
+
+STEP 5: Back home
+    CLICK the 'Home' link
+    VERIFY that the page is 'Home'
+
+STEP 6: The shop again, empty
+    CLICK the 'Shop' link ON HEADER
+    VERIFY that 'Cart: 0' is present
+    VERIFY 'Cart total' field has value '0.00'
+
+STEP 7: A plush
+    CLICK the 'Add to cart' button NEAR 'Manul Plush'
+    VERIFY that 'Cart: 1' is present
+    VERIFY 'Cart total' field has value '24.50'
+
+DONE.

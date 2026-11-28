@@ -19,21 +19,32 @@ This is the engine itself, and the only implementation of it: the `.hunt` DSL, t
 
 ### Built for agents — and it's measurably cheaper on tokens
 
-An agent has to *see* a page before it can act. Playwright MCP shows it an accessibility snapshot of the whole page, and acts on elements through refs taken from it — refs that every action invalidates, so the next action needs a fresh snapshot. `manul map` emits a compact, landmark-grouped view of the labelled, interactive elements, and a step acts on a label, which does not go stale. `manul mcp` serves the same to Claude Desktop, Claude Code and any MCP client. Measured on the same Chrome with `cl100k_base` (2026-11-26, `@playwright/mcp` 0.0.86):
+An agent has to *see* a page before it can act. Playwright MCP shows it an accessibility snapshot of the whole page, and acts on elements through refs taken from it — refs that every action invalidates, so the next action needs a fresh snapshot. `manul map` emits a compact, landmark-grouped view of the labelled, interactive elements, and a step acts on a label, which does not go stale. `manul mcp` serves the same to Claude Desktop, Claude Code and any MCP client. Measured on the same Chrome with `cl100k_base` (2026-11-28, the task 2026-11-26; `@playwright/mcp` 0.0.86):
 
 | | Playwright MCP | `manul mcp` | |
 | --- | ---: | ---: | --- |
-| Seeing a page — 8 pages, from a local fixture to Wikipedia and MDN | 258 – 60,580 | 29 – 3,288 | **1.7–18× fewer** (1.7–8.9× with no budget on `map`) |
+| Seeing a page — 8 pages, from a local fixture to Wikipedia and MDN | 258 – 60,583 | 29 – 3,290 | **1.7–18× fewer** (1.7–8.9× with no budget on `map`) |
 | A whole task — sign in, add to cart, check the cart on Sauce Demo | 4,314 (10 calls) | 570 (9 calls) | **7.6× fewer** |
 | Tool definitions and instructions, sent with every request | 4,484 | 1,322 | **3.4× fewer** |
 
 A snapshot and a map do not hold the same thing — the snapshot also carries the page's text — and the method, the caveats and a script to rerun it all are in [Token efficiency](docs/token-efficiency.md).
 
+### And it runs a suite faster than Playwright
+
+The same 26 tests, 185 steps, written as `.hunt` files and as Playwright Test, against a local site in the same Chrome (2026-11-28, Playwright 1.66):
+
+| | Playwright Test | `manul run` | |
+| --- | ---: | ---: | --- |
+| One worker, median of 5 | 40.9 s | 32.2 s | **0.8×** |
+| Four workers, median of 3 | 16.8 s | 12.0 s | **0.7×** |
+
+On a page that answers at once the two are about even; on one whose content arrives late Manul notices sooner. Until the actions stopped sleeping a fixed 150–500 ms after acting, the same suite took Manul 128 s. The method and the caveats are in [Speed](docs/speed.md).
+
 Authoring is also leaner and far more durable: the same flow written as a `.hunt` file carries **zero CSS/XPath selectors** to break when the markup shifts.
 
 > **Status: Alpha.** Solo-developed, actively battle-tested. Bugs are expected, APIs may evolve, and there are no promises about stability or production readiness. The core claim is transparency: when a step works, you can see exactly why; when it fails, you get the scoring breakdown to diagnose it.
 
-> **📖 Full Documentation:** [Overview](docs/overview.md) · [Installation](docs/installation.md) · [Getting Started](docs/getting-started.md) · [DSL Syntax](docs/dsl-syntax.md) · [DSL for LLMs](docs/dsl-for-llms.md) · [Reports & Explainability](docs/reports.md) · [Integration](docs/integration.md) · [Extensions](docs/extensions.md) · [Loops & Page Objects](docs/loops-and-pages.md) · [Token Efficiency](docs/token-efficiency.md)
+> **📖 Full Documentation:** [Overview](docs/overview.md) · [Installation](docs/installation.md) · [Getting Started](docs/getting-started.md) · [DSL Syntax](docs/dsl-syntax.md) · [DSL for LLMs](docs/dsl-for-llms.md) · [Reports & Explainability](docs/reports.md) · [Integration](docs/integration.md) · [Extensions](docs/extensions.md) · [Loops & Page Objects](docs/loops-and-pages.md) · [Token Efficiency](docs/token-efficiency.md) · [Speed](docs/speed.md)
 
 ---
 

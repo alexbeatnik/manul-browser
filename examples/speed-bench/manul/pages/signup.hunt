@@ -1,0 +1,13 @@
+@page: Signup
+@url: /form.html
+@expect: 'Create an account'
+@context: The sign-up form.
+@export: Fill, Submit
+
+STEP Fill:
+    FILL 'Full name' field with '{name}'
+    FILL 'Email' field with '{email}'
+
+STEP Submit:
+    CHECK the checkbox for 'I accept the Terms'
+    CLICK the 'Create account' button

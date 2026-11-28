@@ -287,8 +287,10 @@ async function taskManulMCP() {
   return { calls, done: calls.every((c) => c.ok) && /cart\.html/.test(cart) };
 }
 
+// TASK=0 leaves the task out: it signs in to Sauce Demo, and a run that only
+// measures pages and tool definitions has no need to.
 const task = {};
-for (const [name, run] of [['playwright', taskPlaywright], ['manul', taskManul], ['manulMCP', taskManulMCP]]) {
+for (const [name, run] of process.env.TASK === '0' ? [] : [['playwright', taskPlaywright], ['manul', taskManul], ['manulMCP', taskManulMCP]]) {
   try {
     const t = await run();
     task[name] = { ...t, totalTokens: t.calls.reduce((n, c) => n + c.tokens, 0) };

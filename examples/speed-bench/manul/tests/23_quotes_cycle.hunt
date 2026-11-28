@@ -1,0 +1,37 @@
+@title: quotes_cycle
+@context: The quote changes on every click and comes round again.
+@tags: network
+@import: * from '../lib/env.hunt'
+
+STEP 1: Open the quotes
+    NAVIGATE to 'Quotes'
+    VERIFY that 'Simple things should be simple.' is present
+    VERIFY that 'Alan Kay' is present
+
+STEP 2: The next quote
+    CLICK the 'Next quote' button
+    VERIFY that 'Make it work, make it right, make it fast.' is present
+    VERIFY that 'Kent Beck' is present
+
+STEP 3: Round to the first
+    CLICK the 'Next quote' button
+    VERIFY that 'Simple things should be simple.' is present
+    VERIFY that 'Kent Beck' is NOT present
+
+STEP 4: The second again
+    CLICK the 'Next quote' button
+    VERIFY that 'Kent Beck' is present
+
+STEP 5: The first again
+    CLICK the 'Next quote' button
+    VERIFY that 'Alan Kay' is present
+
+STEP 6: The second once more
+    CLICK the 'Next quote' button
+    VERIFY that 'Make it work, make it right, make it fast.' is present
+
+STEP 7: Go home
+    CLICK the 'Home' link
+    VERIFY that the page is 'Home'
+
+DONE.

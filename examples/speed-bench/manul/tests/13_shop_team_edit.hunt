@@ -1,0 +1,36 @@
+@title: shop_team_edit
+@context: Each row's Edit button edits that row's person.
+@tags: shop
+@import: * from '../lib/env.hunt'
+
+STEP 1: Open the shop
+    NAVIGATE to 'Shop'
+    VERIFY that 'Team' is present
+
+STEP 2: Edit Ada
+    CLICK the 'Edit' button INSIDE 'Team' row with 'Ada Lovelace'
+    VERIFY that 'Editing Ada Lovelace' is present
+
+STEP 3: Edit Grace
+    CLICK the 'Edit' button INSIDE 'Team' row with 'Grace Hopper'
+    VERIFY that 'Editing Grace Hopper' is present
+
+STEP 4: Edit Alan
+    CLICK the 'Edit' button INSIDE 'Team' row with 'Alan Turing'
+    VERIFY that 'Editing Alan Turing' is present
+
+STEP 5: Edit Ada again
+    CLICK the 'Edit' button INSIDE 'Team' row with 'Ada Lovelace'
+    VERIFY that 'Editing Ada Lovelace' is present
+    VERIFY that 'Editing Alan Turing' is NOT present
+
+STEP 6: A product in between
+    CLICK the 'Add to cart' button NEAR 'Manul Plush'
+    VERIFY that 'Added Manul Plush' is present
+
+STEP 7: Edit Grace again
+    CLICK the 'Edit' button INSIDE 'Team' row with 'Grace Hopper'
+    VERIFY that 'Editing Grace Hopper' is present
+    VERIFY that 'Cart: 1' is present
+
+DONE.

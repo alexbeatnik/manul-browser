@@ -1,0 +1,20 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Moved</title></head>
+<body style="font-family:sans-serif;margin:0">
+<!-- The page moves as the pointer reaches the button: a notice pushes it
+     down, and the press lands on the notice where the button was. -->
+<div id="top"></div>
+<button id="save" style="margin:8px">Save settings</button>
+<p id="status"></p>
+<script>
+var save = document.getElementById('save'), note = document.getElementById('status'), moved = false;
+save.addEventListener('mouseenter', function () {
+  if (moved) return;
+  moved = true;
+  document.getElementById('top').innerHTML = '<p style="height:120px;margin:0;background:#ffd">A notice that pushed the page down</p>';
+});
+save.addEventListener('click', function () { note.textContent = 'Settings saved'; });
+document.addEventListener('click', function (e) {
+  if (e.target !== save) note.textContent = 'Clicked ' + e.target.tagName;
+});
+</script>
+</body></html>

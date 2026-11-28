@@ -1,0 +1,45 @@
+@title: shop_add_each
+@context: Each product goes into the cart, and the count and total follow.
+@tags: shop
+@import: * from '../lib/env.hunt'
+
+STEP 1: Open the shop
+    NAVIGATE to 'Shop'
+    VERIFY that the page is 'Shop'
+    VERIFY that 'Cart: 0' is present
+
+STEP 2: A plush
+    SET {product} = Manul Plush
+    USE Shop.Add
+    VERIFY that 'Cart: 1' is present
+    VERIFY 'Cart total' field has value '24.50'
+
+STEP 3: A map
+    SET {product} = Steppe Map
+    USE Shop.Add
+    VERIFY that 'Cart: 2' is present
+    VERIFY 'Cart total' field has value '36.50'
+
+STEP 4: Boots
+    SET {product} = Snow Boots
+    USE Shop.Add
+    VERIFY that 'Cart: 3' is present
+    VERIFY 'Cart total' field has value '126.49'
+
+STEP 5: A second plush
+    SET {product} = Manul Plush
+    USE Shop.Add
+    VERIFY that 'Cart: 4' is present
+    VERIFY 'Cart total' field has value '150.99'
+
+STEP 6: Help from the header
+    CLICK the 'Help' link ON HEADER
+    VERIFY that 'Help from the header' is present
+
+STEP 7: A second map
+    SET {product} = Steppe Map
+    USE Shop.Add
+    VERIFY that 'Cart: 5' is present
+    VERIFY 'Cart total' field has value '162.99'
+
+DONE.

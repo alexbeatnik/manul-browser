@@ -1,0 +1,37 @@
+@title: mouse_everything
+@context: Every pointer action on the page, once each.
+@tags: mouse
+@import: * from '../lib/env.hunt'
+
+STEP 1: Open the page
+    NAVIGATE to 'Mouse and keyboard'
+    VERIFY that 'Board' is present
+
+STEP 2: Hover
+    HOVER over the 'Avatar'
+    VERIFY that 'Signed in as Manul' is present
+
+STEP 3: Double click
+    DOUBLE CLICK the 'Copy link' button
+    VERIFY that 'Link copied' is present
+
+STEP 4: Right click
+    RIGHT CLICK the 'File area'
+    CLICK the 'Rename' button
+    VERIFY that 'Renamed' is present
+
+STEP 5: Drag
+    DRAG 'Fix the build' and drop it into 'Done'
+    VERIFY that 'Fix the build moved to Done' is present
+
+STEP 6: A dialog
+    CLICK the 'Open dialog' button
+    VERIFY that 'Dialog is open' is present
+
+STEP 7: A confirm
+    PRESS Escape
+    CLICK the 'Delete account' button
+    VERIFY that 'Account deleted' is present
+    VERIFY that 'Dialog is open' is NOT present
+
+DONE.

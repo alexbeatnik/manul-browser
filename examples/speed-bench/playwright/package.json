@@ -1,0 +1,11 @@
+{
+  "name": "manul-speed-bench-playwright",
+  "private": true,
+  "description": "The Manul speed-bench suite, written again on Playwright Test.",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "playwright": "1.66.0-alpha-2026-11-18"
+  }
+}

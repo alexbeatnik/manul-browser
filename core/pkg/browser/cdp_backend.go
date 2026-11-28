@@ -434,24 +434,29 @@ func marshalEvalResult(raw interface{}) ([]byte, error) {
 }
 
 func (p *CDPPage) Navigate(ctx context.Context, url string) error {
+	// The document open now is marked, so the one the navigation leads to
+	// is known by the mark it does not have. A failed mark — no document to
+	// evaluate in yet — leaves readyState alone to go by.
+	_, _ = cdp.Evaluate(ctx, p.conn, pagejs.MarkDocument)
 	if err := cdp.Navigate(ctx, p.conn, url); err != nil {
 		return err
 	}
 
 	// Two-phase wait to avoid the "stale readyState" race condition:
-	// Phase 1 — wait for readyState to leave "complete", indicating
-	//   the browser has begun the new navigation. We cap this at 500ms
-	//   so same-page navigations (anchors, cached pages) don't hang.
+	// Phase 1 — wait for the marked document to be gone. It waited for
+	// readyState to leave "complete", which a page that loads at once never
+	// shows: every NAVIGATE to a fast page sat out the whole 500 ms. The cap
+	// stays for navigations that keep the document (an anchor, a 204).
 	phase1Deadline := time.Now().Add(500 * time.Millisecond)
-	const poll = 50 * time.Millisecond
+	const poll = 10 * time.Millisecond
 	for time.Now().Before(phase1Deadline) {
-		raw, err := cdp.Evaluate(ctx, p.conn, "document.readyState")
+		raw, err := cdp.Evaluate(ctx, p.conn, pagejs.DocumentReplaced)
 		if err != nil {
 			// JS eval can fail briefly during navigation — that itself
 			// means the navigation has started.
 			break
 		}
-		if stateStr, ok := raw.(string); ok && stateStr != "complete" {
+		if replaced, ok := raw.(bool); ok && replaced {
 			break
 		}
 		select {

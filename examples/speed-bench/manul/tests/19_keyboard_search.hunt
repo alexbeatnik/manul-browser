@@ -1,0 +1,42 @@
+@title: keyboard_search
+@context: Searches by Enter, and a dialog opened and closed twice.
+@tags: mouse
+@import: * from '../lib/env.hunt'
+
+STEP 1: Open the page
+    NAVIGATE to 'Mouse and keyboard'
+    VERIFY that the page is 'Mouse and keyboard'
+
+STEP 2: Search for manul
+    FILL 'Search' field with 'manul'
+    PRESS Enter
+    VERIFY that 'Results for manul' is present
+
+STEP 3: Search for steppe
+    FILL 'Search' field with 'steppe'
+    PRESS Enter
+    VERIFY that 'Results for steppe' is present
+    VERIFY that 'Results for manul' is NOT present
+
+STEP 4: Open the dialog
+    CLICK the 'Open dialog' button
+    VERIFY that 'Dialog is open' is present
+
+STEP 5: Close it
+    PRESS Escape
+    VERIFY that 'Dialog is open' is NOT present
+
+STEP 6: Open it again
+    CLICK the 'Open dialog' button
+    VERIFY that 'Dialog is open' is present
+
+STEP 7: Close it again
+    PRESS Escape
+    VERIFY that 'Dialog is open' is NOT present
+
+STEP 8: One more search
+    FILL 'Search' field with 'snow'
+    PRESS Enter
+    VERIFY that 'Results for snow' is present
+
+DONE.

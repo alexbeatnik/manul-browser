@@ -579,10 +579,7 @@ func (rt *Runtime) executeCommandOnce(ctx context.Context, cmd dsl.Command) (res
 		// Enter in a field submits its form. The results page came in under
 		// the steps that followed, still loading, and a CLICK measured a link
 		// that the page's images then pushed out from under the pointer.
-		if waitErr := rt.page.Wait(ctx, 300*time.Millisecond); waitErr != nil {
-			err = waitErr
-			break
-		}
+		// settleNavigation waits for it to start, and then for it to load.
 		rt.invalidateSnapshot()
 		rt.settleNavigation(ctx)
 
@@ -938,10 +935,6 @@ func (rt *Runtime) executeCommandOnce(ctx context.Context, cmd dsl.Command) (res
 			err = rt.pageFor(winner).SetInputValue(ctx, winner.ID, winner.XPath, val)
 			if err == nil {
 				rt.logger.ActionDetail("⌨️", "Typed %q → %q", val, winner.Name)
-				if waitErr := rt.page.Wait(ctx, 300*time.Millisecond); waitErr != nil {
-					err = waitErr
-					break
-				}
 				rt.invalidateSnapshot()
 			}
 		case dsl.CmdClick:
@@ -969,16 +962,14 @@ func (rt *Runtime) executeCommandOnce(ctx context.Context, cmd dsl.Command) (res
 				// Perform interaction
 				rt.armNavigationWatch(ctx)
 				rt.acted = true
-				err = rt.pointerAction(ctx, winner, func() error { return rt.page.Click(ctx, x, y) })
+				err = rt.pointerAction(ctx, winner, targetPath, x, y, func(x, y float64) error { return rt.page.Click(ctx, x, y) })
 				if errors.Is(err, errPointerSwallowed) {
 					res.FailureReason = explain.ReasonActionFailed
 				}
 				if err == nil {
-					// A click may trigger navigation or AJAX update.
-					if waitErr := rt.page.Wait(ctx, 500*time.Millisecond); waitErr != nil {
-						err = waitErr
-						break
-					}
+					// A click may trigger navigation or AJAX update, which
+					// settleNavigation waits for. It used to sleep 500 ms
+					// first, whatever the click did.
 					rt.invalidateSnapshot()
 					rt.settleNavigation(ctx)
 					if stickyErr := rt.reconcileStickyCheckboxStates(ctx); stickyErr != nil {
@@ -992,7 +983,7 @@ func (rt *Runtime) executeCommandOnce(ctx context.Context, cmd dsl.Command) (res
 				err = e
 			} else {
 				rt.acted = true
-				err = rt.pointerAction(ctx, winner, func() error { return rt.page.DoubleClick(ctx, x, y) })
+				err = rt.pointerAction(ctx, winner, targetPath, x, y, func(x, y float64) error { return rt.page.DoubleClick(ctx, x, y) })
 				err = rt.settleAfterPointer(ctx, err)
 			}
 		case dsl.CmdRightClick:
@@ -1001,7 +992,7 @@ func (rt *Runtime) executeCommandOnce(ctx context.Context, cmd dsl.Command) (res
 				err = e
 			} else {
 				rt.acted = true
-				err = rt.pointerAction(ctx, winner, func() error { return rt.page.RightClick(ctx, x, y) })
+				err = rt.pointerAction(ctx, winner, targetPath, x, y, func(x, y float64) error { return rt.page.RightClick(ctx, x, y) })
 				err = rt.settleAfterPointer(ctx, err)
 			}
 		case dsl.CmdHover:
@@ -1013,10 +1004,6 @@ func (rt *Runtime) executeCommandOnce(ctx context.Context, cmd dsl.Command) (res
 				rt.acted = true
 				err = rt.page.Hover(ctx, x, y)
 				if err == nil {
-					if waitErr := rt.page.Wait(ctx, 300*time.Millisecond); waitErr != nil {
-						err = waitErr
-						break
-					}
 					rt.invalidateSnapshot()
 				}
 			}
@@ -1062,10 +1049,6 @@ func (rt *Runtime) executeCommandOnce(ctx context.Context, cmd dsl.Command) (res
 					rt.acted = true
 					// A sort or filter dropdown often reloads the page on
 					// change, exactly as a click on a link would.
-					if waitErr := rt.page.Wait(ctx, 300*time.Millisecond); waitErr != nil {
-						err = waitErr
-						break
-					}
 					rt.invalidateSnapshot()
 					rt.settleNavigation(ctx)
 				}
@@ -1182,6 +1165,12 @@ func (rt *Runtime) executeCommandOnce(ctx context.Context, cmd dsl.Command) (res
 		rt.logger.Info("Target '%s' resolved to element: ID=%d Tag=%s XPath=%s", sourcePath, srcEl.ID, srcEl.Tag, srcEl.XPath)
 		rt.logger.Info("Target '%s' resolved to element: ID=%d Tag=%s XPath=%s", dropPath, destEl.ID, destEl.Tag, destEl.XPath)
 
+		// A drag moves the pointer across the page with the button down, and
+		// that selects the text it crosses. On Firefox a press on selected
+		// text starts a drag of the text, which takes the mouse events: the
+		// second tile dragged onto a board never let go. A selection left
+		// behind is not what DRAG 'X' means to move.
+		_, _ = rt.pageFor(srcEl).EvalJS(ctx, pagejs.ClearSelection)
 		rt.acted = true
 		err = rt.page.DragAndDrop(ctx, x1, y1, x2, y2)
 		if err == nil {
@@ -1958,10 +1947,8 @@ func (rt *Runtime) navigate(ctx context.Context, url string) error {
 
 	err := rt.page.Navigate(limited, url)
 	if err == nil {
-		// Brief pause helps CDP catch up before we check readyState.
-		if err = rt.page.Wait(limited, 300*time.Millisecond); err == nil {
-			err = rt.page.WaitForLoad(limited)
-		}
+		// Navigate returns on the new document; this is the load.
+		err = rt.page.WaitForLoad(limited)
 	}
 	if err == nil || limited.Err() == nil || ctx.Err() != nil {
 		// Loaded, failed for a reason of its own, or the caller gave up.
@@ -2758,17 +2745,30 @@ func verifyRankedCandidateAcceptable(state string, ranked []scorer.RankedCandida
 	}
 }
 
+// checkboxSettle is how long a checkbox is given to show the state it was
+// set to before other boxes are tried.
+const checkboxSettle = 150 * time.Millisecond
+
 func (rt *Runtime) ensureCheckboxTargetState(ctx context.Context, acted dom.ElementSnapshot, target string, desired bool, initialRanked []scorer.RankedCandidate) error {
-	if waitErr := rt.page.Wait(ctx, 150*time.Millisecond); waitErr != nil {
-		return waitErr
-	}
 	// Ask the control that was just acted on before asking the page for one
 	// by name. A box with an unbound caption beside it — <input><label> with
 	// no for= — is reached through the caption but cannot be found by it, so
 	// the by-name check below reported a ticked box as never ticked, and then
 	// went on to try other boxes.
-	if checked, ok := rt.checkedState(ctx, acted); ok && checked == desired {
-		return nil
+	//
+	// It is asked at once, and again for up to checkboxSettle: a control a
+	// framework draws may take a frame to show its new state. A fixed 150 ms
+	// came first, for every box.
+	for end := time.Now().Add(checkboxSettle); ; {
+		if checked, ok := rt.checkedState(ctx, acted); ok && checked == desired {
+			return nil
+		}
+		if !time.Now().Before(end) {
+			break
+		}
+		if waitErr := rt.page.Wait(ctx, gracePollInterval); waitErr != nil {
+			return waitErr
+		}
 	}
 	rt.invalidateSnapshot()
 	matched, err := rt.checkboxTargetHasState(ctx, target, desired)
@@ -3272,16 +3272,17 @@ func (rt *Runtime) tryClickVisibleDropdownOption(ctx context.Context, targetPath
 	return strings.TrimSpace(string(raw)) == "true", nil
 }
 
-// settleAfterPointer finishes a double or right click: the page is given a
-// moment to react, and what was known about it is thrown away. Both exist to
-// change the page — a context menu, an inline editor — and the step that
-// follows used to look for what they opened in the snapshot taken before.
+// settleAfterPointer finishes a double or right click: what was known about
+// the page is thrown away. Both exist to change the page — a context menu, an
+// inline editor — and the step that follows used to look for what they opened
+// in the snapshot taken before. That step waits for its target as any step
+// does; a fixed 300 ms here was paid whether the page did anything or not.
 func (rt *Runtime) settleAfterPointer(ctx context.Context, err error) error {
 	if err != nil {
 		return err
 	}
 	rt.invalidateSnapshot()
-	return rt.page.Wait(ctx, 300*time.Millisecond)
+	return nil
 }
 
 func (rt *Runtime) loadSnapshot(ctx context.Context) ([]dom.ElementSnapshot, error) {

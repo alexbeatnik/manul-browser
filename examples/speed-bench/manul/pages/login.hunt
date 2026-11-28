@@ -1,0 +1,14 @@
+@page: Login
+@url: /login.html
+@expect: 'Sign in'
+@context: Signing in and out. Accounts: ada/lovelace (admin), grace/hopper (member).
+@export: SignIn, SignOut
+
+STEP SignIn:
+    FILL 'Username' field with '{user}'
+    FILL 'Password' field with '{password}'
+    CLICK the 'Sign in' button
+
+STEP SignOut:
+    CLICK the 'Logout' button
+    VERIFY that the page is 'Login'

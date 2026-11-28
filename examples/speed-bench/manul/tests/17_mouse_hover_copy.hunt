@@ -1,0 +1,35 @@
+@title: mouse_hover_copy
+@context: A tooltip on hover, a double click that copies, a search and a dialog.
+@tags: mouse
+@import: * from '../lib/env.hunt'
+
+STEP 1: Open the page
+    NAVIGATE to 'Mouse and keyboard'
+    VERIFY that the page is 'Mouse and keyboard'
+
+STEP 2: Hover the avatar
+    HOVER over the 'Avatar'
+    VERIFY that 'Signed in as Manul' is present
+
+STEP 3: Copy the link
+    DOUBLE CLICK the 'Copy link' button
+    VERIFY that 'Link copied' is present
+
+STEP 4: Search
+    FILL 'Search' field with 'plush'
+    PRESS Enter
+    VERIFY that 'Results for plush' is present
+
+STEP 5: Hover again
+    HOVER over the 'Avatar'
+    VERIFY that 'Signed in as Manul' is present
+
+STEP 6: Open the dialog
+    CLICK the 'Open dialog' button
+    VERIFY that 'Dialog is open' is present
+
+STEP 7: Close it with Escape
+    PRESS Escape
+    VERIFY that 'Dialog is open' is NOT present
+
+DONE.

@@ -1,0 +1,42 @@
+@title: login_switch_users
+@context: Two accounts sign in and out in turn on one page.
+@tags: login
+@import: * from '../lib/env.hunt'
+
+STEP 1: Open the login page
+    NAVIGATE to 'Login'
+    VERIFY that the page is 'Login'
+
+STEP 2: Ada signs in
+    SET {user} = ada
+    SET {password} = lovelace
+    USE Login.SignIn
+    VERIFY that 'Welcome, ada' is present
+    VERIFY 'Role' field has value 'admin'
+
+STEP 3: Ada signs out
+    USE Login.SignOut
+    VERIFY that 'Welcome, ada' is NOT present
+
+STEP 4: Grace signs in
+    SET {user} = grace
+    SET {password} = hopper
+    USE Login.SignIn
+    VERIFY that 'Welcome, grace' is present
+    VERIFY 'Role' field has value 'member'
+
+STEP 5: Grace signs out
+    USE Login.SignOut
+    VERIFY that 'Welcome, grace' is NOT present
+
+STEP 6: Ada signs in again
+    SET {user} = ada
+    SET {password} = lovelace
+    USE Login.SignIn
+    VERIFY that 'Welcome, ada' is present
+
+STEP 7: And out
+    USE Login.SignOut
+    VERIFY 'Password' field has value ''
+
+DONE.

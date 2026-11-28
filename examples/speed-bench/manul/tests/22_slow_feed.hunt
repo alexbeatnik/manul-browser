@@ -1,0 +1,35 @@
+@title: slow_feed
+@context: The feed loaded to its end, a toast that goes away, then a report.
+@tags: slow
+@import: * from '../lib/env.hunt'
+
+STEP 1: Open the slow page
+    NAVIGATE to 'Slow page'
+    VERIFY that 'Feed item 2' is present
+
+STEP 2: More of the feed
+    CLICK the 'Load more' button
+    VERIFY that 'Feed item 4' is present
+
+STEP 3: The rest of the feed
+    CLICK the 'Load more' button
+    VERIFY that 'Feed item 6' is present
+    VERIFY that 'Load more' is NOT present
+
+STEP 4: Save the settings
+    CLICK the 'Save settings' button
+    VERIFY that 'Settings saved' is present
+
+STEP 5: The toast goes
+    WAIT FOR 'Settings saved' to disappear
+    VERIFY that 'Settings saved' is NOT present
+
+STEP 6: Build the report
+    CLICK the 'Build report' button
+    VERIFY that 'Report ready: 3 orders' is present
+
+STEP 7: Go home
+    CLICK the 'Home' link
+    VERIFY that the page is 'Home'
+
+DONE.

@@ -1,0 +1,36 @@
+@title: login_admin
+@context: The admin signs in, asks to be remembered, sees the admin role and signs out.
+@tags: login
+@import: * from '../lib/env.hunt'
+
+STEP 1: Open the login page
+    NAVIGATE to 'Login'
+    VERIFY that the page is 'Login'
+
+STEP 2: Type the username
+    FILL 'Username' field with 'ada'
+    VERIFY 'Username' field has value 'ada'
+
+STEP 3: Type the password
+    FILL 'Password' field with 'lovelace'
+    VERIFY 'Password' field has value 'lovelace'
+
+STEP 4: Ask to be remembered
+    CHECK the checkbox for 'Remember me'
+    VERIFY that 'Remember me' is checked
+
+STEP 5: Sign in
+    CLICK the 'Sign in' button
+    VERIFY that 'Welcome, ada' is present
+    VERIFY 'Role' field has value 'admin'
+
+STEP 6: Sign out
+    CLICK the 'Logout' button
+    VERIFY that the page is 'Login'
+    VERIFY that 'Welcome, ada' is NOT present
+
+STEP 7: Go home
+    CLICK the 'Home' link
+    VERIFY that the page is 'Home'
+
+DONE.

@@ -1,0 +1,127 @@
+{
+  "versions": {
+    "date": "2026-11-28",
+    "playwrightMcp": "0.0.86",
+    "playwrightCore": "1.66.0-alpha-2026-11-18",
+    "manul": "manul 0.1.6",
+    "chrome": "Chrome/158.0.8127.37",
+    "tokenizer": "cl100k_base (js-tiktoken)"
+  },
+  "pages": [
+    {
+      "page": "Local fixture: form in iframes",
+      "url": "http://127.0.0.1:60917/frames.html",
+      "rawHTML": 172,
+      "playwrightSnapshot": 375,
+      "manulMap": 225,
+      "manulMapFull": 225,
+      "manulMapTruncated": false,
+      "clickTarget": "button \"Host button\"",
+      "playwrightClick": 132,
+      "manulStep": 63,
+      "manulStepOK": true,
+      "targetInManulMap": true
+    },
+    {
+      "page": "Local fixture: order summary",
+      "url": "http://127.0.0.1:60917/extract.html",
+      "rawHTML": 208,
+      "playwrightSnapshot": 258,
+      "manulMap": 29,
+      "manulMapFull": 29,
+      "manulMapTruncated": false
+    },
+    {
+      "page": "the-internet: home",
+      "url": "https://the-internet.herokuapp.com/",
+      "rawHTML": 4397,
+      "playwrightSnapshot": 5707,
+      "manulMap": 334,
+      "manulMapFull": 1681,
+      "manulMapTruncated": true,
+      "clickTarget": "link \"Form Authentication\"",
+      "playwrightClick": 196,
+      "manulStep": 56,
+      "manulStepOK": true,
+      "targetInManulMap": false
+    },
+    {
+      "page": "Sauce Demo: login",
+      "url": "https://www.saucedemo.com/",
+      "rawHTML": 711,
+      "playwrightSnapshot": 304,
+      "manulMap": 110,
+      "manulMapFull": 110,
+      "manulMapTruncated": false,
+      "clickTarget": "button \"Login\"",
+      "playwrightClick": 123,
+      "manulStep": 55,
+      "manulStepOK": true,
+      "targetInManulMap": true
+    },
+    {
+      "page": "Books to Scrape: catalogue",
+      "url": "https://books.toscrape.com/",
+      "rawHTML": 9820,
+      "playwrightSnapshot": 8675,
+      "manulMap": 1276,
+      "manulMapFull": 2081,
+      "manulMapTruncated": true,
+      "clickTarget": "link \"Travel\"",
+      "playwrightClick": 208,
+      "manulStep": 64,
+      "manulStepOK": true,
+      "targetInManulMap": true
+    },
+    {
+      "page": "Wikipedia: Web browser",
+      "url": "https://en.wikipedia.org/wiki/Web_browser",
+      "rawHTML": 200421,
+      "playwrightSnapshot": 38059,
+      "manulMap": 3126,
+      "manulMapFull": 18496,
+      "manulMapTruncated": true,
+      "clickTarget": "link \"Talk\"",
+      "playwrightClick": 202,
+      "manulStep": 58,
+      "manulStepOK": true,
+      "targetInManulMap": true
+    },
+    {
+      "page": "GitHub: microsoft/playwright",
+      "url": "https://github.com/microsoft/playwright",
+      "rawHTML": 180972,
+      "playwrightSnapshot": 20054,
+      "manulMap": 1318,
+      "manulMapFull": 4047,
+      "manulMapTruncated": true,
+      "clickTarget": "link \"Issues\"",
+      "playwrightClick": 124,
+      "manulStep": 65,
+      "manulStepOK": true,
+      "targetInManulMap": true
+    },
+    {
+      "page": "MDN: <button> reference",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/button",
+      "rawHTML": 37454,
+      "playwrightSnapshot": 60583,
+      "manulMap": 3290,
+      "manulMapFull": 11692,
+      "manulMapTruncated": true,
+      "clickTarget": "link \"Specifications\"",
+      "playwrightClick": 215,
+      "manulStep": 66,
+      "manulStepOK": true,
+      "targetInManulMap": true
+    }
+  ],
+  "task": {},
+  "overhead": {
+    "playwrightTools": 25,
+    "playwrightToolDefinitions": 4484,
+    "manulMCPTools": 6,
+    "manulMCPToolDefinitions": 1134,
+    "manulMCPInstructions": 188
+  }
+}

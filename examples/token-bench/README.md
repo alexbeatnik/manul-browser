@@ -14,6 +14,7 @@ MANUL=/path/to/manul node bench.mjs > results/$(date +%F).json
 |---|---|
 | `MANUL` | `manul` on `PATH` |
 | `CHROME` | `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome` |
+| `TASK` | `0` leaves out the Sauce Demo task, which signs in |
 
 It measures:
 
