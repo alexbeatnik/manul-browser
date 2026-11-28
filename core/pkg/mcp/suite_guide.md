@@ -133,6 +133,10 @@ What that gives every hunt, with no `@import`:
 - `NAVIGATE to 'Shop'` opens `@url` on the site open now, or on `{site}` from
   a blank page. `@url` is a path (also written `{site}/shop.html`), or a whole
   address for a page on a site of its own.
+- A page at several addresses lists them all, `@url: /index.html /`, and goes
+  to the first. A `*` stands for any text within one part of the path:
+  `@url: /products/*` names every product page. A page named only by a
+  pattern has no address to go to; reach it by a step that leads there.
 - `VERIFY that the page is 'Login'` waits until the page is at its `@url` and
   shows every `@expect` text — so a single-page app's views, which share one
   address, are told apart by `@expect` alone when `@url` is left out.

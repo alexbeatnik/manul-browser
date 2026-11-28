@@ -112,7 +112,10 @@
                 const cells = Array.from(tr.cells || tr.querySelectorAll('td,th'));
                 const texts = [];
                 for (const c of cells) {
-                    if (c === el) continue;
+                    // One header does not label another. In a header row
+                    // every <th> took the others as its label, and 'Title'
+                    // resolved to the 'Stock' header beside it.
+                    if (c === el || (el.tagName === 'TH' && c.tagName === 'TH')) continue;
                     const ct = normalize(c.innerText || c.textContent);
                     if (ct.length > 0 && ct.length < 100) texts.push(ct);
                 }

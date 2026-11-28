@@ -27,6 +27,14 @@ func (o StepOutcome) DescribeForLLM() string {
 	var b strings.Builder
 	if o.OK {
 		fmt.Fprintf(&b, "OK: %s", step)
+		// What a step read or printed is what it was for. A model running a
+		// hunt with EXTRACT and PRINT was told only that they passed.
+		switch o.Action {
+		case "extract":
+			fmt.Fprintf(&b, " — read %q", o.Value)
+		case "print":
+			fmt.Fprintf(&b, " — printed %q", o.Value)
+		}
 		if o.URL != "" {
 			fmt.Fprintf(&b, " — the page is now %s", pageLabel(o.Page, o.URL))
 		}
@@ -58,7 +66,13 @@ func (o StepOutcome) DescribeForLLM() string {
 	case ReasonTimeout:
 		b.WriteString("\n  Why: the page took too long to respond. It may still have loaded — check what page is open now before retrying.")
 	case ReasonVerifyFailed:
-		b.WriteString("\n  Why: the expected text or state is not on the page.")
+		// A field check found the field: what it holds is the answer. "Not
+		// on the page" sent the model looking for text that was there.
+		if o.Action == "verify_field" && strings.Contains(o.Error, " has ") {
+			fmt.Fprintf(&b, "\n  Why: %s.", strings.TrimPrefix(o.Error, "verification failed: "))
+		} else {
+			b.WriteString("\n  Why: the expected text or state is not on the page.")
+		}
 	default:
 		if o.Error != "" {
 			fmt.Fprintf(&b, "\n  Why: %s", o.Error)

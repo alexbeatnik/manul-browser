@@ -1,0 +1,9 @@
+@title: VERIFY a caption's text is the value it captions
+STEP 1: A row's header, and text ending in a colon
+    NAVIGATE to @SITE@/captions.html
+    VERIFY 'Price (incl. tax)' field has text '£23.88'
+    VERIFY 'Availability' element has text 'In stock (19 available)'
+    VERIFY 'Shipping' element has text 'Free'
+STEP 2: A column's header is its own text
+    VERIFY 'Title' element has text 'Title'
+DONE.

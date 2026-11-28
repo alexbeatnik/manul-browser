@@ -124,6 +124,8 @@ STEP SignOut:
 ```
 
 - `@url:` joins the registry — a path (or `{site}/path`) for any site, a whole address for a site of its own — so `NAVIGATE to 'Login'`, `VERIFY that the page is 'Login'`, `IF the page is` and `page_name` know the page. A JSON fragment naming the same address has the last word.
+- A page at several addresses lists them, on one line or several: `@url: /index.html /`. `NAVIGATE` goes to the first; the rest only name the page. A `*` in the path is any text within one segment, so `@url: /catalogue/*/index.html` names every product page and `/catalogue/page-*.html` every page of a listing. An address beats a pattern that matches it. A page named by patterns alone has nowhere to `NAVIGATE` to, and the step says so.
+- `/` is the site's home page, not every page under it.
 - `@expect:` is text the page shows when it is open. `VERIFY that the page is 'Login'` then needs the page at `@url` (when there is one) *and* every `@expect` text, so views of a single-page app that share one address are told apart by `@expect` alone.
 - Any hunt runs the page's actions as `USE Login.SignIn`, with no `@import`. A block may `USE` another of its own page's blocks by its short name. The page's `@var:` are defaults.
 - A custom control can be registered under the page's name; it is found before one registered under the page's title.

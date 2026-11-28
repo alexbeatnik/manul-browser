@@ -390,3 +390,84 @@ func TestRegistry_APageFilesAddressIsGoneTo(t *testing.T) {
 		t.Errorf("PageName = %q", got)
 	}
 }
+
+// books.toscrape: the catalogue is at /, /index.html and /catalogue/page-N.html,
+// a book at /catalogue/<slug>_<id>/index.html. A page file's @url could name
+// one address, and the book none at all.
+func TestRegistry_APageFileHasSeveralAddressesAndPatterns(t *testing.T) {
+	dir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "catalogue.hunt"), []byte("@page: Catalogue\n@url: /index.html /\n@url: /catalogue/page-*.html\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(dir, "category.hunt"), []byte("@page: Category\n@url: /catalogue/category/books/*/*\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(dir, "book.hunt"), []byte("@page: Book\n@url: {site}/catalogue/*/index.html\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(dir, "admin.hunt"), []byte("@page: Order\n@url: https://admin.test/orders/*?tab=1\n"), 0o644)
+	r := NewRegistry(dir)
+	for url, want := range map[string]string{
+		"https://books.test/":                                               "Catalogue",
+		"https://books.test":                                                "Catalogue",
+		"https://books.test/index.html":                                     "Catalogue",
+		"https://books.test/catalogue/page-2.html?x=1":                      "Catalogue",
+		"https://books.test/catalogue/olio_984/index.html":                  "Book",
+		"https://books.test/catalogue/category/books/poetry_23/page-2.html": "Category",
+		"https://admin.test/orders/1234":                                    "Order",
+		// A '*' is one segment, and "/" is the home page alone.
+		"https://books.test/catalogue/a/b/index.html": "",
+		"https://books.test/about.html":               "",
+		"https://admin.test/orders/1234/items":        "",
+	} {
+		if got := r.PageName(url); got != want {
+			t.Errorf("%s = %q, want %q", url, got, want)
+		}
+	}
+	// NAVIGATE goes to the first address that is not a pattern; a page
+	// named by patterns alone has none.
+	if got := r.PagesNamed("Catalogue"); strings.Join(got, " ") != "/index.html" {
+		t.Errorf("PagesNamed(Catalogue) = %v, want [/index.html]", got)
+	}
+	if got := r.PagesNamed("Book"); len(got) != 0 {
+		t.Errorf("PagesNamed(Book) = %v, want none", got)
+	}
+	if def, ok := r.Page("Book"); !ok || !def.HasURL || strings.Join(def.URLs, " ") != "{site}/catalogue/*/index.html" {
+		t.Errorf("Page(Book) = %+v %v", def, ok)
+	}
+}
+
+// An address is more specific than a pattern that matches it, whichever
+// is longer.
+func TestRegistry_AnAddressBeatsAPatternThatMatchesIt(t *testing.T) {
+	dir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "spa.hunt"), []byte("@page: Apps\n@url: /spa*.html\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(dir, "search.hunt"), []byte("@page: Search\n@url: /spa.html\n"), 0o644)
+	r := NewRegistry(dir)
+	for url, want := range map[string]string{"https://a.test/spa.html": "Search", "https://a.test/spa_late.html": "Apps"} {
+		if got := r.PageName(url); got != want {
+			t.Errorf("%s = %q, want %q", url, got, want)
+		}
+	}
+}
+
+// "/" in a JSON fragment is the home page too: it named every page of the
+// site, as Domain does.
+func TestRegistry_TheRootPathIsTheHomePage(t *testing.T) {
+	dir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "site.test.json"), []byte(`{"site": "https://site.test/", "Domain": "Site", "/": "Home"}`), 0o644)
+	r := NewRegistry(dir)
+	for url, want := range map[string]string{
+		"https://site.test/":         "Home",
+		"https://site.test/?ref=ad":  "Home",
+		"https://site.test/products": "Site",
+	} {
+		if got := r.PageName(url); got != want {
+			t.Errorf("%s = %q, want %q", url, got, want)
+		}
+	}
+}
+
+// A JSON key with a '*' is still a regular expression.
+func TestRegistry_AJSONKeyWithAStarIsStillARegularExpression(t *testing.T) {
+	dir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "site.test.json"), []byte(`{"site": "https://site.test/", "Domain": "Site", "/p/.*/edit": "Edit"}`), 0o644)
+	r := NewRegistry(dir)
+	if got := r.PageName("https://site.test/p/a/b/edit"); got != "Edit" {
+		t.Errorf("a regular expression = %q, want Edit", got)
+	}
+}

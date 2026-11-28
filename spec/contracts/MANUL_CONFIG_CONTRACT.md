@@ -258,7 +258,7 @@
 
   "pagesRegistry": {
     "directory": "<project>/pages/",
-    "format": "One JSON fragment per site (file name = <safe_netloc>.json), and page files: pages/*.hunt with @page: (MANUL_DSL_CONTRACT.md metadata page), whose @url: joins the registry as a path for any site or a whole address for its own, read before the JSON fragments so a fragment that names the same address differently wins. Both are read again only when a file is added, removed or changed.",
+    "format": "One JSON fragment per site (file name = <safe_netloc>.json), and page files: pages/*.hunt with @page: (MANUL_DSL_CONTRACT.md metadata page), whose @url: addresses join the registry as paths for any site or whole addresses for their own, and whose @url: patterns (a '*' in the path, standing for any text within one segment) name every path they match, read before the JSON fragments so a fragment that names the same address differently wins. Both are read again only when a file is added, removed or changed.",
     "resolution": [
       "CWD/pages/*.json — writable, directory auto-created if absent. There is no override; the directory is always pages/ under the working directory."
     ],
@@ -291,7 +291,7 @@
     "lookupBehavior": [
       "Re-merges every pages/*.json fragment from disk on every call (live edits picked up instantly)",
       "Finds best-matching site block (longest-prefix wins across all fragments)",
-      "Within site block, the most specific of: the address itself; the address without its query and fragment; every other key that matches — a plain path key ('/login': starts with '/', no regular-expression characters, a dot is a dot) matches the path from its start, a whole segment at a time, and any other key matches as a regular expression, or failing that as a substring, of the address — the longest such key winning, and of keys as long the first in byte order; then the 'Domain' fallback. Two keys that matched one address used to name it at random, and a path key matched anywhere in the address ('/admin' named /blog/admin-tips).",
+      "Within site block, the most specific of: the address itself; the address without its query and fragment; every other key that matches — a plain path key ('/login': starts with '/', no regular-expression characters, a dot is a dot) matches the path from its start, a whole segment at a time, except '/', which is the site's home page alone; a page file's @url pattern matches the whole path, and is as specific as its text without the '*', below a key as long; any other key matches as a regular expression, or failing that as a substring, of the address — the longest such key winning, and of keys as long the first in byte order; then the 'Domain' fallback. Two keys that matched one address used to name it at random, a path key matched anywhere in the address ('/admin' named /blog/admin-tips), and '/' named every page of its site. A JSON key with a '*' in it is a regular expression, as it always was.",
       "Auto-populates an address on a site with no fragment by writing pages/<safe_netloc>.json: 'Domain' is 'Auto: <host>' and the address, without its query and fragment, is 'Auto: <host>/<path>'. It used to name the whole site after the first address it saw, query and all. The fragment is written to a temporary file and renamed into place, so a parallel worker never reads one half written. Lookups, and so writes, happen only for auto_annotate and `manul pages`."
     ],
     "introspection": {

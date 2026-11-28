@@ -1453,6 +1453,13 @@ func (rt *Runtime) executeCommandOnce(ctx context.Context, cmd dsl.Command) (res
 						actual = winner.Placeholder
 					default: // "text"
 						actual = strings.TrimSpace(winner.VisibleText)
+						// A caption's text is the target itself; what it
+						// shows is the value beside it, as EXTRACT reads it.
+						if captionName(actual) == captionName(target) {
+							if v, ok := rt.valueBesideCaption(ctx, winner); ok {
+								actual = v
+							}
+						}
 					}
 					if actual == expected {
 						matched = true
@@ -2959,6 +2966,29 @@ func (rt *Runtime) captionedBox(ctx context.Context, el dom.ElementSnapshot, tar
 	// Not in the snapshot; the page finds it by its path. An ID of -1 is
 	// in no registry, so the path is what is used.
 	return dom.ElementSnapshot{ID: -1, XPath: pick.XPath, Tag: "input"}, nil
+}
+
+// captionName is text as a caption names something: case, spacing and a
+// trailing ':' or '*' aside — "Price:" names 'price'.
+func captionName(s string) string {
+	return strings.TrimRight(strings.ToLower(strings.Join(strings.Fields(s), " ")), ": *")
+}
+
+// valueBesideCaption reads the value el captions — the cell after a row's
+// <th>, the text after "Shipping:" — or reports false when el is not a caption.
+func (rt *Runtime) valueBesideCaption(ctx context.Context, el dom.ElementSnapshot) (string, bool) {
+	raw, err := rt.pageFor(el).EvalJS(ctx, pagejs.ValueBesideCaption(el.ID, el.XPath))
+	if err != nil {
+		return "", false
+	}
+	var v struct {
+		Found bool   `json:"found"`
+		Text  string `json:"text"`
+	}
+	if json.Unmarshal(raw, &v) != nil || !v.Found {
+		return "", false
+	}
+	return v.Text, true
 }
 
 // checkedState reads the state of the checkbox or radio el stands for, off the

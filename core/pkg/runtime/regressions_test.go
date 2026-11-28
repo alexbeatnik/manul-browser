@@ -1367,3 +1367,41 @@ func TestActions_CrossOriginFrameIsEnteredWhereItIsMeasured(t *testing.T) {
 		t.Errorf("clicks = %v, want %v", page.Clicks, want)
 	}
 }
+
+// ── A caption's text ─────────────────────────────────────────────────────────
+
+// books.toscrape lists a product as rows of <th>Price (incl. tax)</th>
+// <td>£45.17</td>. VERIFY 'Price (incl. tax)' field has text '£45.17'
+// resolved the header, read its own text and failed with "has text
+// "Price (incl. tax)"", while EXTRACT of the same caption read £45.17.
+func TestVerifyHasText_ACaptionIsReadAsTheValueBesideIt(t *testing.T) {
+	th, td := regEl(1, "th", "Price (incl. tax)"), regEl(2, "td", "£45.17")
+	header := regEl(3, "th", "Name") // a column's header: nothing beside it
+	page := &MockPage{Elements: []dom.ElementSnapshot{th, td, header}}
+	for i := range page.Elements {
+		page.Elements[i].Normalize()
+	}
+	page.EvalResult = func(expr string) ([]byte, bool) {
+		switch expr {
+		case pagejs.ValueBesideCaption(th.ID, th.XPath):
+			return []byte(`{"found":true,"text":"£45.17"}`), true
+		case pagejs.ValueBesideCaption(header.ID, header.XPath):
+			return []byte(`{"found":false}`), true
+		}
+		return nil, false
+	}
+	rt := New(regConfig(), page, utils.NewLoggerTo(nopWriter{}, nil))
+	for _, tc := range []struct{ target, want string }{
+		{"Price (incl. tax)", "£45.17"},
+		{"Name", "Name"},
+	} {
+		res, err := rt.RunCommand(context.Background(), dsl.Command{
+			Type: dsl.CmdVerifyField, Target: tc.target, TypeHint: "field", VerifyFieldKind: "text", Value: tc.want,
+		})
+		if err != nil {
+			t.Errorf("VERIFY '%s' has text '%s': %v", tc.target, tc.want, err)
+		} else if res.ActionValue != tc.want {
+			t.Errorf("VERIFY '%s': read %q, want %q", tc.target, res.ActionValue, tc.want)
+		}
+	}
+}

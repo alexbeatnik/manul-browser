@@ -131,7 +131,7 @@ func describePage(name, title, url string) string {
 
 // pageAddress resolves NAVIGATE to '<page name>' through pages/. It answers
 // ok false when pages/ has no page of that name: the target is an address,
-// as it always was. A name pages/ gives several addresses — the same page
+// as it always was. A page file's page goes to its first @url with no '*'. A name pages/ gives several addresses — the same page
 // on localhost and on staging — goes to the one on the site open now, and
 // is an error when that does not decide it.
 func (rt *Runtime) pageAddress(ctx context.Context, target string) (addr string, ok bool, err error) {
@@ -159,6 +159,19 @@ func (rt *Runtime) pageAddress(ctx context.Context, target string) (addr string,
 	addrs = dedupe(addrs)
 	switch len(addrs) {
 	case 0:
+		// A page file's page with nowhere to go to: its name, NAVIGATE'd to
+		// as an address, went to "Book".
+		if def, known := rt.pages.Page(target); known {
+			why := "it has no @url"
+			for _, u := range def.URLs {
+				why = "its @url names it by pattern only (" + strings.Join(def.URLs, " ") + ")"
+				if !strings.Contains(u, "*") {
+					why = "a JSON fragment in pages/ names its address otherwise"
+					break
+				}
+			}
+			return "", false, fmt.Errorf("NAVIGATE: the page %q (%s) has no address to go to: %s; NAVIGATE to an address, or to a page that leads there", target, def.Path, why)
+		}
 		if strings.ContainsAny(strings.TrimSpace(target), " \t") {
 			return "", false, fmt.Errorf("NAVIGATE: %q is not an address, and no page in pages/ has that name", target)
 		}

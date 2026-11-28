@@ -275,6 +275,15 @@ got the label bonus, and the zip-code field beat the quantity box under 'Qty.'.
 A scorer that compares the query against an attribute returns 0 for an empty
 query.
 
+**A table's header is a caption, not a label.** The snapshot gives a cell the
+other cells of its row as its label, which is how a `<td>` is found by its row.
+In a header row that labelled every `<th>` with the others, a label counts as
+exact text, and 'Title' resolved to the 'Stock' header beside it; a `<th>` now
+skips the other headers of its row. A row's `<th>` captions the cell after it:
+on books.toscrape, `VERIFY 'Price (incl. tax)' field has text '£45.17'` read
+the header's own text. `pagejs.ValueBesideCaption` reads the value beside a
+caption, as EXTRACT does. `<dt>` is not in the snapshot at all.
+
 **A placeholder is not always the same placeholder.** Comfy's search box has
 no label, and the page types example searches into its placeholder a letter
 at a time. The map named it 'Пошук товарів'; by the FILL that used the name

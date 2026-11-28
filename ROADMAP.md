@@ -333,7 +333,8 @@ not cover:
 Done: page names in the DSL (`NAVIGATE to 'Shop'`, `VERIFY that the page is`,
 `IF the page is`, `page_name` in every result); page files in `pages/`
 (`@page`, `@url`, `@expect`, actions used as `USE Login.SignIn` with no
-`@import`, and views of a single-page app told apart by `@expect`); custom
+`@import`, and views of a single-page app told apart by `@expect`), with
+several addresses and `*` patterns in `@url` (`/catalogue/*/index.html`); custom
 controls found by a page's name before its title; and `manul.Page` / `Page`
 in the Python and Node bindings, which ask the engine whether their page is
 open. The suite guide's example project is built from page files and runs in
@@ -346,6 +347,10 @@ e2e. What is left:
   them under); they are plain functions pytest collects, and CI runs them.
 - **`step` does not expand `USE`.** `Session.run("USE Login.SignIn")` does;
   a single `step` of it, and so the MCP `step` tool, finds no block.
+- **A site's own JSON fragment hides the any-site one.** A page file's
+  `/path` is on the `*` site, and a site with a fragment of its own is looked
+  up in that fragment alone, so there the page file's paths name nothing.
+  Whole addresses in `@url` join the site's fragment and work.
 
 ---
 

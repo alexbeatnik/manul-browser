@@ -11,7 +11,7 @@ import (
 // A page file is a library hunt that says which page it is:
 //
 //	@page: Login
-//	@url: /login.html
+//	@url: /login.html /login/*
 //	@expect: 'Sign in'
 //	@export: SignIn
 //
@@ -34,9 +34,11 @@ var PagesDir = "pages"
 type PageHeader struct {
 	// Name is @page.
 	Name string
-	// URL is @url: a path ("/login.html", "{site}/login.html") or a whole
-	// address.
-	URL string
+	// URLs is every @url, in the order written: a path ("/login.html",
+	// "{site}/login.html"), a whole address, or either with a '*' in its
+	// path ("/catalogue/*/index.html"), which stands for any text within one
+	// segment. The first that has no '*' is where NAVIGATE goes.
+	URLs []string
 	// Expect is every @expect: text the page shows when it is open.
 	Expect []string
 	// Path is the file.
@@ -49,7 +51,7 @@ type PageHeader struct {
 func ReadPageHeaders(dir string) []PageHeader {
 	var out []PageHeader
 	for _, h := range loadPages(dir) {
-		out = append(out, PageHeader{Name: h.Page, URL: h.PageURL, Expect: h.PageExpect, Path: h.SourcePath})
+		out = append(out, PageHeader{Name: h.Page, URLs: h.PageURLs, Expect: h.PageExpect, Path: h.SourcePath})
 	}
 	return out
 }

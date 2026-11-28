@@ -47,7 +47,7 @@ func TestPageHeaders(t *testing.T) {
 		t.Fatalf("headers = %+v, want the one page", got)
 	}
 	h := got[0]
-	if h.Name != "Login" || h.URL != "/login.html" || strings.Join(h.Expect, "|") != "Sign in|Username" {
+	if h.Name != "Login" || strings.Join(h.URLs, " ") != "/login.html" || strings.Join(h.Expect, "|") != "Sign in|Username" {
 		t.Errorf("header = %+v", h)
 	}
 }

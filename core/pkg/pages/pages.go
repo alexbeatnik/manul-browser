@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	pathpkg "path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -27,7 +28,15 @@ type Registry struct {
 	// defs is the page files' pages, by folded name: what @expect says the
 	// page shows, and whether @url gave it an address.
 	defs map[string]PageDef
-	dir  string
+	// globs is the page files' @url patterns, by site: "/catalogue/*/index.html"
+	// names every book of books.toscrape. They are kept apart from data,
+	// whose keys with a '*' in them are regular expressions.
+	globs map[string][]urlGlob
+	// aliases is the page files' addresses that name a page and are not
+	// where NAVIGATE goes, as site + "\n" + key: each page's addresses after
+	// its first.
+	aliases map[string]bool
+	dir     string
 	// seen is the fragments' names, sizes and times when they were last
 	// read: a step asks for its page's name, and reading every fragment
 	// again for each one is waste when none has changed.
@@ -56,7 +65,7 @@ func (r *Registry) Reload() {
 	merged := map[string]map[string]string{}
 	entries, err := os.ReadDir(r.dir)
 	if err != nil {
-		r.data, r.seen, r.defs = merged, "", nil
+		r.data, r.seen, r.defs, r.globs, r.aliases = merged, "", nil, nil, nil
 		return
 	}
 	var sig strings.Builder
@@ -75,18 +84,33 @@ func (r *Registry) Reload() {
 	// Page files first, so a JSON fragment that names the same address
 	// differently has the last word.
 	defs := map[string]PageDef{}
+	globs := map[string][]urlGlob{}
+	aliases := map[string]bool{}
 	for _, h := range dsl.ReadPageHeaders(r.dir) {
-		def := PageDef{Name: h.Name, Expect: h.Expect, Path: h.Path}
-		if site, key, ok := pageAddress(h.URL); ok {
+		def := PageDef{Name: h.Name, Expect: h.Expect, URLs: h.URLs, Path: h.Path}
+		goesTo := false
+		for _, u := range h.URLs {
+			site, key, glob, ok := pageAddress(u)
+			if !ok {
+				continue
+			}
 			def.HasURL = true
 			if merged[site] == nil {
 				merged[site] = map[string]string{}
 			}
+			if glob {
+				globs[site] = append(globs[site], urlGlob{path: key, name: h.Name})
+				continue
+			}
 			merged[site][key] = h.Name
+			if goesTo {
+				aliases[site+"\n"+key] = true
+			}
+			goesTo = true
 		}
 		defs[foldName(h.Name)] = def
 	}
-	r.defs = defs
+	r.defs, r.globs, r.aliases = defs, globs, aliases
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
 			continue
@@ -108,6 +132,7 @@ func (r *Registry) Reload() {
 			}
 			for k, v := range siteVal {
 				existing[k] = v
+				delete(aliases, siteKey+"\n"+k)
 			}
 		}
 	}
@@ -122,9 +147,12 @@ func (r *Registry) Reload() {
 //  3. Within site block, the most specific of:
 //     a. The address itself, then the address without its query and fragment.
 //     b. Every other key that matches: a plain path ("/login") matches the
-//     path from its start, a segment at a time; any other key matches as a
-//     regular expression, or failing that as a substring, of the address.
-//     The longest such key wins, and of keys as long, the first in order.
+//     path from its start, a segment at a time, and "/" the site's root
+//     alone; a page file's pattern ("/catalogue/*/index.html") matches the
+//     whole path; any other key matches as a regular expression, or failing
+//     that as a substring, of the address. The longest such key wins — a
+//     pattern counted without its '*', and below a key as long — and of
+//     keys as long, the first in order.
 //     c. The special "Domain" key as fallback.
 //  4. If no site block matches, auto-populate a placeholder.
 //
@@ -165,13 +193,25 @@ func (r *Registry) lookup(rawURL string) (string, bool) {
 	if name, ok := pages[bare]; ok {
 		return name, true
 	}
+	// A pattern is as specific as its text without the '*', and below a key
+	// as long: /spa.html, not /spa*.html, names /spa.html.
 	var best, bestName string
+	bestLen, bestGlob := -1, false
+	consider := func(pattern, name string, n int, glob bool) {
+		if n > bestLen || (n == bestLen && (bestGlob && !glob || bestGlob == glob && pattern < best)) {
+			best, bestName, bestLen, bestGlob = pattern, name, n, glob
+		}
+	}
 	for pattern, name := range pages {
 		if pattern == "Domain" || pattern == "site" || !patternMatches(pattern, rawURL, bare) {
 			continue
 		}
-		if best == "" || len(pattern) > len(best) || (len(pattern) == len(best) && pattern < best) {
-			best, bestName = pattern, name
+		consider(pattern, name, len(pattern), false)
+	}
+	path := parseURL(bare).path
+	for _, g := range r.globs[bestSite] {
+		if g.matches(path) {
+			consider(g.path, g.name, len(g.path)-strings.Count(g.path, "*"), true)
 		}
 	}
 	if best != "" {
@@ -188,6 +228,8 @@ type PageDef struct {
 	Name string
 	// Expect is what the page shows when it is open.
 	Expect []string
+	// URLs is every @url, as written.
+	URLs []string
 	// HasURL is whether @url gave the page an address the registry knows.
 	HasURL bool
 	// Path is the page file.
@@ -205,22 +247,44 @@ func (r *Registry) Page(name string) (PageDef, bool) {
 
 // pageAddress is where a page file's @url puts the page in the registry: a
 // path, or {site} followed by one, under AnySite; a whole address under its
-// own site.
-func pageAddress(url string) (site, key string, ok bool) {
+// own site. A '*' in the path makes it a pattern, glob true, and key then is
+// the path alone.
+func pageAddress(url string) (site, key string, glob, ok bool) {
 	url = strings.TrimSpace(url)
 	for _, prefix := range []string{"{site}", "${site}", "$site"} {
 		url = strings.TrimPrefix(url, prefix)
 	}
 	switch {
 	case url == "":
-		return "", "", false
+		return "", "", false, false
 	case strings.HasPrefix(url, "/"):
-		return AnySite, withoutQuery(url), true
+		key = withoutQuery(url)
+		return AnySite, key, strings.Contains(key, "*"), true
 	case strings.Contains(url, "://"):
-		p := parseURL(url)
-		return fmt.Sprintf("%s://%s/", p.scheme, p.host), withoutQuery(url), true
+		p := parseURL(withoutQuery(url))
+		site = fmt.Sprintf("%s://%s/", p.scheme, p.host)
+		if strings.Contains(p.path, "*") {
+			return site, p.path, true, true
+		}
+		return site, withoutQuery(url), false, true
 	}
-	return "", "", false
+	return "", "", false, false
+}
+
+// urlGlob is a page file's @url pattern: a path in which '*' stands for any
+// text within one segment, and nothing else is special.
+type urlGlob struct {
+	path, name string
+}
+
+// matches reports whether the pattern is the whole of path.
+func (g urlGlob) matches(path string) bool {
+	if path == "" {
+		path = "/"
+	}
+	escaped := strings.NewReplacer(`\`, `\\`, `?`, `\?`, `[`, `\[`, `]`, `\]`).Replace(g.path)
+	ok, err := pathpkg.Match(escaped, path)
+	return err == nil && ok
 }
 
 // PageName is the name a person gave the page at rawURL in pages/, or "" when
@@ -278,6 +342,9 @@ func (r *Registry) PagesNamed(name string) []string {
 			default:
 				continue
 			}
+			if r.aliases[site+"\n"+key] {
+				continue
+			}
 			if !seen[addr] {
 				seen[addr] = true
 				out = append(out, addr)
@@ -302,6 +369,11 @@ func foldName(s string) string {
 func patternMatches(pattern, rawURL, bare string) bool {
 	if isPlainPath(pattern) {
 		path := parseURL(bare).path
+		// "/" is the site's home page, not every page under it: that is
+		// what Domain is for.
+		if pattern == "/" {
+			return path == "/" || path == ""
+		}
 		root := strings.TrimSuffix(pattern, "/")
 		return path == pattern || path == root || strings.HasPrefix(path, root+"/")
 	}

@@ -36,6 +36,16 @@ func TestPageNames_InAHunt(t *testing.T) {
 			if err := os.WriteFile(filepath.Join(dir, "pages", "results.hunt"), []byte(results), 0o644); err != nil {
 				t.Fatal(err)
 			}
+			// A page at two addresses, and one known by a pattern: on a
+			// site with a JSON fragment of its own, a page file's whole
+			// addresses join that site's.
+			numbers := "@page: Number pages\n@url: " + o.site + "/numbers.html " + o.site + "/locale.html\n"
+			words := "@page: Word list\n@url: " + o.site + "/word*.html\n"
+			for name, body := range map[string]string{"numbers.hunt": numbers, "words.hunt": words} {
+				if err := os.WriteFile(filepath.Join(dir, "pages", name), []byte(body), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
 			hunt := `@title: page names
 STEP 1: By name
     NAVIGATE to ` + o.site + `/checkboxes.html
@@ -56,6 +66,14 @@ STEP 3: A view known by what it shows, and its page's action
     SET {query} = manul
     USE Results.Search
     VERIFY that the page is 'Results'
+STEP 4: A page at several addresses, and a page by a pattern
+    NAVIGATE to 'Number pages'
+    VERIFY that the page is 'Number pages'
+    NAVIGATE to ` + o.site + `/locale.html
+    VERIFY that the page is 'Number pages'
+    NAVIGATE to ` + o.site + `/words.html
+    VERIFY that the page is 'Word list'
+    VERIFY that the page is NOT 'Number pages'
 DONE.
 `
 			if err := os.WriteFile(filepath.Join(dir, "names.hunt"), []byte(hunt), 0o644); err != nil {
@@ -82,6 +100,7 @@ DONE.
 				Results []struct {
 					Step     string `json:"step"`
 					PageName string `json:"page_name"`
+					PageURL  string `json:"page_url"`
 				} `json:"results"`
 			}
 			if err := json.Unmarshal(stdout.Bytes(), &res); err != nil {
@@ -93,6 +112,15 @@ DONE.
 			}
 			if got := named["EXTRACT the 'Price' into {price}"]; got != "Order details" {
 				t.Errorf("EXTRACT's page_name = %q, want Order details; results %v", got, named)
+			}
+			var first string
+			for _, r := range res.Results {
+				if r.Step == "NAVIGATE to 'Number pages'" {
+					first = r.PageURL
+				}
+			}
+			if first != o.site+"/numbers.html" {
+				t.Errorf("NAVIGATE to 'Number pages' went to %q, want its first @url", first)
 			}
 		})
 	}

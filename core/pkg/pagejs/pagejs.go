@@ -588,6 +588,32 @@ func ElementRect(id int, xpath string) string {
 	`, id, xpath)
 }
 
+// ValueBesideCaption reads the value that the element at ID or XPath
+// captions: the cell after a row's <th>, the element after a <label> or after
+// text ending in ':'. Its completion value is a
+// JSON string: {"found":true,"text":"…"}, or {"found":false} when the element
+// is not such a caption.
+//
+// books.toscrape lists a product as rows of <th>Price (incl. tax)</th>
+// <td>£45.17</td>; VERIFY 'Price (incl. tax)' field has text '£45.17' read
+// the header's own text and failed. A header followed by another header is a
+// column's, and captions nothing beside it.
+func ValueBesideCaption(id int, xpath string) string {
+	return fmt.Sprintf(`(() => {
+		var el = (window.__manulReg && window.__manulReg[%d]) || document.evaluate(%q, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+		var next = el && el.nextElementSibling;
+		if (!next || next.tagName === 'TH') return JSON.stringify({found: false});
+		var own = (el.innerText || '').trim();
+		if (el.tagName !== 'TH' && el.tagName !== 'LABEL' && !/:\s*$/.test(own)) {
+			return JSON.stringify({found: false});
+		}
+		var text = ['INPUT', 'TEXTAREA', 'SELECT'].includes(next.tagName) ?
+			(next.tagName === 'SELECT' ? Array.from(next.selectedOptions).map(function(o) { return o.text; }).join(', ') : next.value) :
+			next.innerText;
+		return JSON.stringify({found: true, text: String(text == null ? '' : text).trim()});
+	})()`, id, xpath)
+}
+
 // CurrentURL is the expression whose value is the page's current URL.
 const CurrentURL = "window.location.href"
 

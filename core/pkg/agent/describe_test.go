@@ -130,3 +130,24 @@ func TestDescribeForLLM_NamesThePage(t *testing.T) {
 		t.Errorf("no name: %q", out)
 	}
 }
+
+// A model that ran EXTRACT and PRINT through run_hunt was told they passed
+// and not what they read; a failed field check said the text was not on the
+// page when the field was there and held something else.
+func TestDescribeForLLM_SaysWhatAStepReadAndWhatAFieldHolds(t *testing.T) {
+	for _, tc := range []struct {
+		o    StepOutcome
+		want string
+	}{
+		{StepOutcome{OK: true, Step: "EXTRACT the 'Price' into {p}", Action: "extract", Value: "£45.17", Reason: ReasonOK}, `read "£45.17"`},
+		{StepOutcome{OK: true, Step: `PRINT "p={p}"`, Action: "print", Value: "p=£45.17", Reason: ReasonOK}, `printed "p=£45.17"`},
+		{StepOutcome{Step: "VERIFY 'Qty' field has value '2'", Action: "verify_field", Reason: ReasonVerifyFailed,
+			Error: `verification failed: 'Qty' has value "1", expected "2"`}, `Why: 'Qty' has value "1", expected "2".`},
+		{StepOutcome{Step: "VERIFY that 'Done' is present", Action: "verify", Reason: ReasonVerifyFailed,
+			Error: "verification failed: 'Done' is not present"}, "is not on the page"},
+	} {
+		if out := tc.o.DescribeForLLM(); !strings.Contains(out, tc.want) {
+			t.Errorf("%s: want %q in\n%s", tc.o.Step, tc.want, out)
+		}
+	}
+}

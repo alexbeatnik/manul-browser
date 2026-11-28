@@ -238,3 +238,40 @@ func TestCustomControl_ByThePagesNameInPages(t *testing.T) {
 		t.Errorf("on an unnamed page: %q, want the any-page control", which)
 	}
 }
+
+// A page file with several addresses and patterns: NAVIGATE goes to its
+// first address, VERIFY knows it at any of them, and a page known by a
+// pattern alone has nowhere to go — NAVIGATE to 'Book' went to "Book".
+func TestNavigateAndVerify_APageWithSeveralAddressesAndPatterns(t *testing.T) {
+	dir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "catalogue.hunt"), []byte("@page: Catalogue\n@url: /index.html / /catalogue/page-*.html\n@expect: 'All products'\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(dir, "book.hunt"), []byte("@page: Book\n@url: /catalogue/*/index.html\n@expect: 'Product Information'\n"), 0o644)
+	run := func(page *MockPage, src string) error {
+		hunt, err := dsl.Parse(strings.NewReader(src))
+		if err != nil {
+			t.Fatal(err)
+		}
+		rt := New(regConfig(), page, utils.NewLoggerTo(nopWriter{}, nil))
+		rt.pages = pages.NewRegistry(dir)
+		_, err = rt.RunHunt(context.Background(), hunt)
+		return err
+	}
+	home := &MockPage{URL: "https://books.test/catalogue/olio_984/index.html"}
+	if err := run(home, "NAVIGATE to 'Catalogue'\n"); err != nil || home.LastNavigate != "https://books.test/index.html" {
+		t.Errorf("NAVIGATE to 'Catalogue': %v, went to %q", err, home.LastNavigate)
+	}
+	for _, url := range []string{"https://books.test/", "https://books.test/catalogue/page-3.html"} {
+		at := &MockPage{URL: url, Elements: []dom.ElementSnapshot{regEl(1, "h1", "All products")}}
+		if err := run(at, "VERIFY that the page is 'Catalogue'\n"); err != nil {
+			t.Errorf("%s: %v", url, err)
+		}
+	}
+	book := &MockPage{URL: "https://books.test/catalogue/olio_984/index.html", Elements: []dom.ElementSnapshot{regEl(1, "h2", "Product Information")}}
+	if err := run(book, "VERIFY that the page is 'Book'\nVERIFY that the page is NOT 'Catalogue'\n"); err != nil {
+		t.Errorf("a book: %v", err)
+	}
+	err := run(&MockPage{URL: "https://books.test/"}, "NAVIGATE to 'Book'\n")
+	if err == nil || !strings.Contains(err.Error(), "by pattern only (/catalogue/*/index.html)") {
+		t.Errorf("NAVIGATE to 'Book': %v", err)
+	}
+}
